@@ -5,6 +5,10 @@ from typing import Iterable
 import httpx
 
 from google_workspace_admin.auth.adc import get_adc_credentials
+from google_workspace_admin.auth.token_cache import (
+    get_cached_token,
+    store_token,
+)
 from google_workspace_admin.config import settings
 
 
@@ -37,16 +41,26 @@ def get_workspace_access_token(
 
     ADC -> IAM Credentials signJwt -> DWD -> OAuth 2.0
 
-    Nenhuma chave privada da Service Account é armazenada localmente.
+    Tokens válidos são reutilizados somente em memória.
+    Nenhuma chave privada ou access token é persistido em disco.
     """
 
     delegated_subject = subject or settings.default_subject
+    scope_list = list(scopes)
+
+    cached_token = get_cached_token(
+        subject=delegated_subject,
+        scopes=scope_list,
+    )
+
+    if cached_token:
+        return cached_token, 0
 
     credentials, _ = get_adc_credentials()
 
     payload = _build_jwt_payload(
         subject=delegated_subject,
-        scopes=scopes,
+        scopes=scope_list,
     )
 
     serialized_payload = json.dumps(
@@ -110,5 +124,12 @@ def get_workspace_access_token(
             raise DwdAuthenticationError(
                 "OAuth não retornou access_token."
             )
+
+        store_token(
+            subject=delegated_subject,
+            scopes=scope_list,
+            access_token=access_token,
+            expires_in=expires_in,
+        )
 
         return access_token, expires_in
