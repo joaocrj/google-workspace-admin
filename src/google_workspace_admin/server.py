@@ -1,5 +1,7 @@
 from mcp.server import MCPServer
 
+from google_workspace_admin.directory.groups import list_groups
+
 from google_workspace_admin.directory.users import (
     get_user,
     list_users,
@@ -67,6 +69,31 @@ def workspace_user_get(user_key: str) -> dict:
 
     return _serialize_user(user)
 
+def _serialize_group(group: dict) -> dict:
+    """Seleciona os campos de grupo que podem ser expostos pelo MCP."""
+    return {
+        "id": group.get("id"),
+        "email": group.get("email"),
+        "name": group.get("name"),
+        "description": group.get("description"),
+        "direct_members_count": group.get("directMembersCount"),
+        "admin_created": group.get("adminCreated"),
+    }
+
+
+@mcp.tool()
+def workspace_groups_list(max_results: int = 20) -> list[dict]:
+    """
+    Lista grupos do Google Workspace.
+
+    Args:
+        max_results: Quantidade máxima de grupos a retornar.
+    """
+    if max_results < 1 or max_results > 200:
+        raise ValueError("max_results deve estar entre 1 e 200.")
+
+    groups = list_groups(max_results=max_results)
+    return [_serialize_group(group) for group in groups]
 
 if __name__ == "__main__":
     mcp.run()

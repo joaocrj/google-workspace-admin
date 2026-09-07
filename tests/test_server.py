@@ -1,3 +1,5 @@
+import pytest
+
 from google_workspace_admin import server
 
 
@@ -94,3 +96,48 @@ def test_workspace_users_list_rejects_above_100():
         assert "entre 1 e 100" in str(exc)
     else:
         raise AssertionError("ValueError esperado.")
+        
+def test_workspace_groups_list(monkeypatch):
+    fake_groups = [
+        {
+            "id": "group-123",
+            "email": "classroom_teachers@cevalente.com.br",
+            "name": "Classroom Teachers",
+            "description": "Grupo de professores",
+            "directMembersCount": "3",
+            "adminCreated": True,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "google_workspace_admin.server.list_groups",
+        lambda max_results: fake_groups,
+    )
+
+    result = server.workspace_groups_list(max_results=10)
+
+    assert result == [
+        {
+            "id": "group-123",
+            "email": "classroom_teachers@cevalente.com.br",
+            "name": "Classroom Teachers",
+            "description": "Grupo de professores",
+            "direct_members_count": "3",
+            "admin_created": True,
+        }
+    ]
+
+def test_workspace_groups_list_rejects_zero():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 200",
+    ):
+        server.workspace_groups_list(max_results=0)
+
+
+def test_workspace_groups_list_rejects_above_limit():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 200",
+    ):
+        server.workspace_groups_list(max_results=201)
