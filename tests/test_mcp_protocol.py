@@ -53,6 +53,7 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_user_get" in tool_names
     assert "workspace_groups_list" in tool_names
     assert "workspace_group_members_list" in tool_names
+    assert "workspace_orgunits_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -175,7 +176,8 @@ async def test_workspace_users_list_validation_through_mcp(
     )
 
     assert result.is_error is True
-    
+
+
 @pytest.mark.anyio
 async def test_workspace_groups_list_through_mcp(
     client: Client,
@@ -220,6 +222,7 @@ async def test_workspace_groups_list_through_mcp(
     assert payload[0]["direct_members_count"] == "3"
     assert payload[0]["admin_created"] is True
 
+
 @pytest.mark.anyio
 async def test_workspace_group_members_list_through_mcp(
     client: Client,
@@ -261,3 +264,63 @@ async def test_workspace_group_members_list_through_mcp(
     assert payload[0]["type"] == "USER"
     assert payload[0]["status"] == "ACTIVE"
     assert payload[0]["delivery_settings"] == "ALL_MAIL"
+
+
+@pytest.mark.anyio
+async def test_workspace_orgunits_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_orgunits = [
+        {
+            "orgUnitId": "id:cev-users",
+            "name": "CEV_USERS",
+            "description": "Usuários da organização",
+            "orgUnitPath": "/CEV_USERS",
+            "parentOrgUnitId": "id:root",
+            "parentOrgUnitPath": "/",
+            "blockInheritance": False,
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_orgunits",
+        lambda org_unit_path="/", org_unit_type="all": fake_orgunits,
+    )
+
+    result = await client.call_tool(
+        "workspace_orgunits_list",
+        {
+            "org_unit_path": "/CEV_USERS",
+            "org_unit_type": "all_including_parent",
+        },
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["org_unit_id"] == "id:cev-users"
+    assert payload[0]["name"] == "CEV_USERS"
+    assert payload[0]["description"] == "Usuários da organização"
+    assert payload[0]["org_unit_path"] == "/CEV_USERS"
+    assert payload[0]["parent_org_unit_id"] == "id:root"
+    assert payload[0]["parent_org_unit_path"] == "/"
+    assert payload[0]["block_inheritance"] is False
+
+
+@pytest.mark.anyio
+async def test_workspace_orgunits_list_validation_through_mcp(
+    client: Client,
+):
+    result = await client.call_tool(
+        "workspace_orgunits_list",
+        {
+            "org_unit_path": "CEV_USERS",
+            "org_unit_type": "all",
+        },
+    )
+
+    assert result.is_error is True

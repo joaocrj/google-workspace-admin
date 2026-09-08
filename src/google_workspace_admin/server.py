@@ -1,15 +1,15 @@
 from mcp.server import MCPServer
 
+from google_workspace_admin.directory.group_members import (
+    list_group_members,
+)
 from google_workspace_admin.directory.groups import list_groups
-
+from google_workspace_admin.directory.orgunits import list_orgunits
 from google_workspace_admin.directory.users import (
     get_user,
     list_users,
 )
 
-from google_workspace_admin.directory.group_members import (
-    list_group_members,
-)
 
 mcp = MCPServer(
     name="Google Workspace Admin",
@@ -72,6 +72,7 @@ def workspace_user_get(user_key: str) -> dict:
 
     return _serialize_user(user)
 
+
 def _serialize_group(group: dict) -> dict:
     """Seleciona os campos de grupo que podem ser expostos pelo MCP."""
     return {
@@ -96,6 +97,7 @@ def workspace_groups_list(max_results: int = 20) -> list[dict]:
         raise ValueError("max_results deve estar entre 1 e 200.")
 
     groups = list_groups(max_results=max_results)
+
     return [_serialize_group(group) for group in groups]
 
 
@@ -138,6 +140,61 @@ def workspace_group_members_list(
         _serialize_group_member(member)
         for member in members
     ]
+
+
+def _serialize_orgunit(orgunit: dict) -> dict:
+    """Seleciona os campos de unidade organizacional expostos pelo MCP."""
+    return {
+        "org_unit_id": orgunit.get("orgUnitId"),
+        "name": orgunit.get("name"),
+        "description": orgunit.get("description"),
+        "org_unit_path": orgunit.get("orgUnitPath"),
+        "parent_org_unit_id": orgunit.get("parentOrgUnitId"),
+        "parent_org_unit_path": orgunit.get("parentOrgUnitPath"),
+        "block_inheritance": orgunit.get("blockInheritance"),
+    }
+
+
+@mcp.tool()
+def workspace_orgunits_list(
+    org_unit_path: str = "/",
+    org_unit_type: str = "all",
+) -> list[dict]:
+    """
+    Lista unidades organizacionais do Google Workspace.
+
+    Args:
+        org_unit_path: Caminho da OU que será a raiz da consulta.
+        org_unit_type: Tipo da consulta: all, children ou all_including_parent.
+    """
+    normalized_path = org_unit_path.strip()
+    if not normalized_path:
+        raise ValueError("org_unit_path não pode estar vazio.")
+
+    if not normalized_path.startswith("/"):
+        raise ValueError("org_unit_path deve começar com '/'.")
+
+    allowed_types = {
+        "all",
+        "children",
+        "all_including_parent",
+    }
+    if org_unit_type not in allowed_types:
+        raise ValueError(
+            "org_unit_type deve ser 'all', 'children' "
+            "ou 'all_including_parent'."
+        )
+
+    orgunits = list_orgunits(
+        org_unit_path=normalized_path,
+        org_unit_type=org_unit_type,
+    )
+
+    return [
+        _serialize_orgunit(orgunit)
+        for orgunit in orgunits
+    ]
+
 
 if __name__ == "__main__":
     mcp.run()
