@@ -7,6 +7,9 @@ from google_workspace_admin.directory.users import (
     list_users,
 )
 
+from google_workspace_admin.directory.group_members import (
+    list_group_members,
+)
 
 mcp = MCPServer(
     name="Google Workspace Admin",
@@ -94,6 +97,47 @@ def workspace_groups_list(max_results: int = 20) -> list[dict]:
 
     groups = list_groups(max_results=max_results)
     return [_serialize_group(group) for group in groups]
+
+
+def _serialize_group_member(member: dict) -> dict:
+    """Seleciona os campos de membro de grupo que podem ser expostos pelo MCP."""
+    return {
+        "id": member.get("id"),
+        "email": member.get("email"),
+        "role": member.get("role"),
+        "type": member.get("type"),
+        "status": member.get("status"),
+        "delivery_settings": member.get("delivery_settings"),
+    }
+
+
+@mcp.tool()
+def workspace_group_members_list(
+    group_key: str,
+    max_results: int = 200,
+) -> list[dict]:
+    """
+    Lista membros diretos de um grupo do Google Workspace.
+
+    Args:
+        group_key: E-mail, alias ou ID imutável do grupo.
+        max_results: Quantidade máxima de membros a retornar.
+    """
+    if not group_key.strip():
+        raise ValueError("group_key não pode estar vazio.")
+
+    if max_results < 1 or max_results > 200:
+        raise ValueError("max_results deve estar entre 1 e 200.")
+
+    members = list_group_members(
+        group_key=group_key,
+        max_results=max_results,
+    )
+
+    return [
+        _serialize_group_member(member)
+        for member in members
+    ]
 
 if __name__ == "__main__":
     mcp.run()

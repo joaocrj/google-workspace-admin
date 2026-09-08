@@ -52,6 +52,7 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_users_list" in tool_names
     assert "workspace_user_get" in tool_names
     assert "workspace_groups_list" in tool_names
+    assert "workspace_group_members_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -218,3 +219,45 @@ async def test_workspace_groups_list_through_mcp(
     assert payload[0]["description"] == "Grupo de professores"
     assert payload[0]["direct_members_count"] == "3"
     assert payload[0]["admin_created"] is True
+
+@pytest.mark.anyio
+async def test_workspace_group_members_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_members = [
+        {
+            "id": "member-123",
+            "email": "usuario@cevalente.com.br",
+            "role": "MEMBER",
+            "type": "USER",
+            "status": "ACTIVE",
+            "delivery_settings": "ALL_MAIL",
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_group_members",
+        lambda group_key, max_results=200: fake_members,
+    )
+
+    result = await client.call_tool(
+        "workspace_group_members_list",
+        {
+            "group_key": "grupo@cevalente.com.br",
+            "max_results": 100,
+        },
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["id"] == "member-123"
+    assert payload[0]["email"] == "usuario@cevalente.com.br"
+    assert payload[0]["role"] == "MEMBER"
+    assert payload[0]["type"] == "USER"
+    assert payload[0]["status"] == "ACTIVE"
+    assert payload[0]["delivery_settings"] == "ALL_MAIL"

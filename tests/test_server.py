@@ -141,3 +141,69 @@ def test_workspace_groups_list_rejects_above_limit():
         match="max_results deve estar entre 1 e 200",
     ):
         server.workspace_groups_list(max_results=201)
+
+def test_workspace_group_members_list(monkeypatch):
+    fake_members = [
+        {
+            "id": "member-123",
+            "email": "usuario@cevalente.com.br",
+            "role": "MEMBER",
+            "type": "USER",
+            "status": "ACTIVE",
+            "delivery_settings": "ALL_MAIL",
+        }
+    ]
+
+    monkeypatch.setattr(
+        "google_workspace_admin.server.list_group_members",
+        lambda group_key, max_results: fake_members,
+    )
+
+    result = server.workspace_group_members_list(
+        group_key="grupo@cevalente.com.br",
+        max_results=100,
+    )
+
+    assert result == [
+        {
+            "id": "member-123",
+            "email": "usuario@cevalente.com.br",
+            "role": "MEMBER",
+            "type": "USER",
+            "status": "ACTIVE",
+            "delivery_settings": "ALL_MAIL",
+        }
+    ]
+
+
+def test_workspace_group_members_list_rejects_empty_group_key():
+    with pytest.raises(
+        ValueError,
+        match="group_key não pode estar vazio",
+    ):
+        server.workspace_group_members_list(
+            group_key="   ",
+            max_results=100,
+        )
+
+
+def test_workspace_group_members_list_rejects_zero():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 200",
+    ):
+        server.workspace_group_members_list(
+            group_key="grupo@cevalente.com.br",
+            max_results=0,
+        )
+
+
+def test_workspace_group_members_list_rejects_above_limit():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 200",
+    ):
+        server.workspace_group_members_list(
+            group_key="grupo@cevalente.com.br",
+            max_results=201,
+        )
