@@ -56,6 +56,8 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_orgunits_list" in tool_names
     assert "workspace_mobile_devices_list" in tool_names
     assert "workspace_chromeos_devices_list" in tool_names
+    assert "workspace_roles_list" in tool_names
+    assert "workspace_role_assignments_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -473,3 +475,84 @@ async def test_workspace_chromeos_devices_list_validation_through_mcp(
     )
 
     assert result.is_error is True
+
+@pytest.mark.anyio
+async def test_workspace_roles_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_roles = [
+        {
+            "roleId": "role-123",
+            "roleName": "_SEED_ADMIN_ROLE",
+            "roleDescription": "Super administrador",
+            "rolePrivileges": [],
+            "isSystemRole": True,
+            "isSuperAdminRole": True,
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_roles",
+        lambda max_results=100: fake_roles,
+    )
+
+    result = await client.call_tool(
+        "workspace_roles_list",
+        {
+            "max_results": 50,
+        },
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["role_id"] == "role-123"
+    assert payload[0]["role_name"] == "_SEED_ADMIN_ROLE"
+    assert payload[0]["role_description"] == "Super administrador"
+    assert payload[0]["role_privileges"] == []
+    assert payload[0]["is_system_role"] is True
+    assert payload[0]["is_super_admin_role"] is True
+
+
+@pytest.mark.anyio
+async def test_workspace_role_assignments_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_assignments = [
+        {
+            "roleAssignmentId": "assignment-123",
+            "roleId": "role-123",
+            "assignedTo": "100056319502616315227",
+            "scopeType": "CUSTOMER",
+            "orgUnitId": None,
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_role_assignments",
+        lambda max_results=100: fake_assignments,
+    )
+
+    result = await client.call_tool(
+        "workspace_role_assignments_list",
+        {
+            "max_results": 50,
+        },
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["role_assignment_id"] == "assignment-123"
+    assert payload[0]["role_id"] == "role-123"
+    assert payload[0]["assigned_to"] == "100056319502616315227"
+    assert payload[0]["scope_type"] == "CUSTOMER"
+    assert payload[0]["org_unit_id"] is None

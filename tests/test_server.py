@@ -512,3 +512,143 @@ def test_workspace_chromeos_devices_list_rejects_above_limit():
         server.workspace_chromeos_devices_list(
             max_results=301,
         )
+def test_workspace_roles_list(monkeypatch):
+    fake_roles = [
+        {
+            "roleId": "role-123",
+            "roleName": "_SEED_ADMIN_ROLE",
+            "roleDescription": "Super administrador",
+            "rolePrivileges": [
+                {
+                    "privilegeName": "USERS_RETRIEVE",
+                    "serviceId": "00haapch16h1ysv",
+                }
+            ],
+            "isSystemRole": True,
+            "isSuperAdminRole": True,
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_roles",
+        lambda max_results=100: fake_roles,
+    )
+
+    result = server.workspace_roles_list(
+        max_results=50,
+    )
+
+    assert result == [
+        {
+            "role_id": "role-123",
+            "role_name": "_SEED_ADMIN_ROLE",
+            "role_description": "Super administrador",
+            "role_privileges": [
+                {
+                    "privilegeName": "USERS_RETRIEVE",
+                    "serviceId": "00haapch16h1ysv",
+                }
+            ],
+            "is_system_role": True,
+            "is_super_admin_role": True,
+        }
+    ]
+
+
+def test_workspace_roles_list_uses_default(monkeypatch):
+    captured = {}
+
+    def fake_list_roles(max_results=100):
+        captured["max_results"] = max_results
+        return []
+
+    monkeypatch.setattr(
+        server,
+        "list_roles",
+        fake_list_roles,
+    )
+
+    result = server.workspace_roles_list()
+
+    assert result == []
+    assert captured["max_results"] == 100
+
+
+def test_workspace_roles_list_rejects_invalid_limits():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 100",
+    ):
+        server.workspace_roles_list(max_results=0)
+
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 100",
+    ):
+        server.workspace_roles_list(max_results=101)
+
+
+def test_workspace_role_assignments_list(monkeypatch):
+    fake_assignments = [
+        {
+            "roleAssignmentId": "assignment-123",
+            "roleId": "role-123",
+            "assignedTo": "100056319502616315227",
+            "scopeType": "CUSTOMER",
+            "orgUnitId": None,
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_role_assignments",
+        lambda max_results=100: fake_assignments,
+    )
+
+    result = server.workspace_role_assignments_list(
+        max_results=50,
+    )
+
+    assert result == [
+        {
+            "role_assignment_id": "assignment-123",
+            "role_id": "role-123",
+            "assigned_to": "100056319502616315227",
+            "scope_type": "CUSTOMER",
+            "org_unit_id": None,
+        }
+    ]
+
+
+def test_workspace_role_assignments_list_uses_default(monkeypatch):
+    captured = {}
+
+    def fake_list_role_assignments(max_results=100):
+        captured["max_results"] = max_results
+        return []
+
+    monkeypatch.setattr(
+        server,
+        "list_role_assignments",
+        fake_list_role_assignments,
+    )
+
+    result = server.workspace_role_assignments_list()
+
+    assert result == []
+    assert captured["max_results"] == 100
+
+
+def test_workspace_role_assignments_list_rejects_invalid_limits():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 100",
+    ):
+        server.workspace_role_assignments_list(max_results=0)
+
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 100",
+    ):
+        server.workspace_role_assignments_list(max_results=101)

@@ -1,19 +1,23 @@
 from mcp.server import MCPServer
 
+from google_workspace_admin.directory.chromeos_devices import (
+    list_chromeos_devices,
+)
 from google_workspace_admin.directory.group_members import (
     list_group_members,
 )
 from google_workspace_admin.directory.groups import list_groups
-from google_workspace_admin.directory.orgunits import list_orgunits
-from google_workspace_admin.directory.users import (
-    get_user,
-    list_users,
-)
 from google_workspace_admin.directory.mobile_devices import (
     list_mobile_devices,
 )
-from google_workspace_admin.directory.chromeos_devices import (
-    list_chromeos_devices,
+from google_workspace_admin.directory.orgunits import list_orgunits
+from google_workspace_admin.directory.role_assignments import (
+    list_role_assignments,
+)
+from google_workspace_admin.directory.roles import list_roles
+from google_workspace_admin.directory.users import (
+    get_user,
+    list_users,
 )
 
 mcp = MCPServer(
@@ -200,6 +204,7 @@ def workspace_orgunits_list(
         for orgunit in orgunits
     ]
 
+
 def _serialize_mobile_device(device: dict) -> dict:
     """Seleciona os campos de dispositivo móvel expostos pelo MCP."""
     return {
@@ -294,6 +299,75 @@ def workspace_chromeos_devices_list(
     return [
         _serialize_chromeos_device(device)
         for device in devices
+    ]
+
+
+def _serialize_role(role: dict) -> dict:
+    """Seleciona os campos de função administrativa expostos pelo MCP."""
+    return {
+        "role_id": role.get("roleId"),
+        "role_name": role.get("roleName"),
+        "role_description": role.get("roleDescription"),
+        "role_privileges": role.get("rolePrivileges"),
+        "is_system_role": role.get("isSystemRole"),
+        "is_super_admin_role": role.get("isSuperAdminRole"),
+    }
+
+
+@mcp.tool()
+def workspace_roles_list(
+    max_results: int = 100,
+) -> list[dict]:
+    """
+    Lista funções administrativas do Google Workspace.
+
+    Args:
+        max_results: Quantidade máxima de funções a retornar.
+    """
+    if max_results < 1 or max_results > 100:
+        raise ValueError("max_results deve estar entre 1 e 100.")
+
+    roles = list_roles(
+        max_results=max_results,
+    )
+
+    return [
+        _serialize_role(role)
+        for role in roles
+    ]
+
+
+def _serialize_role_assignment(assignment: dict) -> dict:
+    """Seleciona os campos de atribuição administrativa expostos pelo MCP."""
+    return {
+        "role_assignment_id": assignment.get("roleAssignmentId"),
+        "role_id": assignment.get("roleId"),
+        "assigned_to": assignment.get("assignedTo"),
+        "scope_type": assignment.get("scopeType"),
+        "org_unit_id": assignment.get("orgUnitId"),
+    }
+
+
+@mcp.tool()
+def workspace_role_assignments_list(
+    max_results: int = 100,
+) -> list[dict]:
+    """
+    Lista atribuições de funções administrativas do Google Workspace.
+
+    Args:
+        max_results: Quantidade máxima de atribuições a retornar.
+    """
+    if max_results < 1 or max_results > 100:
+        raise ValueError("max_results deve estar entre 1 e 100.")
+
+    assignments = list_role_assignments(
+        max_results=max_results,
+    )
+
+    return [
+        _serialize_role_assignment(assignment)
+        for assignment in assignments
     ]
 
 
