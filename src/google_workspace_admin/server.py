@@ -9,6 +9,9 @@ from google_workspace_admin.directory.users import (
     get_user,
     list_users,
 )
+from google_workspace_admin.directory.mobile_devices import (
+    list_mobile_devices,
+)
 
 
 mcp = MCPServer(
@@ -193,6 +196,55 @@ def workspace_orgunits_list(
     return [
         _serialize_orgunit(orgunit)
         for orgunit in orgunits
+    ]
+
+def _serialize_mobile_device(device: dict) -> dict:
+    """Seleciona os campos de dispositivo móvel expostos pelo MCP."""
+    return {
+        "resource_id": device.get("resourceId"),
+        "device_id": device.get("deviceId"),
+        "name": device.get("name"),
+        "email": device.get("email"),
+        "model": device.get("model"),
+        "manufacturer": device.get("manufacturer"),
+        "type": device.get("type"),
+        "os": device.get("os"),
+        "status": device.get("status"),
+        "first_sync": device.get("firstSync"),
+        "last_sync": device.get("lastSync"),
+        "hardware_id": device.get("hardwareId"),
+        "serial_number": device.get("serialNumber"),
+        "imei": device.get("imei"),
+        "meid": device.get("meid"),
+        "wifi_mac_address": device.get("wifiMacAddress"),
+        "network_operator": device.get("networkOperator"),
+        "default_language": device.get("defaultLanguage"),
+        "managed_account_is_on_owner_profile": (
+            device.get("managedAccountIsOnOwnerProfile")
+        ),
+    }
+
+
+@mcp.tool()
+def workspace_mobile_devices_list(
+    max_results: int = 100,
+) -> list[dict]:
+    """
+    Lista dispositivos móveis de usuários do Google Workspace.
+
+    Args:
+        max_results: Quantidade máxima de dispositivos a retornar.
+    """
+    if max_results < 1 or max_results > 100:
+        raise ValueError("max_results deve estar entre 1 e 100.")
+
+    devices = list_mobile_devices(
+        max_results=max_results,
+    )
+
+    return [
+        _serialize_mobile_device(device)
+        for device in devices
     ]
 
 

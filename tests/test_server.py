@@ -322,3 +322,99 @@ def test_workspace_orgunits_list_rejects_invalid_type():
             org_unit_path="/",
             org_unit_type="invalid",
         )
+
+def test_workspace_mobile_devices_list(monkeypatch):
+    fake_devices = [
+        {
+            "resourceId": "resource-123",
+            "deviceId": "device-123",
+            "name": ["Usuário Teste"],
+            "email": ["teste@cevalente.com.br"],
+            "model": "SM-A155M",
+            "manufacturer": "Samsung",
+            "type": "ANDROID",
+            "os": "Android 16",
+            "status": "APPROVED",
+            "firstSync": "2026-01-01T10:00:00.000Z",
+            "lastSync": "2026-09-08T12:00:00.000Z",
+            "hardwareId": "hardware-123",
+            "serialNumber": "serial-123",
+            "imei": "imei-123",
+            "meid": "meid-123",
+            "wifiMacAddress": "00:11:22:33:44:55",
+            "networkOperator": "Claro",
+            "defaultLanguage": "pt-BR",
+            "managedAccountIsOnOwnerProfile": True,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "google_workspace_admin.server.list_mobile_devices",
+        lambda max_results=100: fake_devices,
+    )
+
+    result = server.workspace_mobile_devices_list(
+        max_results=50,
+    )
+
+    assert result == [
+        {
+            "resource_id": "resource-123",
+            "device_id": "device-123",
+            "name": ["Usuário Teste"],
+            "email": ["teste@cevalente.com.br"],
+            "model": "SM-A155M",
+            "manufacturer": "Samsung",
+            "type": "ANDROID",
+            "os": "Android 16",
+            "status": "APPROVED",
+            "first_sync": "2026-01-01T10:00:00.000Z",
+            "last_sync": "2026-09-08T12:00:00.000Z",
+            "hardware_id": "hardware-123",
+            "serial_number": "serial-123",
+            "imei": "imei-123",
+            "meid": "meid-123",
+            "wifi_mac_address": "00:11:22:33:44:55",
+            "network_operator": "Claro",
+            "default_language": "pt-BR",
+            "managed_account_is_on_owner_profile": True,
+        }
+    ]
+
+
+def test_workspace_mobile_devices_list_uses_default(monkeypatch):
+    captured = {}
+
+    def fake_list_mobile_devices(max_results=100):
+        captured["max_results"] = max_results
+        return []
+
+    monkeypatch.setattr(
+        "google_workspace_admin.server.list_mobile_devices",
+        fake_list_mobile_devices,
+    )
+
+    result = server.workspace_mobile_devices_list()
+
+    assert result == []
+    assert captured["max_results"] == 100
+
+
+def test_workspace_mobile_devices_list_rejects_zero():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 100",
+    ):
+        server.workspace_mobile_devices_list(
+            max_results=0,
+        )
+
+
+def test_workspace_mobile_devices_list_rejects_above_limit():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 100",
+    ):
+        server.workspace_mobile_devices_list(
+            max_results=101,
+        )

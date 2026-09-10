@@ -54,6 +54,7 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_groups_list" in tool_names
     assert "workspace_group_members_list" in tool_names
     assert "workspace_orgunits_list" in tool_names
+    assert "workspace_mobile_devices_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -320,6 +321,81 @@ async def test_workspace_orgunits_list_validation_through_mcp(
         {
             "org_unit_path": "CEV_USERS",
             "org_unit_type": "all",
+        },
+    )
+
+    assert result.is_error is True
+
+@pytest.mark.anyio
+async def test_workspace_mobile_devices_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_devices = [
+        {
+            "resourceId": "resource-123",
+            "deviceId": "device-123",
+            "name": ["Usuário Teste"],
+            "email": ["teste@cevalente.com.br"],
+            "model": "SM-A155M",
+            "manufacturer": "Samsung",
+            "type": "ANDROID",
+            "os": "Android 16",
+            "status": "APPROVED",
+            "firstSync": "2026-01-01T10:00:00.000Z",
+            "lastSync": "2026-09-08T12:00:00.000Z",
+            "hardwareId": "hardware-123",
+            "serialNumber": "serial-123",
+            "imei": "imei-123",
+            "meid": "meid-123",
+            "wifiMacAddress": "00:11:22:33:44:55",
+            "networkOperator": "Claro",
+            "defaultLanguage": "pt-BR",
+            "managedAccountIsOnOwnerProfile": True,
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_mobile_devices",
+        lambda max_results=100: fake_devices,
+    )
+
+    result = await client.call_tool(
+        "workspace_mobile_devices_list",
+        {
+            "max_results": 50,
+        },
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["resource_id"] == "resource-123"
+    assert payload[0]["device_id"] == "device-123"
+    assert payload[0]["name"] == ["Usuário Teste"]
+    assert payload[0]["email"] == ["teste@cevalente.com.br"]
+    assert payload[0]["model"] == "SM-A155M"
+    assert payload[0]["manufacturer"] == "Samsung"
+    assert payload[0]["type"] == "ANDROID"
+    assert payload[0]["os"] == "Android 16"
+    assert payload[0]["status"] == "APPROVED"
+    assert payload[0]["serial_number"] == "serial-123"
+    assert payload[0]["network_operator"] == "Claro"
+    assert payload[0]["default_language"] == "pt-BR"
+    assert payload[0]["managed_account_is_on_owner_profile"] is True
+
+
+@pytest.mark.anyio
+async def test_workspace_mobile_devices_list_validation_through_mcp(
+    client: Client,
+):
+    result = await client.call_tool(
+        "workspace_mobile_devices_list",
+        {
+            "max_results": 101,
         },
     )
 
