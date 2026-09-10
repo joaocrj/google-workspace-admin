@@ -55,6 +55,7 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_group_members_list" in tool_names
     assert "workspace_orgunits_list" in tool_names
     assert "workspace_mobile_devices_list" in tool_names
+    assert "workspace_chromeos_devices_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -396,6 +397,78 @@ async def test_workspace_mobile_devices_list_validation_through_mcp(
         "workspace_mobile_devices_list",
         {
             "max_results": 101,
+        },
+    )
+
+    assert result.is_error is True
+
+@pytest.mark.anyio
+async def test_workspace_chromeos_devices_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_devices = [
+        {
+            "deviceId": "chromeos-device-123",
+            "serialNumber": "SERIAL-123",
+            "model": "Chromebook Plus",
+            "manufacturer": "Acer",
+            "status": "ACTIVE",
+            "osVersion": "140.0.7339.185",
+            "platformVersion": "16371.68.0",
+            "firmwareVersion": "Google_Test.12345",
+            "macAddress": "00:11:22:33:44:55",
+            "ethernetMacAddress": "00:11:22:33:44:66",
+            "orgUnitPath": "/CEV_USERS",
+            "annotatedUser": "usuario@cevalente.com.br",
+            "annotatedLocation": "Escritório",
+            "annotatedAssetId": "ASSET-123",
+            "lastSync": "2026-09-10T12:00:00.000Z",
+            "lastEnrollmentTime": "2026-01-01T10:00:00.000Z",
+            "supportEndDate": "2030-01-01T00:00:00.000Z",
+            "notes": "Equipamento de teste",
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_chromeos_devices",
+        lambda max_results=100: fake_devices,
+    )
+
+    result = await client.call_tool(
+        "workspace_chromeos_devices_list",
+        {
+            "max_results": 50,
+        },
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["device_id"] == "chromeos-device-123"
+    assert payload[0]["serial_number"] == "SERIAL-123"
+    assert payload[0]["model"] == "Chromebook Plus"
+    assert payload[0]["manufacturer"] == "Acer"
+    assert payload[0]["status"] == "ACTIVE"
+    assert payload[0]["os_version"] == "140.0.7339.185"
+    assert payload[0]["org_unit_path"] == "/CEV_USERS"
+    assert payload[0]["annotated_user"] == "usuario@cevalente.com.br"
+    assert payload[0]["annotated_location"] == "Escritório"
+    assert payload[0]["annotated_asset_id"] == "ASSET-123"
+    assert payload[0]["notes"] == "Equipamento de teste"
+
+
+@pytest.mark.anyio
+async def test_workspace_chromeos_devices_list_validation_through_mcp(
+    client: Client,
+):
+    result = await client.call_tool(
+        "workspace_chromeos_devices_list",
+        {
+            "max_results": 301,
         },
     )
 

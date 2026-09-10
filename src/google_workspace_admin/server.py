@@ -12,7 +12,9 @@ from google_workspace_admin.directory.users import (
 from google_workspace_admin.directory.mobile_devices import (
     list_mobile_devices,
 )
-
+from google_workspace_admin.directory.chromeos_devices import (
+    list_chromeos_devices,
+)
 
 mcp = MCPServer(
     name="Google Workspace Admin",
@@ -244,6 +246,53 @@ def workspace_mobile_devices_list(
 
     return [
         _serialize_mobile_device(device)
+        for device in devices
+    ]
+
+
+def _serialize_chromeos_device(device: dict) -> dict:
+    """Seleciona os campos de dispositivo ChromeOS expostos pelo MCP."""
+    return {
+        "device_id": device.get("deviceId"),
+        "serial_number": device.get("serialNumber"),
+        "model": device.get("model"),
+        "manufacturer": device.get("manufacturer"),
+        "status": device.get("status"),
+        "os_version": device.get("osVersion"),
+        "platform_version": device.get("platformVersion"),
+        "firmware_version": device.get("firmwareVersion"),
+        "mac_address": device.get("macAddress"),
+        "ethernet_mac_address": device.get("ethernetMacAddress"),
+        "org_unit_path": device.get("orgUnitPath"),
+        "annotated_user": device.get("annotatedUser"),
+        "annotated_location": device.get("annotatedLocation"),
+        "annotated_asset_id": device.get("annotatedAssetId"),
+        "last_sync": device.get("lastSync"),
+        "last_enrollment_time": device.get("lastEnrollmentTime"),
+        "support_end_date": device.get("supportEndDate"),
+        "notes": device.get("notes"),
+    }
+
+
+@mcp.tool()
+def workspace_chromeos_devices_list(
+    max_results: int = 100,
+) -> list[dict]:
+    """
+    Lista dispositivos ChromeOS do Google Workspace.
+
+    Args:
+        max_results: Quantidade máxima de dispositivos a retornar.
+    """
+    if max_results < 1 or max_results > 300:
+        raise ValueError("max_results deve estar entre 1 e 300.")
+
+    devices = list_chromeos_devices(
+        max_results=max_results,
+    )
+
+    return [
+        _serialize_chromeos_device(device)
         for device in devices
     ]
 

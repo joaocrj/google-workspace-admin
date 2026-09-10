@@ -418,3 +418,97 @@ def test_workspace_mobile_devices_list_rejects_above_limit():
         server.workspace_mobile_devices_list(
             max_results=101,
         )
+
+def test_workspace_chromeos_devices_list(monkeypatch):
+    fake_devices = [
+        {
+            "deviceId": "chromeos-device-123",
+            "serialNumber": "SERIAL-123",
+            "model": "Chromebook Plus",
+            "manufacturer": "Acer",
+            "status": "ACTIVE",
+            "osVersion": "140.0.7339.185",
+            "platformVersion": "16371.68.0",
+            "firmwareVersion": "Google_Test.12345",
+            "macAddress": "00:11:22:33:44:55",
+            "ethernetMacAddress": "00:11:22:33:44:66",
+            "orgUnitPath": "/CEV_USERS",
+            "annotatedUser": "usuario@cevalente.com.br",
+            "annotatedLocation": "Escritório",
+            "annotatedAssetId": "ASSET-123",
+            "lastSync": "2026-09-10T12:00:00.000Z",
+            "lastEnrollmentTime": "2026-01-01T10:00:00.000Z",
+            "supportEndDate": "2030-01-01T00:00:00.000Z",
+            "notes": "Equipamento de teste",
+        }
+    ]
+
+    monkeypatch.setattr(
+        "google_workspace_admin.server.list_chromeos_devices",
+        lambda max_results=100: fake_devices,
+    )
+
+    result = server.workspace_chromeos_devices_list(
+        max_results=50,
+    )
+
+    assert result == [
+        {
+            "device_id": "chromeos-device-123",
+            "serial_number": "SERIAL-123",
+            "model": "Chromebook Plus",
+            "manufacturer": "Acer",
+            "status": "ACTIVE",
+            "os_version": "140.0.7339.185",
+            "platform_version": "16371.68.0",
+            "firmware_version": "Google_Test.12345",
+            "mac_address": "00:11:22:33:44:55",
+            "ethernet_mac_address": "00:11:22:33:44:66",
+            "org_unit_path": "/CEV_USERS",
+            "annotated_user": "usuario@cevalente.com.br",
+            "annotated_location": "Escritório",
+            "annotated_asset_id": "ASSET-123",
+            "last_sync": "2026-09-10T12:00:00.000Z",
+            "last_enrollment_time": "2026-01-01T10:00:00.000Z",
+            "support_end_date": "2030-01-01T00:00:00.000Z",
+            "notes": "Equipamento de teste",
+        }
+    ]
+
+
+def test_workspace_chromeos_devices_list_uses_default(monkeypatch):
+    captured = {}
+
+    def fake_list_chromeos_devices(max_results=100):
+        captured["max_results"] = max_results
+        return []
+
+    monkeypatch.setattr(
+        "google_workspace_admin.server.list_chromeos_devices",
+        fake_list_chromeos_devices,
+    )
+
+    result = server.workspace_chromeos_devices_list()
+
+    assert result == []
+    assert captured["max_results"] == 100
+
+
+def test_workspace_chromeos_devices_list_rejects_zero():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 300",
+    ):
+        server.workspace_chromeos_devices_list(
+            max_results=0,
+        )
+
+
+def test_workspace_chromeos_devices_list_rejects_above_limit():
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 300",
+    ):
+        server.workspace_chromeos_devices_list(
+            max_results=301,
+        )
