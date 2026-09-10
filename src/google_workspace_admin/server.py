@@ -3,6 +3,7 @@ from mcp.server import MCPServer
 from google_workspace_admin.directory.chromeos_devices import (
     list_chromeos_devices,
 )
+from google_workspace_admin.directory.domains import list_domains
 from google_workspace_admin.directory.group_members import (
     list_group_members,
 )
@@ -369,7 +370,28 @@ def workspace_role_assignments_list(
         _serialize_role_assignment(assignment)
         for assignment in assignments
     ]
+def _serialize_domain(domain: dict) -> dict:
+    """Seleciona os campos de domínio expostos pelo MCP."""
+    return {
+        "domain_name": domain.get("domainName"),
+        "verified": domain.get("verified"),
+        "is_primary": domain.get("isPrimary"),
+        "creation_time": domain.get("creationTime"),
+        "domain_aliases": domain.get("domainAliases", []),
+    }
 
+
+@mcp.tool()
+def workspace_domains_list() -> list[dict]:
+    """
+    Lista os domínios do Google Workspace.
+    """
+    domains = list_domains()
+
+    return [
+        _serialize_domain(domain)
+        for domain in domains
+    ]
 
 if __name__ == "__main__":
     mcp.run()

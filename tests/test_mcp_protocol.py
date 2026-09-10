@@ -58,6 +58,7 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_chromeos_devices_list" in tool_names
     assert "workspace_roles_list" in tool_names
     assert "workspace_role_assignments_list" in tool_names
+    assert "workspace_domains_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -556,3 +557,58 @@ async def test_workspace_role_assignments_list_through_mcp(
     assert payload[0]["assigned_to"] == "100056319502616315227"
     assert payload[0]["scope_type"] == "CUSTOMER"
     assert payload[0]["org_unit_id"] is None
+
+@pytest.mark.anyio
+async def test_workspace_domains_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_domains = [
+        {
+            "domainName": "cevalente.com.br",
+            "verified": True,
+            "isPrimary": True,
+            "creationTime": "1586464166558",
+            "domainAliases": [
+                {
+                    "kind": "admin#directory#domainAlias",
+                    "etag": "alias-etag",
+                    "domainAliasName": "cevalente.com.br.test-google-a.com",
+                    "parentDomainName": "cevalente.com.br",
+                    "verified": True,
+                    "creationTime": "1586464166558",
+                }
+            ],
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_domains",
+        lambda: fake_domains,
+    )
+
+    result = await client.call_tool(
+        "workspace_domains_list",
+        {},
+    )
+
+    assert result.is_error is False
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert payload[0]["domain_name"] == "cevalente.com.br"
+    assert payload[0]["verified"] is True
+    assert payload[0]["is_primary"] is True
+    assert payload[0]["creation_time"] == "1586464166558"
+
+    aliases = payload[0]["domain_aliases"]
+
+    assert len(aliases) == 1
+    assert (
+        aliases[0]["domainAliasName"]
+        == "cevalente.com.br.test-google-a.com"
+    )
+    assert aliases[0]["parentDomainName"] == "cevalente.com.br"
+    assert aliases[0]["verified"] is True

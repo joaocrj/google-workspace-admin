@@ -652,3 +652,50 @@ def test_workspace_role_assignments_list_rejects_invalid_limits():
         match="max_results deve estar entre 1 e 100",
     ):
         server.workspace_role_assignments_list(max_results=101)
+
+def test_workspace_domains_list(monkeypatch):
+    fake_domains = [
+        {
+            "domainName": "cevalente.com.br",
+            "verified": True,
+            "isPrimary": True,
+            "creationTime": "1586464166558",
+            "domainAliases": [
+                {
+                    "kind": "admin#directory#domainAlias",
+                    "etag": "alias-etag",
+                    "domainAliasName": "cevalente.com.br.test-google-a.com",
+                    "parentDomainName": "cevalente.com.br",
+                    "verified": True,
+                    "creationTime": "1586464166558",
+                }
+            ],
+        }
+    ]
+
+    monkeypatch.setattr(
+        server,
+        "list_domains",
+        lambda: fake_domains,
+    )
+
+    result = server.workspace_domains_list()
+
+    assert result == [
+        {
+            "domain_name": "cevalente.com.br",
+            "verified": True,
+            "is_primary": True,
+            "creation_time": "1586464166558",
+            "domain_aliases": [
+                {
+                    "kind": "admin#directory#domainAlias",
+                    "etag": "alias-etag",
+                    "domainAliasName": "cevalente.com.br.test-google-a.com",
+                    "parentDomainName": "cevalente.com.br",
+                    "verified": True,
+                    "creationTime": "1586464166558",
+                }
+            ],
+        }
+    ]
