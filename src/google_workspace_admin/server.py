@@ -4,6 +4,7 @@ from google_workspace_admin.directory.chromeos_devices import (
     list_chromeos_devices,
 )
 from google_workspace_admin.directory.domains import list_domains
+from google_workspace_admin.directory.domain_aliases import list_domain_aliases
 from google_workspace_admin.directory.group_members import (
     list_group_members,
 )
@@ -51,6 +52,16 @@ def workspace_status() -> dict:
         "status": "ok",
         "server": "google-workspace-admin",
         "authentication": "ADC -> IAM signJwt -> DWD",
+    }
+
+
+def _serialize_domain_alias(domain_alias: dict) -> dict:
+    """Seleciona os campos de alias de domínio expostos pelo MCP."""
+    return {
+        "domain_alias_name": domain_alias.get("domainAliasName"),
+        "parent_domain_name": domain_alias.get("parentDomainName"),
+        "verified": domain_alias.get("verified"),
+        "creation_time": domain_alias.get("creationTime"),
     }
 
 
@@ -370,6 +381,8 @@ def workspace_role_assignments_list(
         _serialize_role_assignment(assignment)
         for assignment in assignments
     ]
+
+
 def _serialize_domain(domain: dict) -> dict:
     """Seleciona os campos de domínio expostos pelo MCP."""
     return {
@@ -391,6 +404,26 @@ def workspace_domains_list() -> list[dict]:
     return [
         _serialize_domain(domain)
         for domain in domains
+    ]
+
+
+@mcp.tool()
+def workspace_domain_aliases_list(
+    parent_domain_name: str | None = None,
+) -> list[dict]:
+    """
+    Lista os aliases de domínio do Google Workspace.
+
+    Quando parent_domain_name é informado, retorna somente os aliases
+    associados ao domínio pai especificado.
+    """
+    domain_aliases = list_domain_aliases(
+        parent_domain_name=parent_domain_name
+    )
+
+    return [
+        _serialize_domain_alias(domain_alias)
+        for domain_alias in domain_aliases
     ]
 
 if __name__ == "__main__":

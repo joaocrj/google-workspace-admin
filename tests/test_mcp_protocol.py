@@ -59,6 +59,7 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_roles_list" in tool_names
     assert "workspace_role_assignments_list" in tool_names
     assert "workspace_domains_list" in tool_names
+    assert "workspace_domain_aliases_list" in tool_names
 
 
 @pytest.mark.anyio
@@ -612,3 +613,52 @@ async def test_workspace_domains_list_through_mcp(
     )
     assert aliases[0]["parentDomainName"] == "cevalente.com.br"
     assert aliases[0]["verified"] is True
+
+@pytest.mark.anyio
+async def test_workspace_domain_aliases_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    fake_domain_aliases = [
+        {
+            "kind": "admin#directory#domainAlias",
+            "etag": "alias-etag",
+            "domainAliasName": "cevalente.com.br.test-google-a.com",
+            "parentDomainName": "cevalente.com.br",
+            "verified": True,
+            "creationTime": "1586464166558",
+        }
+    ]
+
+    captured = {}
+
+    def fake_list_domain_aliases(parent_domain_name=None):
+        captured["parent_domain_name"] = parent_domain_name
+        return fake_domain_aliases
+
+    monkeypatch.setattr(
+        server,
+        "list_domain_aliases",
+        fake_list_domain_aliases,
+    )
+
+    result = await client.call_tool(
+        "workspace_domain_aliases_list",
+        {
+            "parent_domain_name": "cevalente.com.br",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured["parent_domain_name"] == "cevalente.com.br"
+
+    payload = _json_result(result)
+
+    assert len(payload) == 1
+    assert (
+        payload[0]["domain_alias_name"]
+        == "cevalente.com.br.test-google-a.com"
+    )
+    assert payload[0]["parent_domain_name"] == "cevalente.com.br"
+    assert payload[0]["verified"] is True
+    assert payload[0]["creation_time"] == "1586464166558"

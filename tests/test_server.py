@@ -699,3 +699,39 @@ def test_workspace_domains_list(monkeypatch):
             ],
         }
     ]
+
+def test_workspace_domain_aliases_list(monkeypatch):
+    domain_aliases = [
+        {
+            "domainAliasName": "cevalente.com.br.test-google-a.com",
+            "parentDomainName": "cevalente.com.br",
+            "verified": True,
+            "creationTime": "1586464166558",
+        }
+    ]
+
+    captured = {}
+
+    def fake_list_domain_aliases(parent_domain_name=None):
+        captured["parent_domain_name"] = parent_domain_name
+        return domain_aliases
+
+    monkeypatch.setattr(
+        server,
+        "list_domain_aliases",
+        fake_list_domain_aliases,
+    )
+
+    result = server.workspace_domain_aliases_list(
+        parent_domain_name="cevalente.com.br"
+    )
+
+    assert captured["parent_domain_name"] == "cevalente.com.br"
+    assert result == [
+        {
+            "domain_alias_name": "cevalente.com.br.test-google-a.com",
+            "parent_domain_name": "cevalente.com.br",
+            "verified": True,
+            "creation_time": "1586464166558",
+        }
+    ]
