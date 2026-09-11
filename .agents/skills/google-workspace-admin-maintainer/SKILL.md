@@ -1,397 +1,221 @@
 ---
 name: google-workspace-admin-maintainer
-description: Maintain and extend the Google Workspace Admin MCP using keyless Domain-Wide Delegation, IAM signJwt, ADC, least-privilege scopes, automated tests, and safe administrative tooling.
+description: Maintain and extend the Google Workspace Admin MCP using keyless DWD, least-privilege scopes, safe MCP registration, automated tests, and the repository documentation as the current project context.
 ---
 
 # Google Workspace Admin MCP Maintainer
 
 ## Purpose
 
-Maintain, debug, test, document, and extend the `google-workspace-admin` MCP.
+Maintain, debug, test, document, and extend the `google-workspace-admin` MCP
+without weakening its keyless authentication architecture or bypassing the
+project's documented development process.
 
-The project provides administrative access to Google Workspace APIs through Model Context Protocol (MCP).
-
-Preserve the existing security architecture and avoid changes that weaken the keyless authentication model.
-
-## Project location
-
-Windows project path:
+Project path:
 
 `D:\AI\CODEX\MCP\google-workspace-admin`
 
-Primary package:
+Use `uv` for Python environment and dependency management.
 
-`src/google_workspace_admin`
+## Mandatory context loading
 
-Tests:
+Before planning or editing, read the repository's maintained context in this
+order:
 
-`tests`
+1. `docs/00_AGENT_GUIDE.md`
+2. `docs/01_GOOGLE_CONFIGURATION.md`
+3. `docs/02_MCP_CATALOG.md`
+4. `docs/03_OPERATING_RUNBOOK.md`
+5. `docs/04_PHASE_STATUS.md`
+6. `docs/05_CHANGE_HISTORY.md`
 
-Python environment and dependency management:
+Then inspect `git status --short --branch`, the relevant source modules and
+tests, and Git history when historical context is necessary.
 
-`uv`
+Do not maintain a second copy of the current tool catalog, roadmap, or commit
+history in this Skill. Read `02_MCP_CATALOG.md`, `04_PHASE_STATUS.md`, and
+`05_CHANGE_HISTORY.md` for those dynamic facts.
+
+If code, tests, Git, and documentation disagree, investigate using the
+source-of-truth order defined in `00_AGENT_GUIDE.md`.
 
 ## Authentication architecture
 
-The project uses keyless Google Workspace Domain-Wide Delegation.
-
-Authentication flow:
+Preserve:
 
 `ADC -> IAM Credentials signJwt -> DWD JWT -> OAuth 2.0 token -> Google Workspace API`
 
-Google Cloud project:
+Never create or require a Service Account JSON private key. Never store or
+expose OAuth access tokens, signed JWTs, authorization headers, ADC contents,
+cookies, or secrets in source, `.env`, tests, docs, logs, MCP responses, or
+Git. Never copy personal ADC credentials to a VPS or another device.
 
-`codex-workspace-admin`
-
-Service Account:
-
-`codex-workspace@codex-workspace-admin.iam.gserviceaccount.com`
-
-The Service Account has Domain-Wide Delegation configured in Google Workspace.
-
-The local Google identity obtains permission to sign JWTs through IAM.
-
-## Security invariants
-
-Never create or require a Service Account JSON private key.
-
-Never store a Service Account private key in the repository.
-
-Never store Google OAuth access tokens or signed JWTs in `.env`, source code, configuration files, logs, tests, or Git.
-
-Never return raw access tokens or signed JWTs through MCP tools.
-
-Do not copy a personal ADC credential file to a VPS or remote server.
-
-Do not replace the keyless DWD architecture with static credentials for convenience.
-
-Treat Domain-Wide Delegation as privileged administrative access.
-
-Use the minimum Google OAuth scopes required by each operation.
-
-Do not allow arbitrary DWD impersonation subjects through an MCP tool.
-
-The default delegated subject must remain controlled by configuration.
-
-If configurable impersonation is introduced later, implement an explicit allowlist.
-
-Prefer read-only administrative tools before write-capable tools.
-
-Write or destructive administrative operations must have explicit validation and appropriate safeguards.
-
-## Authentication implementation
-
-Important modules:
-
-`src/google_workspace_admin/auth/adc.py`
-
-Obtains Application Default Credentials and refreshes them when necessary.
-
-`src/google_workspace_admin/auth/dwd.py`
-
-Builds the DWD JWT payload, calls IAM Credentials `signJwt`, exchanges the signed JWT for a Google Workspace OAuth token, and uses the in-memory token cache.
-
-`src/google_workspace_admin/auth/token_cache.py`
-
-Caches Workspace OAuth access tokens in RAM.
-
-Cache keys must include:
-
-- delegated subject
-- normalized scope set
-
-Tokens approaching expiration must not be reused.
-
-The cache must never persist tokens to disk.
-
-## Token behavior
-
-Google Workspace DWD access tokens are short-lived.
-
-The MCP must automatically obtain new tokens when necessary.
-
-Do not require the user to manually authenticate every time a Workspace token expires.
-
-ADC and the generated Workspace access token are different credential layers.
-
-If ADC itself becomes invalid because of Google Cloud authentication or organizational session policy, the user may need to run:
-
-`gcloud auth application-default login`
-
-Do not confuse this with normal Workspace token renewal.
-
-## Directory implementation
-
-Current Directory module:
-
-`src/google_workspace_admin/directory/users.py`
-
-Implemented operations:
-
-- `list_users`
-- `get_user`
-
-The user lookup accepts a primary email, alias, or immutable user ID.
-
-Google API responses should not automatically be exposed in full to the model.
-
-Use an explicit serialization boundary in the MCP server.
-
-## MCP server
-
-Server module:
-
-`src/google_workspace_admin/server.py`
-
-Current MCP server name:
-
-`Google Workspace Admin`
-
-Current tools:
-
-- `workspace_status`
-- `workspace_users_list`
-- `workspace_user_get`
-
-Use `MCPServer` from the installed MCP Python SDK.
-
-Keep the server compatible with stdio transport because the local Codex integration uses stdio.
-
-Do not print arbitrary diagnostic output to stdout while running as an stdio MCP server.
-
-Use stderr or proper logging for diagnostics when needed.
-
-## User serialization
-
-The MCP intentionally exposes selected Directory user fields instead of returning the complete raw Google API object.
-
-Maintain this boundary.
-
-Current user fields include:
-
-- id
-- primary_email
-- full_name
-- given_name
-- family_name
-- suspended
-- archived
-- is_admin
-- is_delegated_admin
-- org_unit_path
-- creation_time
-- last_login_time
-
-Add new fields only when they are useful for administrative tasks.
-
-Avoid unnecessarily exposing sensitive information.
-
-## Testing strategy
-
-There are three conceptual testing layers.
-
-### Unit tests
-
-Test local behavior without contacting Google.
-
-Examples:
-
-- token cache
-- input validation
-- serialization
-- server functions
-
-### MCP protocol tests
-
-Test MCP registration and calls through an in-memory MCP client.
-
-These tests should not require Google Workspace access when mocks can be used.
-
-### Google integration tests
-
-Test the real chain:
-
-`ADC -> IAM signJwt -> DWD -> Google Workspace API`
-
-Integration tests must be clearly distinguishable from normal unit tests.
-
-Do not make routine test execution unexpectedly perform administrative Google API calls.
-
-## Standard test command
-
-Before committing implementation changes, run:
-
-`uv run pytest -v`
-
-The test suite must pass before creating a checkpoint commit.
-
-Also compile modified Python modules when debugging syntax issues:
-
-`uv run python -m py_compile <path-to-file>`
-
-## Current validated baseline
-
-The project has previously validated:
-
-- ADC authentication
-- IAM Credentials `signJwt`
-- Domain-Wide Delegation
-- OAuth token exchange
-- Directory API access
-- user listing
-- individual user lookup
-- in-memory token reuse
-- MCP tool registration
-- MCP tool execution
-- automated unit and MCP protocol tests
-
-Do not remove these capabilities while extending the project.
-
-## Git workflow
-
-Before substantial changes:
-
-1. Run `git status`.
-2. Ensure the previous checkpoint is understood.
-3. Make focused changes.
-4. Run the relevant tests.
-5. Run the complete test suite.
-6. Review `git diff`.
-7. Commit only after tests pass.
-
-Do not automatically discard uncommitted user changes.
+Keep the delegated subject controlled by configuration. Do not make arbitrary
+DWD impersonation an MCP parameter. Each API operation must request only the
+scopes it needs. Do not broaden DWD or change IAM/Google Admin configuration
+merely for convenience.
+
+The current Google configuration and scope state belong in
+`docs/01_GOOGLE_CONFIGURATION.md`.
+
+## Project safety invariants
+
+- Preserve unrelated user changes.
+- Do not remove, rename, disable, overwrite, or reconfigure other Codex MCP
+  servers while working on this project.
+- The local MCP uses `stdio`; never write arbitrary diagnostics to `stdout`.
+  Use `stderr` or proper logging.
+- Do not expose raw Google API objects when an explicit serializer can limit the
+  response to useful administrative fields.
+- Write, delete, IAM, DWD, scope, or destructive administrative operations
+  require explicit user authorization and the safeguards defined for the
+  write-capable phase.
+
+## Critical `server.py` invariants
+
+In `src/google_workspace_admin/server.py`:
+
+1. `@mcp.tool()` is only for functions intentionally exposed as MCP tools.
+2. Serializers and helper functions must never receive `@mcp.tool()`.
+3. Every MCP tool must be defined and registered before server startup.
+4. `if __name__ == "__main__":` and `mcp.run()` must remain at the absolute end
+   of the file.
+5. Nothing that must register with the MCP may be placed after `mcp.run()`.
+
+This is functional, not stylistic. Running
+`python -m google_workspace_admin.server` blocks at `mcp.run()`. Code below it
+may behave differently in import-based tests from the real Codex server
+process.
+
+After changing tool registration, validate protocol tests and the actual MCP
+catalog when appropriate. If the implementation and direct catalog are correct
+but Codex shows an old catalog, treat stale Codex/MCP processes as a likely
+cause and perform controlled restart/rediscoberta before changing working code.
+
+## Mandatory workflow
+
+### 1. READ
+
+Read all mandatory project documents, check `git status --short --branch`,
+inspect the relevant implementation and tests, identify the current phase and
+next pending delivery from `docs/04_PHASE_STATUS.md`, and preserve unrelated
+user changes.
+
+### 2. PLAN
+
+Before coding, verify current official Google documentation and confirm the
+API/service, endpoint, parameters, limits, pagination behavior, delegated
+privileges, and minimum OAuth scope. Determine whether the API/scope is already
+configured and whether real integration validation is necessary and
+authorized.
+
+Do not change Google Cloud, IAM, DWD, Admin Console, or scopes preemptively.
+
+### 3. IMPLEMENT
+
+Put API access in the appropriate package such as `directory/`, `reports/`, or
+another coherent layer. Request only the scope required by that module. Use
+bounded HTTP timeouts, validate parameters and documented limits, use an
+explicit serializer, expose only fields required for the task, preserve all
+`server.py` structural invariants, and make the smallest coherent change.
+
+### 4. TEST
+
+Use focused tests while developing. Compile modified Python modules when
+appropriate. Before completion, run the routine suite and checks defined in
+`docs/03_OPERATING_RUNBOOK.md`.
+
+MCP protocol tests must validate intended registration and invocation without
+requiring real Google access when mocks are sufficient. Routine tests must not
+unexpectedly perform privileged Google API calls.
+
+### 5. REAL VALIDATION
+
+Perform real Google integration only when necessary and authorized. Make the
+smallest useful read request, record only safe operation/status/count evidence,
+never persist credentials or unnecessary personal data, and confirm the
+response passes through the intended MCP serializer.
+
+When a new tool is introduced, real Codex discovery/execution may be part of
+the delivery evidence.
+
+### 6. DOCUMENT
+
+Documentation is part of the definition of done. Update every affected
+document in the same change set:
+
+- `01_GOOGLE_CONFIGURATION.md` for Google configuration, scopes, APIs, IAM/DWD,
+  or authentication behavior;
+- `02_MCP_CATALOG.md` for tools, modules, parameters, endpoints, limits, or
+  catalog behavior;
+- `03_OPERATING_RUNBOOK.md` for commands, validation, troubleshooting, or
+  operational procedures;
+- `04_PHASE_STATUS.md` whenever a delivery starts, completes, blocks, or is
+  replanned;
+- `05_CHANGE_HISTORY.md` for meaningful checkpoints and lessons;
+- `README.md` when navigation or user-facing setup/commands change;
+- `00_AGENT_GUIDE.md` when project-wide agent rules or invariants change.
+
+Do not copy dynamic catalog, roadmap, or history back into this Skill.
+
+### 7. COMMIT
+
+Before a checkpoint, run the complete applicable test suite, run
+`git diff --check`, review the diff/status, stage only intended files, run
+`git diff --cached --check`, review the staged diff/stat, and create a focused
+commit only after validation passes.
 
 Do not rewrite Git history unless explicitly requested.
 
-Prefer focused commits describing the implemented capability.
+## Testing model
 
-## Current baseline commits
+Maintain three distinct layers:
 
-Important historical checkpoints include:
+- **Unit tests:** local validation, serializers, cache, API modules, server
+  functions.
+- **MCP protocol tests:** tool registration, invocation, validation, and
+  serialization without real Google access when mocks suffice.
+- **Google integration tests:** the real
+  `ADC -> IAM signJwt -> DWD -> Google Workspace API` chain when appropriate.
 
-`f0843f0` — keyless Google Workspace DWD authentication
+Keep integration diagnostics separate from routine tests unless the project
+explicitly changes that policy.
 
-`4d9121f` — MCP server and Workspace user tools
+## Token and ADC behavior
 
-`aae5f18` — token caching, Workspace user MCP tools, and automated tests
+Workspace DWD access tokens are short-lived and should be renewed automatically
+by the MCP. Do not require manual login merely because a Workspace token
+expires.
 
-Treat later commits as authoritative if the project evolves.
+If the underlying ADC becomes invalid because of Google Cloud authentication
+or organizational session policy, the user may need:
+
+`gcloud auth application-default login`
+
+That is ADC reauthentication, not normal Workspace token renewal.
 
 ## Dependency management
 
-Use `uv`.
-
-Add runtime dependencies with:
-
-`uv add <package>`
-
-Add development dependencies with:
-
-`uv add --dev <package>`
-
-Do not manually modify the virtual environment.
-
-Keep `pyproject.toml` and `uv.lock` synchronized.
-
-## Expansion roadmap
-
-Prefer implementing administrative read capabilities before write capabilities.
-
-Suggested order:
-
-1. Users
-2. Groups
-3. Group members
-4. Organizational Units
-5. Calendar resources
-6. Admin audit activities
-7. User usage reports
-8. Customer usage reports
-9. Drive administrative visibility
-10. Gmail administrative capabilities where supported
-
-After the read layer is mature, evaluate controlled write operations such as:
-
-- create user
-- update user
-- suspend or restore user
-- create group
-- update group
-- add group member
-- remove group member
-- move user between Organizational Units
-
-Write operations require stronger validation than read operations.
-
-## Scope discipline
-
-Each Google API module should request only the scopes it needs.
-
-Do not automatically request every authorized DWD scope for every token.
-
-A broad set of scopes may be authorized in Google Workspace Admin while individual tools continue using narrower scope sets.
-
-Preserve that separation.
-
-## Error handling
-
-Google HTTP failures should eventually be normalized into useful MCP errors.
-
-Do not expose:
-
-- access tokens
-- signed JWTs
-- authorization headers
-- ADC credential contents
-
-Avoid dumping entire HTTP responses when they may contain authentication details.
-
-Provide enough information to diagnose:
-
-- HTTP status
-- API operation
-- safe Google error message
-
-## Codex integration
-
-The MCP is intended to be registered as an additional Codex MCP server.
-
-Do not remove, rename, disable, or overwrite existing MCP server configurations when adding this server.
-
-The local MCP should be launched from its own project directory using `uv`.
-
-No Google access token or Service Account private key should be placed in the Codex MCP configuration.
+Use `uv add <package>` or `uv add --dev <package>`. Do not manually modify the
+virtual environment. Keep `pyproject.toml` and `uv.lock` synchronized.
 
 ## Remote deployment
 
-The current implementation is local.
-
-If the MCP is later deployed to a VPS or cloud environment, do not copy the user's personal ADC file to that server.
-
-Use an appropriate workload identity mechanism such as:
-
-- attached Google Cloud Service Account
-- Workload Identity Federation
-- another keyless Google-supported workload identity
-
-Retain the architecture:
+Never copy personal ADC credentials to a remote server. A future remote
+deployment must preserve a keyless workload identity pattern, for example:
 
 `workload identity -> IAM signJwt -> DWD -> Workspace APIs`
 
-Remote deployment should use an appropriate MCP network transport and authentication layer rather than exposing an unauthenticated administrative MCP endpoint.
+It must also use an authenticated MCP network transport rather than exposing an
+unauthenticated administrative endpoint.
 
-## Change policy
+## Progress reporting
 
-When modifying this project:
+Use the exact status-tree conventions from `docs/00_AGENT_GUIDE.md`. Do not
+infer the next implementation from this Skill; read `docs/04_PHASE_STATUS.md`.
 
-1. Understand the existing implementation before editing.
-2. Preserve the keyless security architecture.
-3. Make the smallest coherent change.
-4. Add or update tests.
-5. Validate locally.
-6. Validate MCP behavior.
-7. Validate Google integration when appropriate.
-8. Review security implications.
-9. Create a Git checkpoint.
+## Completion rule
 
-Never trade away the keyless architecture merely to simplify development.
+A capability is complete only when the applicable implementation, automated
+tests, MCP behavior, authorized real validation, documentation, diff checks,
+and Git checkpoint requirements have been satisfied.
