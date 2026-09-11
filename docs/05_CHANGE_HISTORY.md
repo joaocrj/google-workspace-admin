@@ -18,6 +18,8 @@
 | 11/09/2026 | `16565d6` | Resources / Salas: implementação local de `resources.calendars`, serialização limitada, paginação por token, ordenação/filtro e 14ª tool MCP; 100/100 testes locais e validação MCP real da cadeia keyless concluídos com 0 recursos e sem página seguinte; checkpoint registrado nesta entrega |
 | 11/09/2026 | checkpoint desta entrega | Features: PLAN, implementação local de `resources.features`, serialização limitada a `feature_name`, paginação por token e 15ª tool MCP; 121/121 testes locais e validação MCP real da cadeia keyless concluídos com 0 Features e sem página seguinte; checkpoint encerra Features e Calendar — recursos corporativos |
 | 11/09/2026 | checkpoint pendente | Admin Audit: PLAN, implementação local de `reports.activities.list` com `applicationName=admin`, launcher MCP Python da `.venv`, 16ª tool MCP e 155/155 testes locais; REAL VALIDATION MCP executada uma única vez com sucesso, 1 Activity e próxima página presente; DWD `admin.reports.audit.readonly` e sujeito Superadministrador confirmados manualmente; nenhum conteúdo de auditoria registrado |
+| 11/09/2026 | implementação pendente de checkpoint | Login Audit: PLAN e implementação local de `activities.list` com `applicationName=login`, serializer conservador, 17ª tool MCP e **191/191 testes locais aprovados**; REAL VALIDATION e checkpoint Git pendentes; nenhuma chamada Google ou alteração administrativa realizada |
+| 11/09/2026 | checkpoint desta entrega | Login Audit: redescoberta pós-restart pelo host, uma única chamada MCP com `max_results=1`, sucesso, 1 Activity e próxima página presente; **191/191 testes locais aprovados** e `git diff --check` aprovado; nenhum conteúdo de Activity, PII, credencial ou token registrado; checkpoint concluído |
 
 ## Lições registradas
 
@@ -57,6 +59,21 @@
   compatível e cache do `uv` sem permissão. O launcher foi remediado para o
   Python da `.venv`; o processo stdio novo inicializou com 16 tools. Nenhuma
   alteração administrativa foi feita.
+
+- Login Audit foi implementado localmente como módulo independente da Reports
+  API, com `applicationName=login` fixo, o mesmo scope readonly de auditoria,
+  limite MCP de 1–100 por página, paginação explícita sem percurso automático,
+  nenhuma nova tentativa e serializer específico com allowlist de valores de
+  login. O catálogo passou a 17 tools e a suíte confirmou 191/191 testes
+  locais; antes da tentativa 3, REAL VALIDATION e checkpoint Git permaneciam
+  pendentes. Nenhum dado real de login, credencial, token, JWT ou alteração
+  administrativa foi registrado nessa etapa.
+- A linha do histórico operacional foi preservada: tentativa 1 com catálogo
+  legado; rediscovery; tentativa 2 em `codexsandboxoffline` com `WinError 10013`;
+  diagnóstico de contexto/rede; impossibilidade de restart do host dentro da
+  sessão; restart manual do Codex; POST-RESTART CHECK; e tentativa 3 concluída
+  pelo MCP do host com uma única chamada bem-sucedida. O resultado foi mantido
+  sanitizado, sem Activity, PII ou material de autenticação.
 
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do

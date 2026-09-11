@@ -82,6 +82,7 @@ Client ID são:
 | Domínios e aliases | `https://www.googleapis.com/auth/admin.directory.domain.readonly` |
 | Buildings, Resources / Salas e Features (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída para as três coleções em 11/09/2026; Buildings exigiu reautenticação manual prévia da ADC |
 | Admin Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — DWD confirmada manualmente; sujeito Superadministrador; REAL VALIDATION MCP concluída em 11/09/2026 com launcher Python da `.venv`, 1 Activity e próxima página presente; checkpoint Git pendente |
+| Login Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — reutiliza o scope já presente e confirmado manualmente para Reports; REAL VALIDATION MCP concluída em 11/09/2026 com uma chamada limitada, 1 Activity e próxima página presente; nenhuma alteração administrativa nova |
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
@@ -131,6 +132,19 @@ restrições locais de socket/cache ou por um `stderr` incompatível do harness,
 sem evidência de falha no servidor, DWD ou Reports API. Não há nova API, IAM ou
 Service Account prevista, e nenhuma alteração administrativa foi realizada.
 
+`workspace_login_audit_list` usará o mesmo scope readonly da Reports API, com
+`applicationName=login` fixo no endpoint
+`/admin/reports/v1/activity/users/{userKey}/applications/login`. A implementação
+local limita páginas a 1–100 (padrão 25), preserva `nextPageToken`, não envia
+`customerId` nem `includeSensitiveData`, não percorre páginas e não cria
+retries. O scope já está presente na configuração documentada por causa de
+Admin Audit. Em 11/09/2026, a REAL VALIDATION específica de Login Audit foi
+concluída pelo MCP carregado pelo host, com uma única chamada limitada a
+`max_results=1`, 1 Activity e `next_page_token` presente. Nenhum conteúdo da
+Activity, dado pessoal, credencial ou token foi registrado; a validação não
+afirma cobertura de todos os tipos de eventos Login. Nenhuma alteração de DWD,
+IAM, API, Service Account, privilégio ou Google Admin foi realizada.
+
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.
 Se a organização usa aprovação por múltiplas partes, a alteração também requer
@@ -146,6 +160,8 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - [Admin SDK Directory API](https://developers.google.com/workspace/admin/directory/reference/rest)
 - [Admin SDK Reports API: `activities.list`](https://developers.google.com/workspace/admin/reports/reference/rest/v1/activities/list)
 - [Admin Activity Report](https://developers.google.com/workspace/admin/reports/v1/guides/manage-audit-admin)
+- [Login Activity Report](https://developers.google.com/workspace/admin/reports/v1/guides/manage-audit-login)
+- [Login Audit Activity Events](https://developers.google.com/workspace/admin/reports/v1/appendix/activity/login)
 - [Calendar resources: `resources.calendars.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.calendars/list)
 - [Calendar resource features: `resources.features.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.features/list)
 

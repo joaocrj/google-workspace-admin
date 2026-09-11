@@ -1,7 +1,7 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 16 ferramentas, todas de leitura. Cada camada de API obtém
+catálogo atual possui 17 ferramentas, todas de leitura. Cada camada de API obtém
 um token para o scope mínimo que ela declara e o servidor serializa uma seleção
 de campos antes de devolver a resposta ao Codex.
 
@@ -23,6 +23,7 @@ de campos antes de devolver a resposta ao Codex.
 | `workspace_calendar_resources_list` | `directory/resources/calendars.py` | `max_results` 1–500, padrão 100; `page_token`, `order_by` e `query` opcionais não vazios | recursos corporativos serializados e `next_page_token` da página |
 | `workspace_calendar_features_list` | `directory/resources/features.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | features serializadas e `next_page_token` da página |
 | `workspace_admin_audit_list` | `reports/admin_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Admin Audit serializadas e `next_page_token` da página |
+| `workspace_login_audit_list` | `reports/login_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Login Audit serializadas conservadoramente e `next_page_token` da página |
 
 ## Endpoints Directory em uso
 
@@ -46,6 +47,7 @@ de campos antes de devolver a resposta ao Codex.
 | Capacidade | Endpoint REST |
 | --- | --- |
 | Admin Audit | `/admin/reports/v1/activity/users/{userKey}/applications/admin` |
+| Login Audit | `/admin/reports/v1/activity/users/{userKey}/applications/login` |
 
 Todos os clientes HTTP têm timeout de 30 segundos e propagam respostas HTTP não
 2xx. A paginação **ainda não está consolidada**: as ferramentas existentes
@@ -123,3 +125,26 @@ serializadores em `server.py` selecionam somente os campos administrativos útei
 para cada recurso. Ao incluir novo campo, justifique sua necessidade e avalie
 se ele expõe identificadores pessoais, dados de dispositivo ou outra informação
 sensível.
+
+`workspace_login_audit_list` é a 17ª tool local. Ela fixa
+`applicationName=login`, usa exclusivamente o scope
+`https://www.googleapis.com/auth/admin.reports.audit.readonly` e aceita apenas
+os parâmetros de investigação previstos pelo contrato: `user_key`,
+`max_results`, `page_token`, `event_name`, `filters`, `start_time`, `end_time`,
+`actor_ip_address` e `org_unit_id`. O MCP restringe cada página a 1–100
+registros, padrão 25, preserva `nextPageToken` como `next_page_token`, não
+percorre páginas e não cria retries. Não envia `customerId`,
+`includeSensitiveData` nem filtros de recursos, dispositivos, rede, agentes,
+OAuth ou status.
+
+O serializer de Login Audit expõe somente timestamp/qualificador, ator, IP,
+tipo/nome do evento e valores allowlisted de `login_type`,
+`login_challenge_method`, `login_challenge_status`, `is_suspicious` e
+`is_second_factor`. Valores de e-mail afetado, timestamps internos,
+`sensitive_action_name`, `login_failure_type`, `sensitiveParameters`,
+`resourceIds`, status bruto, metadados e payload bruto são omitidos
+estruturalmente. A implementação local está concluída. Em 11/09/2026, a REAL
+VALIDATION MCP foi concluída em uma única chamada
+`workspace_login_audit_list(max_results=1)`, retornando 1 Activity e
+`next_page_token` presente; nenhum conteúdo de Activity foi registrado. O
+checkpoint Git é concluído nesta entrega.

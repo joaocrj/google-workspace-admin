@@ -93,7 +93,15 @@ FASE 1 — READ / ADMIN INVENTORY
 │   │   ├── scope necessário                               ✅ CONCLUÍDO — confirmado manualmente pelo usuário
 │   │   ├── REAL VALIDATION                                ✅ CONCLUÍDO — 1 Activity / próxima página presente
 │   │   └── commit                                         ⬜ PENDENTE
-│   ├── Login Audit                                        ⬜ PENDENTE
+│   ├── Login Audit                                        ✅ CONCLUÍDO
+│   │   ├── PLAN                                           ✅ CONCLUÍDO
+│   │   ├── IMPLEMENT                                      ✅ CONCLUÍDO — 17ª tool local
+│   │   ├── REDISCOVERY                                    ✅ CONCLUÍDO — catálogo real com 17 tools
+│   │   ├── DIAGNOSTIC                                     ✅ CONCLUÍDO
+│   │   ├── POST-RESTART CHECK                             ✅ CONCLUÍDO
+│   │   ├── scope necessário                               ✅ CONCLUÍDO — já presente; sem alteração administrativa
+│   │   ├── REAL VALIDATION — tentativa 3                  ✅ CONCLUÍDO — 1 Activity / próxima página presente
+│   │   └── CHECKPOINT                                     ✅ CONCLUÍDO
 │   ├── Drive Audit                                        ⬜ PENDENTE
 │   ├── User Usage                                         ⬜ PENDENTE
 │   └── Customer Usage                                     ⬜ PENDENTE
@@ -169,6 +177,13 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
   `UnsupportedOperation` causado por `stderr=io.StringIO` e cache do `uv` sem
   permissão. A redescoberta pelo launcher Python da `.venv` inicializou o MCP
   com 16 tools sem alteração de código ou configuração administrativa.
+- Em 11/09/2026, o restart manual do Codex foi seguido pelo POST-RESTART CHECK:
+  o host carregou o launcher Python da `.venv`, redescobriu o catálogo real com
+  17 tools e confirmou `workspace_login_audit_list` sem helpers/serializers
+  expostos. A REAL VALIDATION — tentativa 3 — executou exatamente uma chamada
+  MCP, com sucesso, 1 Activity e próxima página presente. Nenhum conteúdo de
+  Activity, PII, credencial ou token foi registrado; o checkpoint Git foi
+  concluído nesta entrega.
 - Na consolidação documental de 10/09/2026, `uv run pytest -v` confirmou
   **56/56 testes aprovados**. `git diff --check` também foi aprovado.
 - Em `c01fd11`, o inventário fornecido já registrava **56/56 testes**,

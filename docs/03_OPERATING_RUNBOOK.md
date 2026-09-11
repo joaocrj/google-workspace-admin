@@ -158,6 +158,35 @@ socket ou cache do `uv`; não foram falhas comprovadas da API. Não altere DWD,
 IAM, APIs, scopes, privilégios, Google Cloud ou Admin Console; qualquer
 reautenticação ADC continua manual pelo usuário.
 
+## Operação de Login Audit paginada
+
+`workspace_login_audit_list` consulta apenas
+`/admin/reports/v1/activity/users/{userKey}/applications/login` da Reports API.
+`applicationName=login` permanece fixo; `user_key` filtra as atividades e não
+altera o sujeito DWD. O scope é
+`https://www.googleapis.com/auth/admin.reports.audit.readonly`.
+
+A tool limita `max_results` a 1–100 (padrão 25), aceita paginação explícita e
+preserva `nextPageToken` como `next_page_token`, sem percorrer páginas e sem
+criar retries. `page_token`, `event_name`, `filters`, `start_time`, `end_time`,
+`actor_ip_address` e `org_unit_id` não podem ser vazios. Datas devem estar em
+RFC 3339 e `start_time` deve anteceder `end_time` quando ambos forem
+informados. `customerId`, `includeSensitiveData` e os filtros genéricos de
+recursos, status, OAuth, rede, agentes e dispositivos não são encaminhados.
+
+O serializer conserva somente campos administrativos necessários e valores
+allowlisted de login. E-mails afetados, timestamps internos, ações sensíveis,
+`sensitiveParameters`, `resourceIds`, status bruto, metadados, payload bruto e
+material de autenticação nunca são expostos.
+
+Os testes locais usam mocks e não requerem DWD. O scope já presente no DWD e o
+privilégio delegado foram mantidos sem alteração. Em 11/09/2026, a REAL
+VALIDATION foi concluída pelo MCP carregado pelo host com exatamente uma chamada
+`workspace_login_audit_list(max_results=1)`, sem `gcloud`, REST paralelo, retry ou
+paginação: retornou 1 Activity e `next_page_token` presente. Nenhum conteúdo de
+Activity, PII, credencial ou token foi registrado; a evidência cobre uma única
+página/chamada operacional e não todos os tipos de eventos Login.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização
