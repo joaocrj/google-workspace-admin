@@ -14,6 +14,7 @@
 | 10/09/2026 | `b589a91` | Funções administrativas e atribuições |
 | 10/09/2026 | `581b7d9` | Listagem de domínios |
 | 10/09/2026 | `c01fd11` | Listagem de aliases de domínio e correções de regressão/serialização |
+| 11/09/2026 | Sem commit | Implementação local de Buildings: Directory API, serialização, paginação por token e 76/76 testes; após reautenticação manual da ADC pelo usuário, DWD/privilégio delegado confirmados e validação MCP real concluída com 0 Buildings e sem próxima página; checkpoint desta entrega |
 
 ## Lições registradas
 
@@ -28,6 +29,11 @@
   `workspace_users_list` foi corrigida ao restaurar o decorador da ferramenta.
 - O checkpoint `c01fd11` também normalizou `test_mcp_protocol.py` para UTF-8
   sem BOM, LF e exatamente uma quebra de linha no EOF.
+- Buildings usa `resources.buildings` da Admin SDK Directory API, não a Google
+  Calendar API. O scope readonly de recursos de Calendar foi confirmado na DWD
+  por um Superadministrador. Depois de o usuário reautenticar manualmente a
+  ADC, o processo MCP novo reconheceu a 13ª tool e a única chamada real
+  autorizada retornou 0 Buildings, sem próxima página e sem retry.
 
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do

@@ -64,6 +64,29 @@ Ao alterar o catálogo, valide `tests/test_mcp_protocol.py`, a suíte completa e
 quando necessário, a enumeração real das tools. Confirme também que
 helpers/serializers não foram expostos acidentalmente.
 
+## Operação de Buildings paginada
+
+`workspace_buildings_list` é uma consulta somente de leitura à coleção
+`resources.buildings` da Admin SDK Directory API. Ela retorna
+`{"buildings": [...], "next_page_token": ...}`; trate `next_page_token` como
+opaco e repasse-o somente como `page_token` em uma chamada posterior. A tool
+valida `max_results` de 1 a 500 e não executa retries nem percorre páginas
+automaticamente nesta entrega.
+
+Os testes locais usam mocks e não requerem DWD. Antes de qualquer validação
+real, confirme que a DWD autoriza
+`https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly`
+e que o sujeito delegado possui **Calendar > View Resources**. Não habilite a
+Google Calendar API para essa integração.
+
+Em 11/09/2026, essas duas confirmações administrativas foram fornecidas para
+Buildings. Depois da reautenticação manual da ADC pelo usuário, um processo
+MCP novo confirmou a descoberta da 13ª tool e a única chamada real limitada
+foi bem-sucedida: zero Buildings e nenhuma página seguinte. Não houve
+paginação, retry ou registro de dados administrativos. Uma reautenticação da
+ADC é uma ação local do usuário quando necessária; não altere IAM, DWD, scopes
+ou Admin Console como parte desse diagnóstico.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização

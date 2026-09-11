@@ -18,6 +18,12 @@ ou registre chaves privadas de Service Account, tokens, JWTs, cabeçalhos de
 autorização ou ADC. A camada atual é somente de leitura; mudanças de IAM, DWD,
 scopes ou operações administrativas de escrita exigem autorização explícita.
 
+Toda alteração no Google Admin Console ou Google Cloud/Developer — incluindo
+DWD, scopes OAuth, IAM, Service Accounts, APIs, consentimento OAuth, funções
+ou privilégios administrativos — deve ser previamente solicitada ao usuário e
+executada manualmente por ele. O agente/Codex/MCP apenas pesquisa, diagnostica,
+explica a mudança necessária e valida posteriormente o resultado.
+
 Preserve também os invariantes estruturais definidos em
 `docs/00_AGENT_GUIDE.md`: serializers/helpers não são tools, todas as
 `@mcp.tool()` devem ser registradas antes da inicialização e `mcp.run()` deve

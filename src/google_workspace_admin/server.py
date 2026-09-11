@@ -17,6 +17,7 @@ from google_workspace_admin.directory.role_assignments import (
     list_role_assignments,
 )
 from google_workspace_admin.directory.roles import list_roles
+from google_workspace_admin.directory.resources.buildings import list_buildings
 from google_workspace_admin.directory.users import (
     get_user,
     list_users,
@@ -425,6 +426,72 @@ def workspace_domain_aliases_list(
         _serialize_domain_alias(domain_alias)
         for domain_alias in domain_aliases
     ]
+
+
+def _serialize_building_address(address: dict | None) -> dict:
+    """Seleciona os campos de endereço de edifício expostos pelo MCP."""
+    address_data = address or {}
+
+    return {
+        "region_code": address_data.get("regionCode"),
+        "language_code": address_data.get("languageCode"),
+        "postal_code": address_data.get("postalCode"),
+        "administrative_area": address_data.get("administrativeArea"),
+        "locality": address_data.get("locality"),
+        "sublocality": address_data.get("sublocality"),
+        "address_lines": address_data.get("addressLines", []),
+    }
+
+
+def _serialize_building(building: dict) -> dict:
+    """Seleciona os campos de edifício expostos pelo MCP."""
+    coordinates = building.get("coordinates") or {}
+
+    return {
+        "building_id": building.get("buildingId"),
+        "building_name": building.get("buildingName"),
+        "description": building.get("description"),
+        "floor_names": building.get("floorNames", []),
+        "coordinates": {
+            "latitude": coordinates.get("latitude"),
+            "longitude": coordinates.get("longitude"),
+        },
+        "address": _serialize_building_address(
+            building.get("address")
+        ),
+    }
+
+
+@mcp.tool()
+def workspace_buildings_list(
+    max_results: int = 100,
+    page_token: str | None = None,
+) -> dict:
+    """
+    Lista uma página de edifícios dos recursos corporativos do Workspace.
+
+    Args:
+        max_results: Quantidade máxima de edifícios na página.
+        page_token: Token opaco de continuação retornado pela página anterior.
+    """
+    if max_results < 1 or max_results > 500:
+        raise ValueError("max_results deve estar entre 1 e 500.")
+
+    if page_token is not None and not page_token.strip():
+        raise ValueError("page_token não pode estar vazio.")
+
+    page = list_buildings(
+        max_results=max_results,
+        page_token=page_token,
+    )
+
+    return {
+        "buildings": [
+            _serialize_building(building)
+            for building in page["buildings"]
+        ],
+        "next_page_token": page["next_page_token"],
+    }
 
 if __name__ == "__main__":
     mcp.run()

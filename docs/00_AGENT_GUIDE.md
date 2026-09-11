@@ -48,6 +48,11 @@ alterar Google Cloud ou Admin Console.
   não pode aceitar arbitrariamente um e-mail para impersonação.
 - Solicitar autorização explícita antes de qualquer operação administrativa de
   escrita, exclusão, mudança de escopo ou alteração em IAM/DWD.
+- Toda alteração no Google Admin Console ou Google Cloud/Developer, incluindo
+  DWD, scopes OAuth, IAM, Service Accounts, APIs, consentimento OAuth, funções
+  e privilégios administrativos, deve ser solicitada previamente ao usuário e
+  executada manualmente por ele. O agente/Codex/MCP limita-se a pesquisar,
+  diagnosticar, especificar a configuração necessária e validar o resultado.
 - Usar o menor conjunto de scopes por chamada e não expor respostas brutas da
   API ao modelo quando um serializador já seleciona os campos necessários.
 - O servidor MCP é `stdio`: diagnósticos vão para `stderr`/logging, nunca para

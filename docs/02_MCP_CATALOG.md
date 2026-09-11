@@ -1,7 +1,7 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 12 ferramentas, todas de leitura. Cada camada de API obtém
+catálogo atual possui 13 ferramentas, todas de leitura. Cada camada de API obtém
 um token para o scope mínimo que ela declara e o servidor serializa uma seleção
 de campos antes de devolver a resposta ao Codex.
 
@@ -19,6 +19,7 @@ de campos antes de devolver a resposta ao Codex.
 | `workspace_role_assignments_list` | `directory/role_assignments.py` | `max_results` 1–100, padrão 100 | atribuições de função |
 | `workspace_domains_list` | `directory/domains.py` | nenhum | domínios do customer atual |
 | `workspace_domain_aliases_list` | `directory/domain_aliases.py` | `parent_domain_name` opcional | aliases de domínio |
+| `workspace_buildings_list` | `directory/resources/buildings.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | edifícios serializados e `next_page_token` da página |
 
 ## Endpoints Directory em uso
 
@@ -33,11 +34,25 @@ de campos antes de devolver a resposta ao Codex.
 | Atribuições | `/admin/directory/v1/customer/my_customer/roleassignments` |
 | Domínios | `/admin/directory/v1/customer/my_customer/domains` |
 | Aliases | `/admin/directory/v1/customer/my_customer/domainaliases` |
+| Buildings | `/admin/directory/v1/customer/my_customer/resources/buildings` |
 
 Todos os clientes HTTP têm timeout de 30 segundos e propagam respostas HTTP não
-2xx. A paginação **ainda não está consolidada**: as ferramentas passam
-`maxResults`, mas não percorrem `nextPageToken`. Essa é uma entrega pendente da
-FASE 1, não uma garantia de inventário completo.
+2xx. A paginação **ainda não está consolidada**: as ferramentas existentes
+passam `maxResults`, mas não percorrem `nextPageToken`. A tool
+`workspace_buildings_list` preserva o token opaco da API como
+`next_page_token` e aceita-o como `page_token`, sem percorrer páginas
+automaticamente. A consolidação geral continua uma entrega pendente da FASE 1.
+
+Buildings pertence à coleção `resources.buildings` da Admin SDK Directory API.
+As próximas entregas de salas e features pertencem, respectivamente, às
+coleções irmãs `resources.calendars` e `resources.features`; elas usam o mesmo
+scope `admin.directory.resource.calendar.readonly`, mas endpoints distintos.
+
+Em 11/09/2026, após reautenticação manual da ADC pelo usuário, um processo MCP
+`stdio` novo redescobriu as 13 ferramentas, incluindo
+`workspace_buildings_list`, sem expor os serializadores. A invocação real
+autorizada retornou zero Buildings, sem página seguinte. Nenhum dado de
+Building nem token de paginação foi registrado.
 
 ## Limites de exposição
 

@@ -735,3 +735,110 @@ def test_workspace_domain_aliases_list(monkeypatch):
             "creation_time": "1586464166558",
         }
     ]
+
+
+def test_workspace_buildings_list_serializes_a_page(monkeypatch):
+    captured = {}
+
+    def fake_list_buildings(max_results=100, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {
+            "buildings": [
+                {
+                    "buildingId": "test-building",
+                    "buildingName": "Test Building",
+                    "description": "Test description",
+                    "floorNames": ["floor-1", "floor-2", "floor-3"],
+                    "coordinates": {
+                        "latitude": 1.0,
+                        "longitude": 2.0,
+                    },
+                    "address": {
+                        "regionCode": "XX",
+                        "languageCode": "test",
+                        "postalCode": "00000",
+                        "administrativeArea": "Test Area",
+                        "locality": "Test Locality",
+                        "sublocality": "Test Sublocality",
+                        "addressLines": ["Test Address"],
+                    },
+                    "kind": "admin#directory#resources#buildings",
+                    "etags": "test-etag",
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(server, "list_buildings", fake_list_buildings)
+
+    result = server.workspace_buildings_list(
+        max_results=500,
+        page_token="test-page",
+    )
+
+    assert captured == {
+        "max_results": 500,
+        "page_token": "test-page",
+    }
+    assert result == {
+        "buildings": [
+            {
+                "building_id": "test-building",
+                "building_name": "Test Building",
+                "description": "Test description",
+                "floor_names": ["floor-1", "floor-2", "floor-3"],
+                "coordinates": {
+                    "latitude": 1.0,
+                    "longitude": 2.0,
+                },
+                "address": {
+                    "region_code": "XX",
+                    "language_code": "test",
+                    "postal_code": "00000",
+                    "administrative_area": "Test Area",
+                    "locality": "Test Locality",
+                    "sublocality": "Test Sublocality",
+                    "address_lines": ["Test Address"],
+                },
+            }
+        ],
+        "next_page_token": "test-page",
+    }
+    assert "kind" not in result["buildings"][0]
+    assert "etags" not in result["buildings"][0]
+
+
+def test_workspace_buildings_list_uses_default_page_arguments(monkeypatch):
+    captured = {}
+
+    def fake_list_buildings(max_results=100, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {"buildings": [], "next_page_token": None}
+
+    monkeypatch.setattr(server, "list_buildings", fake_list_buildings)
+
+    assert server.workspace_buildings_list() == {
+        "buildings": [],
+        "next_page_token": None,
+    }
+    assert captured == {"max_results": 100, "page_token": None}
+
+
+@pytest.mark.parametrize("max_results", [0, 501])
+def test_workspace_buildings_list_rejects_invalid_page_limits(max_results):
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 500",
+    ):
+        server.workspace_buildings_list(max_results=max_results)
+
+
+@pytest.mark.parametrize("page_token", ["", "  ", "\t"])
+def test_workspace_buildings_list_rejects_blank_page_tokens(page_token):
+    with pytest.raises(
+        ValueError,
+        match="page_token não pode estar vazio",
+    ):
+        server.workspace_buildings_list(page_token=page_token)

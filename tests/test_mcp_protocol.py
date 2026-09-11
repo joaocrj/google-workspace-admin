@@ -60,6 +60,9 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_role_assignments_list" in tool_names
     assert "workspace_domains_list" in tool_names
     assert "workspace_domain_aliases_list" in tool_names
+    assert "workspace_buildings_list" in tool_names
+    assert "_serialize_building" not in tool_names
+    assert "_serialize_building_address" not in tool_names
 
 
 @pytest.mark.anyio
@@ -662,3 +665,107 @@ async def test_workspace_domain_aliases_list_through_mcp(
     assert payload[0]["parent_domain_name"] == "cevalente.com.br"
     assert payload[0]["verified"] is True
     assert payload[0]["creation_time"] == "1586464166558"
+
+
+@pytest.mark.anyio
+async def test_workspace_buildings_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_buildings(max_results=100, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {
+            "buildings": [
+                {
+                    "buildingId": "test-building",
+                    "buildingName": "Test Building",
+                    "description": "Test description",
+                    "floorNames": ["floor-1", "floor-2"],
+                    "coordinates": {
+                        "latitude": 1.0,
+                        "longitude": 2.0,
+                    },
+                    "address": {
+                        "regionCode": "XX",
+                        "languageCode": "test",
+                        "postalCode": "00000",
+                        "administrativeArea": "Test Area",
+                        "locality": "Test Locality",
+                        "sublocality": "Test Sublocality",
+                        "addressLines": ["Test Address"],
+                    },
+                    "kind": "admin#directory#resources#buildings",
+                    "etags": "test-etag",
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(server, "list_buildings", fake_list_buildings)
+
+    result = await client.call_tool(
+        "workspace_buildings_list",
+        {
+            "max_results": 500,
+            "page_token": "test-page",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured == {
+        "max_results": 500,
+        "page_token": "test-page",
+    }
+
+    payload = _json_result(result)
+
+    assert payload == {
+        "buildings": [
+            {
+                "building_id": "test-building",
+                "building_name": "Test Building",
+                "description": "Test description",
+                "floor_names": ["floor-1", "floor-2"],
+                "coordinates": {
+                    "latitude": 1.0,
+                    "longitude": 2.0,
+                },
+                "address": {
+                    "region_code": "XX",
+                    "language_code": "test",
+                    "postal_code": "00000",
+                    "administrative_area": "Test Area",
+                    "locality": "Test Locality",
+                    "sublocality": "Test Sublocality",
+                    "address_lines": ["Test Address"],
+                },
+            }
+        ],
+        "next_page_token": "test-page",
+    }
+    assert "kind" not in payload["buildings"][0]
+    assert "etags" not in payload["buildings"][0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 501},
+        {"page_token": "   "},
+    ],
+)
+async def test_workspace_buildings_list_validation_through_mcp(
+    client: Client,
+    arguments,
+):
+    result = await client.call_tool(
+        "workspace_buildings_list",
+        arguments,
+    )
+
+    assert result.is_error is True

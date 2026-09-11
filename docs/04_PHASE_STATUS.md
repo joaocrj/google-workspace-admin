@@ -12,10 +12,11 @@ Os estados formais de entregas são `✅ CONCLUÍDO`, `← EM ANDAMENTO`,
 commit, VALIDADO, VERIFICADA e ADICIONADO são evidências, não estados
 concorrentes; preserve-os como detalhes da entrega.
 
-**Próxima entrega prioritária: Calendar → Buildings.**
+**Próxima entrega prioritária: Calendar → Resources / Salas.**
 
 A paginação com `nextPageToken` permanece planejada para a etapa de
 **Consolidação da camada Read** e não substitui a próxima entrega prioritária.
+Buildings preserva o token por página, sem antecipar essa consolidação global.
 
 ```text
 FASE 1 — READ / ADMIN INVENTORY
@@ -65,8 +66,14 @@ FASE 1 — READ / ADMIN INVENTORY
 │       └── revisão + commit                               ✅ CONCLUÍDO — c01fd11
 │
 ├── 2. Calendar — recursos corporativos                   ← EM ANDAMENTO
-│   ├── Buildings                                         ← EM ANDAMENTO — PRÓXIMA ENTREGA
-│   ├── Resources / Salas                                  ⬜ PENDENTE
+│   ├── Buildings                                         ✅ CONCLUÍDO
+│   │   ├── módulo Directory/resources + tool MCP          ✅ CONCLUÍDO
+│   │   ├── paginação por nextPageToken preservada          ✅ CONCLUÍDO — sem percurso automático
+│   │   ├── testes unitários/protocolo MCP mockados         ✅ CONCLUÍDO
+│   │   ├── descoberta MCP real: 13ª tool                  ✅ CONCLUÍDO — sem serializers expostos
+│   │   ├── validação real: DWD + Calendar > View Resources ✅ CONCLUÍDO — 0 Buildings / sem próxima página
+│   │   └── revisão + checkpoint                            ✅ CONCLUÍDO — checkpoint desta entrega
+│   ├── Resources / Salas                                  ← EM ANDAMENTO — PRÓXIMA ENTREGA
 │   └── Features                                           ⬜ PENDENTE
 │
 ├── 3. Reports / Auditoria                                 ⬜ PENDENTE
@@ -106,6 +113,16 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
 
 ## Evidência de qualidade preservada
 
+- Em 11/09/2026, a implementação local de Buildings confirmou **76/76 testes
+  aprovados** em `uv run pytest -v`, incluindo testes unitários, serialização e
+  protocolo MCP com mocks. Após reautenticação manual da ADC pelo usuário, a
+  suíte foi confirmada novamente com **76/76 testes aprovados** e
+  `git diff --check` foi aprovado. Com DWD e privilégio delegado confirmados
+  administrativamente, a cadeia keyless ADC → IAM `signJwt` → DWD → OAuth →
+  Directory foi validada. Um MCP `stdio` novo descobriu 13 tools e a tool
+  Buildings; a única chamada real limitada foi bem-sucedida com zero Buildings
+  e sem próxima página. Nenhum nome, endereço, coordenada ou token de
+  paginação foi registrado.
 - Na consolidação documental de 10/09/2026, `uv run pytest -v` confirmou
   **56/56 testes aprovados**. `git diff --check` também foi aprovado.
 - Em `c01fd11`, o inventário fornecido já registrava **56/56 testes**,
