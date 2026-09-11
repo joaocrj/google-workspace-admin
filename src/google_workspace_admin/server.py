@@ -18,6 +18,9 @@ from google_workspace_admin.directory.role_assignments import (
 )
 from google_workspace_admin.directory.roles import list_roles
 from google_workspace_admin.directory.resources.buildings import list_buildings
+from google_workspace_admin.directory.resources.calendars import (
+    list_calendar_resources,
+)
 from google_workspace_admin.directory.users import (
     get_user,
     list_users,
@@ -492,6 +495,73 @@ def workspace_buildings_list(
         ],
         "next_page_token": page["next_page_token"],
     }
+
+
+def _serialize_calendar_resource(resource: dict) -> dict:
+    """Seleciona os campos de recurso corporativo expostos pelo MCP."""
+    return {
+        "resource_id": resource.get("resourceId"),
+        "resource_name": resource.get("resourceName"),
+        "resource_description": resource.get("resourceDescription"),
+        "resource_type": resource.get("resourceType"),
+        "resource_email": resource.get("resourceEmail"),
+        "resource_category": resource.get("resourceCategory"),
+        "user_visible_description": resource.get(
+            "userVisibleDescription"
+        ),
+        "generated_resource_name": resource.get(
+            "generatedResourceName"
+        ),
+        "capacity": resource.get("capacity"),
+        "building_id": resource.get("buildingId"),
+        "floor_name": resource.get("floorName"),
+        "floor_section": resource.get("floorSection"),
+    }
+
+
+@mcp.tool()
+def workspace_calendar_resources_list(
+    max_results: int = 100,
+    page_token: str | None = None,
+    order_by: str | None = None,
+    query: str | None = None,
+) -> dict:
+    """
+    Lista uma página de recursos corporativos de Calendar do Workspace.
+
+    Args:
+        max_results: Quantidade máxima de recursos na página.
+        page_token: Token opaco de continuação retornado pela página anterior.
+        order_by: Ordenação oficial da Directory API para os recursos.
+        query: Filtro oficial da Directory API para os recursos.
+    """
+    if max_results < 1 or max_results > 500:
+        raise ValueError("max_results deve estar entre 1 e 500.")
+
+    if page_token is not None and not page_token.strip():
+        raise ValueError("page_token não pode estar vazio.")
+
+    if order_by is not None and not order_by.strip():
+        raise ValueError("order_by não pode estar vazio.")
+
+    if query is not None and not query.strip():
+        raise ValueError("query não pode estar vazio.")
+
+    page = list_calendar_resources(
+        max_results=max_results,
+        page_token=page_token,
+        order_by=order_by,
+        query=query,
+    )
+
+    return {
+        "resources": [
+            _serialize_calendar_resource(resource)
+            for resource in page["resources"]
+        ],
+        "next_page_token": page["next_page_token"],
+    }
+
 
 if __name__ == "__main__":
     mcp.run()

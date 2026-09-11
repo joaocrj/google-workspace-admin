@@ -12,7 +12,7 @@ Os estados formais de entregas são `✅ CONCLUÍDO`, `← EM ANDAMENTO`,
 commit, VALIDADO, VERIFICADA e ADICIONADO são evidências, não estados
 concorrentes; preserve-os como detalhes da entrega.
 
-**Próxima entrega prioritária: Calendar → Resources / Salas.**
+**Próxima entrega prioritária: Calendar → Features.**
 
 A paginação com `nextPageToken` permanece planejada para a etapa de
 **Consolidação da camada Read** e não substitui a próxima entrega prioritária.
@@ -73,8 +73,13 @@ FASE 1 — READ / ADMIN INVENTORY
 │   │   ├── descoberta MCP real: 13ª tool                  ✅ CONCLUÍDO — sem serializers expostos
 │   │   ├── validação real: DWD + Calendar > View Resources ✅ CONCLUÍDO — 0 Buildings / sem próxima página
 │   │   └── revisão + checkpoint                            ✅ CONCLUÍDO — checkpoint desta entrega
-│   ├── Resources / Salas                                  ← EM ANDAMENTO — PRÓXIMA ENTREGA
-│   └── Features                                           ⬜ PENDENTE
+│   ├── Resources / Salas                                  ✅ CONCLUÍDO
+│   │   ├── módulo Directory/resources + tool MCP          ✅ CONCLUÍDO — sem chamada Google
+│   │   ├── paginação por token, ordenação e filtro        ✅ CONCLUÍDO — sem percurso automático
+│   │   ├── testes unitários/protocolo MCP mockados        ✅ CONCLUÍDO
+│   │   ├── validação real MCP/Codex                       ✅ CONCLUÍDO — 0 Resources / sem próxima página
+│   │   └── revisão + checkpoint                           ✅ CONCLUÍDO — checkpoint desta entrega
+│   └── Features                                           ⬜ PENDENTE — PRÓXIMA ENTREGA
 │
 ├── 3. Reports / Auditoria                                 ⬜ PENDENTE
 │   ├── Admin Audit                                        ⬜ PENDENTE
@@ -123,6 +128,14 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
   Buildings; a única chamada real limitada foi bem-sucedida com zero Buildings
   e sem próxima página. Nenhum nome, endereço, coordenada ou token de
   paginação foi registrado.
+- Em 11/09/2026, Resources / Salas recebeu implementação local da coleção
+  `resources.calendars`, serialização limitada, paginação por token e testes
+  unitários/protocolo MCP com mocks; a suíte completa confirmou **100/100
+  testes aprovados**. Um processo MCP `stdio` novo redescobriu 14 tools sem
+  helpers/serializers expostos e validou a cadeia keyless com a única chamada
+  real limitada a `max_results=1`: zero Resources / Salas e sem próxima página.
+  Nenhum dado de recurso, token ou credencial foi registrado. O checkpoint Git
+  desta entrega é registrado nesta mudança.
 - Na consolidação documental de 10/09/2026, `uv run pytest -v` confirmou
   **56/56 testes aprovados**. `git diff --check` também foi aprovado.
 - Em `c01fd11`, o inventário fornecido já registrava **56/56 testes**,

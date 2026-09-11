@@ -61,8 +61,11 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_domains_list" in tool_names
     assert "workspace_domain_aliases_list" in tool_names
     assert "workspace_buildings_list" in tool_names
+    assert "workspace_calendar_resources_list" in tool_names
+    assert len(tool_names) == 14
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
+    assert "_serialize_calendar_resource" not in tool_names
 
 
 @pytest.mark.anyio
@@ -765,6 +768,119 @@ async def test_workspace_buildings_list_validation_through_mcp(
 ):
     result = await client.call_tool(
         "workspace_buildings_list",
+        arguments,
+    )
+
+    assert result.is_error is True
+
+
+@pytest.mark.anyio
+async def test_workspace_calendar_resources_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_calendar_resources(
+        max_results=100,
+        page_token=None,
+        order_by=None,
+        query=None,
+    ):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        captured["order_by"] = order_by
+        captured["query"] = query
+        return {
+            "resources": [
+                {
+                    "resourceId": "test-resource",
+                    "resourceName": "Test Resource",
+                    "resourceDescription": "Test description",
+                    "resourceType": "CONFERENCE_ROOM",
+                    "resourceEmail": "resource@example.com",
+                    "resourceCategory": "CONFERENCE_ROOM",
+                    "userVisibleDescription": "Test visible description",
+                    "generatedResourceName": "test-resource",
+                    "capacity": 10,
+                    "buildingId": "test-building",
+                    "floorName": "floor-1",
+                    "floorSection": "section-1",
+                    "kind": "admin#directory#resources#calendars#CalendarResource",
+                    "etags": "test-etag",
+                    "featureInstances": [{"feature": {"name": "display"}}],
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_calendar_resources",
+        fake_list_calendar_resources,
+    )
+
+    result = await client.call_tool(
+        "workspace_calendar_resources_list",
+        {
+            "max_results": 500,
+            "page_token": "test-page",
+            "order_by": "capacity desc",
+            "query": "resourceCategory=CONFERENCE_ROOM",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured == {
+        "max_results": 500,
+        "page_token": "test-page",
+        "order_by": "capacity desc",
+        "query": "resourceCategory=CONFERENCE_ROOM",
+    }
+
+    payload = _json_result(result)
+
+    assert payload == {
+        "resources": [
+            {
+                "resource_id": "test-resource",
+                "resource_name": "Test Resource",
+                "resource_description": "Test description",
+                "resource_type": "CONFERENCE_ROOM",
+                "resource_email": "resource@example.com",
+                "resource_category": "CONFERENCE_ROOM",
+                "user_visible_description": "Test visible description",
+                "generated_resource_name": "test-resource",
+                "capacity": 10,
+                "building_id": "test-building",
+                "floor_name": "floor-1",
+                "floor_section": "section-1",
+            }
+        ],
+        "next_page_token": "test-page",
+    }
+    assert "kind" not in payload["resources"][0]
+    assert "etags" not in payload["resources"][0]
+    assert "feature_instances" not in payload["resources"][0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 501},
+        {"page_token": "   "},
+        {"order_by": "   "},
+        {"query": "   "},
+    ],
+)
+async def test_workspace_calendar_resources_list_validation_through_mcp(
+    client: Client,
+    arguments,
+):
+    result = await client.call_tool(
+        "workspace_calendar_resources_list",
         arguments,
     )
 

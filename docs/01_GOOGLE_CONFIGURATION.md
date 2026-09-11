@@ -8,7 +8,7 @@
 | Service Account | `codex-workspace@codex-workspace-admin.iam.gserviceaccount.com` |
 | Modelo de autenticação | ADC local + IAM `signJwt` + DWD + OAuth 2.0 |
 | Chave privada de Service Account | Não utilizada nem permitida |
-| API de recursos Workspace | Admin SDK Directory API (`admin.googleapis.com`), incluindo `resources.buildings` |
+| API de recursos Workspace | Admin SDK Directory API (`admin.googleapis.com`), incluindo `resources.buildings` e `resources.calendars` |
 | Assinatura JWT | Service Account Credentials API (`iamcredentials.googleapis.com`) |
 | Token Workspace | Curta duração, cache somente em memória |
 | Sujeito delegado | Controlado por `config.py`; não é parâmetro de ferramenta MCP |
@@ -80,7 +80,7 @@ Client ID são:
 | Dispositivos ChromeOS | `https://www.googleapis.com/auth/admin.directory.device.chromeos.readonly` |
 | Funções e atribuições administrativas | `https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly` |
 | Domínios e aliases | `https://www.googleapis.com/auth/admin.directory.domain.readonly` |
-| Buildings (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente e validação MCP real concluída em 11/09/2026 após reautenticação manual da ADC |
+| Buildings e Resources / Salas (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída somente para Buildings em 11/09/2026 após reautenticação manual da ADC |
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
@@ -100,6 +100,14 @@ seguinte. Não altere DWD, IAM ou scopes automaticamente; qualquer mudança
 administrativa futura continua dependente de solicitação e execução manual do
 usuário.
 
+`workspace_calendar_resources_list` usa o mesmo scope, porque Resources / Salas
+é a coleção irmã `resources.calendars` da mesma Admin SDK Directory API. Não há
+scope, API, IAM, DWD ou privilégio adicional previsto para a implementação
+local. Em 11/09/2026, um processo MCP `stdio` novo validou a cadeia keyless
+com uma única consulta limitada a `max_results=1`: a chamada foi bem-sucedida,
+retornou zero Resources / Salas e não indicou página seguinte. Nenhuma
+credencial, token de paginação ou dado de recurso foi registrado.
+
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.
 Se a organização usa aprovação por múltiplas partes, a alteração também requer
@@ -113,6 +121,7 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - [Habilitar APIs do Google Workspace](https://developers.google.com/workspace/guides/enable-apis)
 - [Permissões IAM para `signJwt`](https://docs.cloud.google.com/iam/docs/service-account-permissions)
 - [Admin SDK Directory API](https://developers.google.com/workspace/admin/directory/reference/rest)
+- [Calendar resources: `resources.calendars.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.calendars/list)
 
 ## O que não fazer
 
@@ -120,7 +129,7 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - Não pôr tokens, JWTs, cabeçalhos HTTP ou ADC em `.env`, documentação, testes
   ou commits.
 - Não autorizar scopes da Google Calendar API, Reports, Drive ou Gmail por
-  conveniência. Buildings usa somente o scope readonly da Directory API
-  documentado acima e sua alteração de DWD continua sujeita a autorização
-  explícita.
+  conveniência. Buildings e Resources / Salas usam somente o scope readonly da
+  Directory API documentado acima e sua alteração de DWD continua sujeita a
+  autorização explícita.
 - Não permitir que a chamada MCP escolha livremente quem será impersonado.

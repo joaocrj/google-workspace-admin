@@ -87,6 +87,30 @@ paginação, retry ou registro de dados administrativos. Uma reautenticação da
 ADC é uma ação local do usuário quando necessária; não altere IAM, DWD, scopes
 ou Admin Console como parte desse diagnóstico.
 
+## Operação de Resources / Salas paginada
+
+`workspace_calendar_resources_list` consulta somente a coleção
+`resources.calendars` da Admin SDK Directory API e retorna
+`{"resources": [...], "next_page_token": ...}`. Ela usa o mesmo scope readonly
+de recursos de Calendar já documentado para Buildings, valida `max_results` de
+1 a 500 e não percorre páginas nem cria retries.
+
+`page_token`, `order_by` e `query` são opcionais, mas não podem ser vazios ou
+conter apenas whitespace. Os valores válidos são encaminhados, respectivamente,
+como `pageToken`, `orderBy` e `query`; use somente a sintaxe documentada pela
+Directory API para ordenação e filtro. `next_page_token` é opaco e só deve ser
+repassado como `page_token` em uma consulta posterior autorizada.
+
+Além dos testes unitários e de protocolo MCP com mocks, em 11/09/2026 um
+processo MCP `stdio` novo redescobriu as 14 tools sem expor helpers e concluiu a
+única validação real autorizada de Resources / Salas com `max_results=1`. A
+cadeia keyless foi bem-sucedida, retornando zero recursos e nenhuma página
+seguinte; não houve paginação, retry ou registro de dados administrativos.
+
+Antes de uma nova validação real autorizada, confirme o scope readonly já
+documentado e o privilégio delegado **Calendar > View Resources**; o agente não
+deve alterar DWD, IAM, APIs, scopes nem o Admin Console.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização

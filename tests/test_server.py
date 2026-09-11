@@ -842,3 +842,148 @@ def test_workspace_buildings_list_rejects_blank_page_tokens(page_token):
         match="page_token não pode estar vazio",
     ):
         server.workspace_buildings_list(page_token=page_token)
+
+
+def test_workspace_calendar_resources_list_serializes_a_page(monkeypatch):
+    captured = {}
+
+    def fake_list_calendar_resources(
+        max_results=100,
+        page_token=None,
+        order_by=None,
+        query=None,
+    ):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        captured["order_by"] = order_by
+        captured["query"] = query
+        return {
+            "resources": [
+                {
+                    "resourceId": "test-resource",
+                    "resourceName": "Test Resource",
+                    "resourceDescription": "Test description",
+                    "resourceType": "CONFERENCE_ROOM",
+                    "resourceEmail": "resource@example.com",
+                    "resourceCategory": "CONFERENCE_ROOM",
+                    "userVisibleDescription": "Test visible description",
+                    "generatedResourceName": "test-resource",
+                    "capacity": 10,
+                    "buildingId": "test-building",
+                    "floorName": "floor-1",
+                    "floorSection": "section-1",
+                    "kind": "admin#directory#resources#calendars#CalendarResource",
+                    "etags": "test-etag",
+                    "featureInstances": [{"feature": {"name": "display"}}],
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_calendar_resources",
+        fake_list_calendar_resources,
+    )
+
+    result = server.workspace_calendar_resources_list(
+        max_results=500,
+        page_token="test-page",
+        order_by="capacity desc",
+        query="resourceCategory=CONFERENCE_ROOM",
+    )
+
+    assert captured == {
+        "max_results": 500,
+        "page_token": "test-page",
+        "order_by": "capacity desc",
+        "query": "resourceCategory=CONFERENCE_ROOM",
+    }
+    assert result == {
+        "resources": [
+            {
+                "resource_id": "test-resource",
+                "resource_name": "Test Resource",
+                "resource_description": "Test description",
+                "resource_type": "CONFERENCE_ROOM",
+                "resource_email": "resource@example.com",
+                "resource_category": "CONFERENCE_ROOM",
+                "user_visible_description": "Test visible description",
+                "generated_resource_name": "test-resource",
+                "capacity": 10,
+                "building_id": "test-building",
+                "floor_name": "floor-1",
+                "floor_section": "section-1",
+            }
+        ],
+        "next_page_token": "test-page",
+    }
+    assert "kind" not in result["resources"][0]
+    assert "etags" not in result["resources"][0]
+    assert "feature_instances" not in result["resources"][0]
+
+
+def test_workspace_calendar_resources_list_uses_default_page_arguments(
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_calendar_resources(
+        max_results=100,
+        page_token=None,
+        order_by=None,
+        query=None,
+    ):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        captured["order_by"] = order_by
+        captured["query"] = query
+        return {"resources": [], "next_page_token": None}
+
+    monkeypatch.setattr(
+        server,
+        "list_calendar_resources",
+        fake_list_calendar_resources,
+    )
+
+    assert server.workspace_calendar_resources_list() == {
+        "resources": [],
+        "next_page_token": None,
+    }
+    assert captured == {
+        "max_results": 100,
+        "page_token": None,
+        "order_by": None,
+        "query": None,
+    }
+
+
+@pytest.mark.parametrize("max_results", [0, 501])
+def test_workspace_calendar_resources_list_rejects_invalid_page_limits(
+    max_results,
+):
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 500",
+    ):
+        server.workspace_calendar_resources_list(max_results=max_results)
+
+
+@pytest.mark.parametrize(
+    ("parameter_name", "value"),
+    [
+        ("page_token", ""),
+        ("page_token", "  "),
+        ("order_by", "\t"),
+        ("query", "   "),
+    ],
+)
+def test_workspace_calendar_resources_list_rejects_blank_strings(
+    parameter_name,
+    value,
+):
+    with pytest.raises(
+        ValueError,
+        match=f"{parameter_name} não pode estar vazio",
+    ):
+        server.workspace_calendar_resources_list(**{parameter_name: value})
