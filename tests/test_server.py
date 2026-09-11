@@ -987,3 +987,88 @@ def test_workspace_calendar_resources_list_rejects_blank_strings(
         match=f"{parameter_name} não pode estar vazio",
     ):
         server.workspace_calendar_resources_list(**{parameter_name: value})
+
+
+def test_workspace_calendar_features_list_serializes_a_page(monkeypatch):
+    captured = {}
+
+    def fake_list_calendar_features(max_results=100, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {
+            "features": [
+                {
+                    "name": "test-feature",
+                    "kind": "admin#directory#resources#features#Feature",
+                    "etags": "test-etag",
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_calendar_features",
+        fake_list_calendar_features,
+    )
+
+    result = server.workspace_calendar_features_list(
+        max_results=500,
+        page_token="test-page",
+    )
+
+    assert captured == {
+        "max_results": 500,
+        "page_token": "test-page",
+    }
+    assert result == {
+        "features": [{"feature_name": "test-feature"}],
+        "next_page_token": "test-page",
+    }
+    assert "kind" not in result["features"][0]
+    assert "etags" not in result["features"][0]
+
+
+def test_workspace_calendar_features_list_uses_default_page_arguments(
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_calendar_features(max_results=100, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {"features": [], "next_page_token": None}
+
+    monkeypatch.setattr(
+        server,
+        "list_calendar_features",
+        fake_list_calendar_features,
+    )
+
+    assert server.workspace_calendar_features_list() == {
+        "features": [],
+        "next_page_token": None,
+    }
+    assert captured == {"max_results": 100, "page_token": None}
+
+
+@pytest.mark.parametrize("max_results", [0, 501])
+def test_workspace_calendar_features_list_rejects_invalid_page_limits(
+    max_results,
+):
+    with pytest.raises(
+        ValueError,
+        match="max_results deve estar entre 1 e 500",
+    ):
+        server.workspace_calendar_features_list(max_results=max_results)
+
+
+@pytest.mark.parametrize("page_token", ["", "  ", "\t"])
+def test_workspace_calendar_features_list_rejects_blank_page_tokens(
+    page_token,
+):
+    with pytest.raises(
+        ValueError,
+        match="page_token não pode estar vazio",
+    ):
+        server.workspace_calendar_features_list(page_token=page_token)

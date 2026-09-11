@@ -1,7 +1,7 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 14 ferramentas, todas de leitura. Cada camada de API obtém
+catálogo atual possui 15 ferramentas, todas de leitura. Cada camada de API obtém
 um token para o scope mínimo que ela declara e o servidor serializa uma seleção
 de campos antes de devolver a resposta ao Codex.
 
@@ -21,6 +21,7 @@ de campos antes de devolver a resposta ao Codex.
 | `workspace_domain_aliases_list` | `directory/domain_aliases.py` | `parent_domain_name` opcional | aliases de domínio |
 | `workspace_buildings_list` | `directory/resources/buildings.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | edifícios serializados e `next_page_token` da página |
 | `workspace_calendar_resources_list` | `directory/resources/calendars.py` | `max_results` 1–500, padrão 100; `page_token`, `order_by` e `query` opcionais não vazios | recursos corporativos serializados e `next_page_token` da página |
+| `workspace_calendar_features_list` | `directory/resources/features.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | features serializadas e `next_page_token` da página |
 
 ## Endpoints Directory em uso
 
@@ -37,6 +38,7 @@ de campos antes de devolver a resposta ao Codex.
 | Aliases | `/admin/directory/v1/customer/my_customer/domainaliases` |
 | Buildings | `/admin/directory/v1/customer/my_customer/resources/buildings` |
 | Resources / Salas | `/admin/directory/v1/customer/my_customer/resources/calendars` |
+| Features | `/admin/directory/v1/customer/my_customer/resources/features` |
 
 Todos os clientes HTTP têm timeout de 30 segundos e propagam respostas HTTP não
 2xx. A paginação **ainda não está consolidada**: as ferramentas existentes
@@ -47,8 +49,8 @@ percorrer páginas automaticamente. A consolidação geral continua uma entrega
 pendente da FASE 1.
 
 Buildings pertence à coleção `resources.buildings` da Admin SDK Directory API.
-Resources / Salas pertence à coleção irmã `resources.calendars`; Features será
-uma futura coleção irmã `resources.features`. As três usam o mesmo scope
+Resources / Salas pertence à coleção irmã `resources.calendars`; Features
+pertence à coleção irmã `resources.features`. As três usam o mesmo scope
 `admin.directory.resource.calendar.readonly`, mas endpoints distintos.
 
 Em Resources / Salas, `order_by` e `query` são passados para os parâmetros
@@ -70,6 +72,22 @@ incluindo Buildings e Resources / Salas, sem helpers/serializers expostos. A
 única invocação real de Resources / Salas, limitada a `max_results=1`, foi
 bem-sucedida com zero recursos e sem página seguinte. Nenhum dado de recurso
 ou token de paginação foi registrado.
+
+O catálogo local agora inclui a 15ª tool,
+`workspace_calendar_features_list`. Ela envia somente `maxResults` e, quando
+informado, `pageToken`, pois `resources.features.list` não documenta ordenação
+nem filtro. A implementação preserva `nextPageToken` como
+`next_page_token`, não percorre páginas e não cria retries. Em 11/09/2026, um
+processo MCP `stdio` novo redescobriu as 15 tools, incluindo Buildings,
+Resources / Salas e Features, sem helpers/serializers expostos. A única
+invocação real de Features, limitada a `max_results=1`, foi bem-sucedida com
+zero Features e sem página seguinte. Nenhum dado de Feature, token de página
+ou material de autenticação foi registrado.
+
+Com o checkpoint de Features, as três coleções de recursos corporativos de
+Calendar — Buildings, Resources / Salas e Features — estão implementadas,
+testadas e validadas no MCP real. O catálogo permanece com 15 tools somente de
+leitura.
 
 ## Limites de exposição
 

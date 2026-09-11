@@ -8,7 +8,7 @@
 | Service Account | `codex-workspace@codex-workspace-admin.iam.gserviceaccount.com` |
 | Modelo de autenticação | ADC local + IAM `signJwt` + DWD + OAuth 2.0 |
 | Chave privada de Service Account | Não utilizada nem permitida |
-| API de recursos Workspace | Admin SDK Directory API (`admin.googleapis.com`), incluindo `resources.buildings` e `resources.calendars` |
+| API de recursos Workspace | Admin SDK Directory API (`admin.googleapis.com`), incluindo `resources.buildings`, `resources.calendars` e `resources.features` |
 | Assinatura JWT | Service Account Credentials API (`iamcredentials.googleapis.com`) |
 | Token Workspace | Curta duração, cache somente em memória |
 | Sujeito delegado | Controlado por `config.py`; não é parâmetro de ferramenta MCP |
@@ -80,7 +80,7 @@ Client ID são:
 | Dispositivos ChromeOS | `https://www.googleapis.com/auth/admin.directory.device.chromeos.readonly` |
 | Funções e atribuições administrativas | `https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly` |
 | Domínios e aliases | `https://www.googleapis.com/auth/admin.directory.domain.readonly` |
-| Buildings e Resources / Salas (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída somente para Buildings em 11/09/2026 após reautenticação manual da ADC |
+| Buildings, Resources / Salas e Features (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída para as três coleções em 11/09/2026; Buildings exigiu reautenticação manual prévia da ADC |
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
@@ -108,6 +108,17 @@ com uma única consulta limitada a `max_results=1`: a chamada foi bem-sucedida,
 retornou zero Resources / Salas e não indicou página seguinte. Nenhuma
 credencial, token de paginação ou dado de recurso foi registrado.
 
+`workspace_calendar_features_list` usa esse mesmo scope readonly, pois
+Features é a coleção irmã `resources.features` da Admin SDK Directory API. A
+documentação oficial autoriza `resources.features.list` com esse scope; a
+implementação local está concluída, sem necessidade de API, IAM, DWD, scope ou
+privilégio adicional. Em 11/09/2026, após confirmar a capacidade da ADC sem
+registrar material de autenticação, um processo MCP `stdio` novo validou a
+cadeia keyless com uma única chamada limitada a `max_results=1`: a chamada foi
+bem-sucedida, retornou zero Features e não indicou página seguinte. Nenhuma
+alteração administrativa, credencial, token de paginação ou dado de Feature foi
+registrado.
+
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.
 Se a organização usa aprovação por múltiplas partes, a alteração também requer
@@ -122,6 +133,7 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - [Permissões IAM para `signJwt`](https://docs.cloud.google.com/iam/docs/service-account-permissions)
 - [Admin SDK Directory API](https://developers.google.com/workspace/admin/directory/reference/rest)
 - [Calendar resources: `resources.calendars.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.calendars/list)
+- [Calendar resource features: `resources.features.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.features/list)
 
 ## O que não fazer
 
@@ -129,7 +141,7 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - Não pôr tokens, JWTs, cabeçalhos HTTP ou ADC em `.env`, documentação, testes
   ou commits.
 - Não autorizar scopes da Google Calendar API, Reports, Drive ou Gmail por
-  conveniência. Buildings e Resources / Salas usam somente o scope readonly da
-  Directory API documentado acima e sua alteração de DWD continua sujeita a
-  autorização explícita.
+  conveniência. Buildings, Resources / Salas e Features usam somente o scope
+  readonly da Directory API documentado acima e sua alteração de DWD continua
+  sujeita a autorização explícita.
 - Não permitir que a chamada MCP escolha livremente quem será impersonado.

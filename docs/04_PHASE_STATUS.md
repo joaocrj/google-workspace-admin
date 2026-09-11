@@ -12,7 +12,7 @@ Os estados formais de entregas são `✅ CONCLUÍDO`, `← EM ANDAMENTO`,
 commit, VALIDADO, VERIFICADA e ADICIONADO são evidências, não estados
 concorrentes; preserve-os como detalhes da entrega.
 
-**Próxima entrega prioritária: Calendar → Features.**
+**Próxima etapa prioritária: Reports / Auditoria.**
 
 A paginação com `nextPageToken` permanece planejada para a etapa de
 **Consolidação da camada Read** e não substitui a próxima entrega prioritária.
@@ -65,7 +65,7 @@ FASE 1 — READ / ADMIN INVENTORY
 │       ├── execução real MCP/Codex                        ✅ CONCLUÍDO — 1 alias
 │       └── revisão + commit                               ✅ CONCLUÍDO — c01fd11
 │
-├── 2. Calendar — recursos corporativos                   ← EM ANDAMENTO
+├── 2. Calendar — recursos corporativos                   ✅ CONCLUÍDO
 │   ├── Buildings                                         ✅ CONCLUÍDO
 │   │   ├── módulo Directory/resources + tool MCP          ✅ CONCLUÍDO
 │   │   ├── paginação por nextPageToken preservada          ✅ CONCLUÍDO — sem percurso automático
@@ -79,9 +79,14 @@ FASE 1 — READ / ADMIN INVENTORY
 │   │   ├── testes unitários/protocolo MCP mockados        ✅ CONCLUÍDO
 │   │   ├── validação real MCP/Codex                       ✅ CONCLUÍDO — 0 Resources / sem próxima página
 │   │   └── revisão + checkpoint                           ✅ CONCLUÍDO — checkpoint desta entrega
-│   └── Features                                           ⬜ PENDENTE — PRÓXIMA ENTREGA
+│   └── Features                                           ✅ CONCLUÍDO
+│       ├── PLAN: API, scope e privilégio                  ✅ CONCLUÍDO
+│       ├── módulo Directory/resources + tool MCP          ✅ CONCLUÍDO — sem chamada Google
+│       ├── testes unitários/protocolo MCP mockados        ✅ CONCLUÍDO
+│       ├── validação real MCP/Codex                       ✅ CONCLUÍDO — 0 Features / sem próxima página
+│       └── revisão + checkpoint                           ✅ CONCLUÍDO — checkpoint desta entrega
 │
-├── 3. Reports / Auditoria                                 ⬜ PENDENTE
+├── 3. Reports / Auditoria                                 ⬜ PENDENTE ← PRÓXIMA ETAPA
 │   ├── Admin Audit                                        ⬜ PENDENTE
 │   ├── Login Audit                                        ⬜ PENDENTE
 │   ├── Drive Audit                                        ⬜ PENDENTE
@@ -136,6 +141,15 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
   real limitada a `max_results=1`: zero Resources / Salas e sem próxima página.
   Nenhum dado de recurso, token ou credencial foi registrado. O checkpoint Git
   desta entrega é registrado nesta mudança.
+- Em 11/09/2026, Features recebeu PLAN aprovado e implementação local da
+  coleção `resources.features`, serialização limitada a `feature_name`,
+  paginação por token e a 15ª tool MCP. A suíte local confirmou **121/121
+  testes aprovados**; os testes unitários e de protocolo usam mocks. Após a
+  confirmação segura da ADC, um processo MCP `stdio` novo redescobriu 15 tools
+  sem helpers/serializers expostos e validou a cadeia keyless com uma única
+  chamada real limitada a `max_results=1`: zero Features e sem próxima página.
+  Nenhum dado de Feature, token ou credencial foi registrado; o checkpoint Git
+  desta entrega conclui Features e o bloco Calendar — recursos corporativos.
 - Na consolidação documental de 10/09/2026, `uv run pytest -v` confirmou
   **56/56 testes aprovados**. `git diff --check` também foi aprovado.
 - Em `c01fd11`, o inventário fornecido já registrava **56/56 testes**,

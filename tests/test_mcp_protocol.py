@@ -62,10 +62,12 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_domain_aliases_list" in tool_names
     assert "workspace_buildings_list" in tool_names
     assert "workspace_calendar_resources_list" in tool_names
-    assert len(tool_names) == 14
+    assert "workspace_calendar_features_list" in tool_names
+    assert len(tool_names) == 15
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
+    assert "_serialize_calendar_feature" not in tool_names
 
 
 @pytest.mark.anyio
@@ -881,6 +883,78 @@ async def test_workspace_calendar_resources_list_validation_through_mcp(
 ):
     result = await client.call_tool(
         "workspace_calendar_resources_list",
+        arguments,
+    )
+
+    assert result.is_error is True
+
+
+@pytest.mark.anyio
+async def test_workspace_calendar_features_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_calendar_features(max_results=100, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {
+            "features": [
+                {
+                    "name": "test-feature",
+                    "kind": "admin#directory#resources#features#Feature",
+                    "etags": "test-etag",
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_calendar_features",
+        fake_list_calendar_features,
+    )
+
+    result = await client.call_tool(
+        "workspace_calendar_features_list",
+        {
+            "max_results": 500,
+            "page_token": "test-page",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured == {
+        "max_results": 500,
+        "page_token": "test-page",
+    }
+
+    payload = _json_result(result)
+
+    assert payload == {
+        "features": [{"feature_name": "test-feature"}],
+        "next_page_token": "test-page",
+    }
+    assert "kind" not in payload["features"][0]
+    assert "etags" not in payload["features"][0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 501},
+        {"page_token": "   "},
+    ],
+)
+async def test_workspace_calendar_features_list_validation_through_mcp(
+    client: Client,
+    arguments,
+):
+    result = await client.call_tool(
+        "workspace_calendar_features_list",
         arguments,
     )
 

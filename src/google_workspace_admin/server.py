@@ -21,6 +21,9 @@ from google_workspace_admin.directory.resources.buildings import list_buildings
 from google_workspace_admin.directory.resources.calendars import (
     list_calendar_resources,
 )
+from google_workspace_admin.directory.resources.features import (
+    list_calendar_features,
+)
 from google_workspace_admin.directory.users import (
     get_user,
     list_users,
@@ -558,6 +561,45 @@ def workspace_calendar_resources_list(
         "resources": [
             _serialize_calendar_resource(resource)
             for resource in page["resources"]
+        ],
+        "next_page_token": page["next_page_token"],
+    }
+
+
+def _serialize_calendar_feature(feature: dict) -> dict:
+    """Seleciona os campos de feature de Calendar expostos pelo MCP."""
+    return {
+        "feature_name": feature.get("name"),
+    }
+
+
+@mcp.tool()
+def workspace_calendar_features_list(
+    max_results: int = 100,
+    page_token: str | None = None,
+) -> dict:
+    """
+    Lista uma página de features dos recursos corporativos de Calendar.
+
+    Args:
+        max_results: Quantidade máxima de features na página.
+        page_token: Token opaco de continuação retornado pela página anterior.
+    """
+    if max_results < 1 or max_results > 500:
+        raise ValueError("max_results deve estar entre 1 e 500.")
+
+    if page_token is not None and not page_token.strip():
+        raise ValueError("page_token não pode estar vazio.")
+
+    page = list_calendar_features(
+        max_results=max_results,
+        page_token=page_token,
+    )
+
+    return {
+        "features": [
+            _serialize_calendar_feature(feature)
+            for feature in page["features"]
         ],
         "next_page_token": page["next_page_token"],
     }

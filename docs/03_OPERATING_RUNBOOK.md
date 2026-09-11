@@ -111,6 +111,28 @@ Antes de uma nova validação real autorizada, confirme o scope readonly já
 documentado e o privilégio delegado **Calendar > View Resources**; o agente não
 deve alterar DWD, IAM, APIs, scopes nem o Admin Console.
 
+## Operação de Features paginada
+
+`workspace_calendar_features_list` consulta somente a coleção
+`resources.features` da Admin SDK Directory API e retorna
+`{"features": [...], "next_page_token": ...}`. Ela usa o mesmo scope readonly
+de recursos de Calendar, valida `max_results` de 1 a 500 e aceita somente o
+`page_token` opcional não vazio. A API não documenta `orderBy` ou `query` para
+essa operação; a tool não expõe esses parâmetros, não percorre páginas e não
+cria retries.
+
+A implementação e os testes locais usam mocks. Em 11/09/2026, a ADC foi
+confirmada de modo seguro e um processo MCP `stdio` novo redescobriu as 15
+tools sem expor helpers/serializers. A única chamada real autorizada,
+`workspace_calendar_features_list(max_results=1)`, concluiu a cadeia keyless
+com sucesso, retornando zero Features e sem página seguinte. Não houve
+paginação, retry, alteração administrativa nem registro de dados de Feature ou
+material de autenticação.
+
+Com o checkpoint de Features, o bloco Calendar — recursos corporativos está
+encerrado. Qualquer nova operação real deve continuar sendo autorizada
+explicitamente e limitada à necessidade da entrega correspondente.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização
