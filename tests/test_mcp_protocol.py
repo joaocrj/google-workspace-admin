@@ -63,11 +63,16 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_buildings_list" in tool_names
     assert "workspace_calendar_resources_list" in tool_names
     assert "workspace_calendar_features_list" in tool_names
-    assert len(tool_names) == 15
+    assert "workspace_admin_audit_list" in tool_names
+    assert len(tool_names) == 16
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
     assert "_serialize_calendar_feature" not in tool_names
+    assert "_serialize_admin_audit_activity" not in tool_names
+    assert "_serialize_admin_audit_event" not in tool_names
+    assert "_serialize_admin_audit_parameter" not in tool_names
+    assert "_serialize_admin_audit_nested_parameter" not in tool_names
 
 
 @pytest.mark.anyio
@@ -955,6 +960,107 @@ async def test_workspace_calendar_features_list_validation_through_mcp(
 ):
     result = await client.call_tool(
         "workspace_calendar_features_list",
+        arguments,
+    )
+
+    assert result.is_error is True
+
+
+@pytest.mark.anyio
+async def test_workspace_admin_audit_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_admin_audit_activities(**kwargs):
+        captured.update(kwargs)
+        return {
+            "activities": [
+                {
+                    "kind": "audit#activity",
+                    "id": {"time": "0", "uniqueQualifier": "1"},
+                    "actor": {
+                        "email": "admin@example.com",
+                        "callerType": "USER",
+                        "profileId": "profile-id",
+                    },
+                    "ipAddress": "198.51.100.10",
+                    "events": [
+                        {
+                            "type": "SETTINGS",
+                            "name": "CHANGE_SETTING",
+                            "parameters": [
+                                {"name": "value", "value": "example"}
+                            ],
+                            "sensitiveParameters": [
+                                {"name": "secret", "value": "omit"}
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_admin_audit_activities",
+        fake_list_admin_audit_activities,
+    )
+
+    result = await client.call_tool(
+        "workspace_admin_audit_list",
+        {
+            "max_results": 100,
+            "page_token": "test-page",
+            "user_key": "admin@example.com",
+            "event_name": "CHANGE_SETTING",
+            "filters": "SETTING_NAME==EXAMPLE",
+            "start_time": "2026-09-10T00:00:00Z",
+            "end_time": "2026-09-11T00:00:00Z",
+            "actor_ip_address": "198.51.100.10",
+            "org_unit_id": "id:org-unit",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured["max_results"] == 100
+    assert captured["user_key"] == "admin@example.com"
+
+    payload = _json_result(result)
+
+    assert payload["next_page_token"] == "test-page"
+    assert payload["activities"][0]["actor"] == {
+        "email": "admin@example.com",
+        "caller_type": "USER",
+    }
+    assert "kind" not in payload["activities"][0]
+    assert "profileId" not in payload["activities"][0]["actor"]
+    assert "sensitiveParameters" not in payload["activities"][0]["events"][0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 101},
+        {"page_token": "   "},
+        {"user_key": "  "},
+        {"start_time": "invalid"},
+        {
+            "start_time": "2026-09-11T00:00:00Z",
+            "end_time": "2026-09-10T00:00:00Z",
+        },
+    ],
+)
+async def test_workspace_admin_audit_list_validation_through_mcp(
+    client: Client,
+    arguments,
+):
+    result = await client.call_tool(
+        "workspace_admin_audit_list",
         arguments,
     )
 

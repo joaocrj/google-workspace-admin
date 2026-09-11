@@ -133,6 +133,31 @@ Com o checkpoint de Features, o bloco Calendar — recursos corporativos está
 encerrado. Qualquer nova operação real deve continuar sendo autorizada
 explicitamente e limitada à necessidade da entrega correspondente.
 
+## Operação de Admin Audit paginada
+
+`workspace_admin_audit_list` consulta apenas
+`/admin/reports/v1/activity/users/{userKey}/applications/admin` da Reports API
+e retorna `{"activities": [...], "next_page_token": ...}`. A aplicação
+permanece fixa em `admin`; `user_key` é somente filtro de eventos e não altera o
+sujeito DWD controlado por configuração. A tool limita `max_results` a 1–100
+(padrão 25), aceita paginação explícita e não percorre páginas nem cria retries.
+
+`page_token`, `event_name`, `filters`, `start_time`, `end_time`,
+`actor_ip_address` e `org_unit_id` são opcionais, mas não podem ser vazios.
+Datas devem ter formato RFC 3339 e `start_time` deve anteceder `end_time` quando
+ambos forem informados. O MCP não encaminha `customerId` ou
+`includeSensitiveData`; também nunca serializa `sensitiveParameters`.
+
+Os testes locais usam mocks e não requerem DWD. Em 11/09/2026, após confirmação
+manual da DWD `https://www.googleapis.com/auth/admin.reports.audit.readonly` e
+do sujeito delegado Superadministrador, a REAL VALIDATION foi executada uma
+única vez pelo launcher Python da `.venv`: a chamada MCP retornou 1 Activity e
+`next_page_token` presente. Nenhum conteúdo da Activity foi registrado. As
+tentativas anteriores em `codexsandboxoffline` foram restrições de transporte,
+socket ou cache do `uv`; não foram falhas comprovadas da API. Não altere DWD,
+IAM, APIs, scopes, privilégios, Google Cloud ou Admin Console; qualquer
+reautenticação ADC continua manual pelo usuário.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização
@@ -151,7 +176,7 @@ Sinais de falha e primeira verificação:
 | ADC inválida | autenticação Application Default Credentials local e política organizacional |
 | `signJwt` negado | permissão IAM na Service Account para a identidade ADC |
 | DWD/OAuth negado | Client ID da Service Account, scope exato e propagação no Admin Console |
-| 403 Directory | privilégio do sujeito delegado, API habilitada e scope da operação |
+| 403 Directory/Reports | privilégio do sujeito delegado, API habilitada e scope da operação |
 | ferramenta não aparece no Codex | processo MCP antigo, registro da ferramenta e reinicialização/redescoberta |
 | tool esperada ausente no processo real | posição relativa a `mcp.run()`, decorador e registro |
 | serializer/helper aparece como tool | `@mcp.tool()` aplicado indevidamente a função auxiliar |

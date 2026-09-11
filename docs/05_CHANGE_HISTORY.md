@@ -17,6 +17,7 @@
 | 11/09/2026 | `9ce707f` | Implementação local de Buildings: Directory API, serialização, paginação por token e 76/76 testes; após reautenticação manual da ADC pelo usuário, DWD/privilégio delegado confirmados e validação MCP real concluída com 0 Buildings e sem próxima página; checkpoint desta entrega |
 | 11/09/2026 | `16565d6` | Resources / Salas: implementação local de `resources.calendars`, serialização limitada, paginação por token, ordenação/filtro e 14ª tool MCP; 100/100 testes locais e validação MCP real da cadeia keyless concluídos com 0 recursos e sem página seguinte; checkpoint registrado nesta entrega |
 | 11/09/2026 | checkpoint desta entrega | Features: PLAN, implementação local de `resources.features`, serialização limitada a `feature_name`, paginação por token e 15ª tool MCP; 121/121 testes locais e validação MCP real da cadeia keyless concluídos com 0 Features e sem página seguinte; checkpoint encerra Features e Calendar — recursos corporativos |
+| 11/09/2026 | checkpoint pendente | Admin Audit: PLAN, implementação local de `reports.activities.list` com `applicationName=admin`, launcher MCP Python da `.venv`, 16ª tool MCP e 155/155 testes locais; REAL VALIDATION MCP executada uma única vez com sucesso, 1 Activity e próxima página presente; DWD `admin.reports.audit.readonly` e sujeito Superadministrador confirmados manualmente; nenhum conteúdo de auditoria registrado |
 
 ## Lições registradas
 
@@ -43,6 +44,19 @@
   redescobriu a 14ª tool e a única chamada real limitada retornou zero recursos,
   sem página seguinte; nenhum dado administrativo ou material de autenticação
   foi registrado.
+
+- Admin Audit usa a Reports API, não a Directory API: o endpoint fixa
+  `applicationName=admin`, enquanto `user_key` filtra o ator e não controla a
+  impersonação DWD. A implementação limita páginas a 100 registros, rejeita
+  datas não RFC 3339 e omite estruturalmente `sensitiveParameters` e dados
+  brutos. A DWD e o privilégio Superadministrador foram confirmados
+  manualmente; a única chamada MCP real retornou 1 Activity e próxima página,
+  sem registrar conteúdo de auditoria.
+- As falhas anteriores ocorreram no ambiente `codexsandboxoffline`: acesso
+  bloqueado ao OAuth, `UnsupportedOperation` no `fileno()` de um `stderr` não
+  compatível e cache do `uv` sem permissão. O launcher foi remediado para o
+  Python da `.venv`; o processo stdio novo inicializou com 16 tools. Nenhuma
+  alteração administrativa foi feita.
 
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do

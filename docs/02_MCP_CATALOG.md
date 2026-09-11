@@ -1,7 +1,7 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 15 ferramentas, todas de leitura. Cada camada de API obtém
+catálogo atual possui 16 ferramentas, todas de leitura. Cada camada de API obtém
 um token para o scope mínimo que ela declara e o servidor serializa uma seleção
 de campos antes de devolver a resposta ao Codex.
 
@@ -22,6 +22,7 @@ de campos antes de devolver a resposta ao Codex.
 | `workspace_buildings_list` | `directory/resources/buildings.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | edifícios serializados e `next_page_token` da página |
 | `workspace_calendar_resources_list` | `directory/resources/calendars.py` | `max_results` 1–500, padrão 100; `page_token`, `order_by` e `query` opcionais não vazios | recursos corporativos serializados e `next_page_token` da página |
 | `workspace_calendar_features_list` | `directory/resources/features.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | features serializadas e `next_page_token` da página |
+| `workspace_admin_audit_list` | `reports/admin_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Admin Audit serializadas e `next_page_token` da página |
 
 ## Endpoints Directory em uso
 
@@ -39,6 +40,12 @@ de campos antes de devolver a resposta ao Codex.
 | Buildings | `/admin/directory/v1/customer/my_customer/resources/buildings` |
 | Resources / Salas | `/admin/directory/v1/customer/my_customer/resources/calendars` |
 | Features | `/admin/directory/v1/customer/my_customer/resources/features` |
+
+## Endpoint Reports em uso
+
+| Capacidade | Endpoint REST |
+| --- | --- |
+| Admin Audit | `/admin/reports/v1/activity/users/{userKey}/applications/admin` |
 
 Todos os clientes HTTP têm timeout de 30 segundos e propagam respostas HTTP não
 2xx. A paginação **ainda não está consolidada**: as ferramentas existentes
@@ -86,8 +93,28 @@ ou material de autenticação foi registrado.
 
 Com o checkpoint de Features, as três coleções de recursos corporativos de
 Calendar — Buildings, Resources / Salas e Features — estão implementadas,
-testadas e validadas no MCP real. O catálogo permanece com 15 tools somente de
-leitura.
+testadas e validadas no MCP real.
+
+`workspace_admin_audit_list` é a 16ª tool local. Ela usa o caminho Reports API
+com `applicationName=admin` fixo e não expõe `customerId`, a aplicação nem o
+sujeito DWD. Encaminha apenas os filtros explicitamente suportados por seu
+contrato, preserva `nextPageToken` como `next_page_token` e não percorre páginas
+ou cria retries. A API aceita até 1000 registros por página, mas o MCP restringe
+deliberadamente cada consulta a 1–100, com padrão 25. Datas devem estar em RFC
+3339 e, quando ambas existem, `start_time` deve anteceder `end_time`.
+
+As respostas de Admin Audit omitem estruturalmente `kind`, `etag`,
+`ownerDomain`, identificadores de perfil/chave/OAuth do ator,
+`sensitiveParameters`, `resourceIds`, `networkInfo`, `resourceDetails` e
+payload bruto. Parâmetros comuns são normalizados, inclusive seus valores
+aninhados não sensíveis. A tool não envia `includeSensitiveData`.
+
+A DWD para `admin.reports.audit.readonly` foi confirmada manualmente pelo
+usuário, assim como o sujeito delegado Superadministrador. O launcher atual do
+processo MCP usa diretamente o Python da `.venv`. A REAL VALIDATION foi
+executada exatamente uma vez por MCP e retornou 1 Activity com
+`next_page_token` presente; nenhum conteúdo da Activity foi registrado. O
+checkpoint Git permanece pendente.
 
 ## Limites de exposição
 

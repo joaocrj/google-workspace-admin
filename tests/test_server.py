@@ -1072,3 +1072,353 @@ def test_workspace_calendar_features_list_rejects_blank_page_tokens(
         match="page_token não pode estar vazio",
     ):
         server.workspace_calendar_features_list(page_token=page_token)
+
+
+def test_workspace_admin_audit_list_serializes_a_page(monkeypatch):
+    captured = {}
+
+    def fake_list_admin_audit_activities(**kwargs):
+        captured.update(kwargs)
+        return {
+            "activities": [
+                {
+                    "kind": "audit#activity",
+                    "etag": "test-etag",
+                    "ownerDomain": "example.com",
+                    "ipAddress": "198.51.100.10",
+                    "id": {
+                        "time": "0",
+                        "uniqueQualifier": "1",
+                        "applicationName": "admin",
+                        "customerId": "customer-id",
+                    },
+                    "actor": {
+                        "email": "admin@example.com",
+                        "callerType": "USER",
+                        "profileId": "profile-id",
+                        "key": "actor-key",
+                        "applicationInfo": {
+                            "oauthClientId": "client-id",
+                        },
+                    },
+                    "networkInfo": {"regionCode": "BR"},
+                    "resourceDetails": [{"id": "resource-id"}],
+                    "events": [
+                        {
+                            "type": "SETTINGS",
+                            "name": "CHANGE_SETTING",
+                            "parameters": [
+                                {"name": "string", "value": "value"},
+                                {
+                                    "name": "multi-string",
+                                    "multiValue": [],
+                                },
+                                {"name": "integer", "intValue": "0"},
+                                {
+                                    "name": "multi-integer",
+                                    "multiIntValue": ["0", "1"],
+                                },
+                                {"name": "boolean-true", "boolValue": True},
+                                {"name": "boolean-false", "boolValue": False},
+                                {
+                                    "name": "nested",
+                                    "messageValue": {
+                                        "parameter": [
+                                            {
+                                                "name": "nested-false",
+                                                "boolValue": False,
+                                            }
+                                        ]
+                                    },
+                                },
+                                {
+                                    "name": "nested-sets",
+                                    "multiMessageValue": [
+                                        {
+                                            "parameter": [
+                                                {
+                                                    "name": "first",
+                                                    "value": "one",
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "parameter": [
+                                                {
+                                                    "name": "second",
+                                                    "intValue": "0",
+                                                }
+                                            ]
+                                        },
+                                    ],
+                                },
+                            ],
+                            "sensitiveParameters": [
+                                {"name": "secret", "value": "omit"}
+                            ],
+                            "resourceIds": ["resource-id"],
+                        }
+                    ],
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_admin_audit_activities",
+        fake_list_admin_audit_activities,
+    )
+
+    result = server.workspace_admin_audit_list(
+        max_results=100,
+        page_token="test-page",
+        user_key="admin@example.com",
+        event_name="CHANGE_SETTING",
+        filters="SETTING_NAME==EXAMPLE",
+        start_time="2026-09-10T00:00:00Z",
+        end_time="2026-09-11T00:00:00Z",
+        actor_ip_address="198.51.100.10",
+        org_unit_id="id:org-unit",
+    )
+
+    assert captured == {
+        "max_results": 100,
+        "page_token": "test-page",
+        "user_key": "admin@example.com",
+        "event_name": "CHANGE_SETTING",
+        "filters": "SETTING_NAME==EXAMPLE",
+        "start_time": "2026-09-10T00:00:00Z",
+        "end_time": "2026-09-11T00:00:00Z",
+        "actor_ip_address": "198.51.100.10",
+        "org_unit_id": "id:org-unit",
+    }
+    assert result == {
+        "activities": [
+            {
+                "occurred_at_epoch_seconds": "0",
+                "activity_qualifier": "1",
+                "actor": {
+                    "email": "admin@example.com",
+                    "caller_type": "USER",
+                },
+                "actor_ip_address": "198.51.100.10",
+                "events": [
+                    {
+                        "event_type": "SETTINGS",
+                        "event_name": "CHANGE_SETTING",
+                        "parameters": [
+                            {
+                                "parameter_name": "string",
+                                "string_value": "value",
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "multi-string",
+                                "string_value": None,
+                                "string_values": [],
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "integer",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": "0",
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "multi-integer",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": ["0", "1"],
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "boolean-true",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": True,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "boolean-false",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": False,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "nested",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": [
+                                    {
+                                        "parameter_name": "nested-false",
+                                        "string_value": None,
+                                        "string_values": None,
+                                        "integer_value": None,
+                                        "integer_values": None,
+                                        "boolean_value": False,
+                                    }
+                                ],
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "nested-sets",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": [
+                                    [
+                                        {
+                                            "parameter_name": "first",
+                                            "string_value": "one",
+                                            "string_values": None,
+                                            "integer_value": None,
+                                            "integer_values": None,
+                                            "boolean_value": None,
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "parameter_name": "second",
+                                            "string_value": None,
+                                            "string_values": None,
+                                            "integer_value": "0",
+                                            "integer_values": None,
+                                            "boolean_value": None,
+                                        }
+                                    ],
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+        "next_page_token": "test-page",
+    }
+
+    serialized_activity = result["activities"][0]
+    assert "kind" not in serialized_activity
+    assert "etag" not in serialized_activity
+    assert "ownerDomain" not in serialized_activity
+    assert "profileId" not in serialized_activity["actor"]
+    assert "key" not in serialized_activity["actor"]
+    assert "networkInfo" not in serialized_activity
+    assert "resourceDetails" not in serialized_activity
+    serialized_event = serialized_activity["events"][0]
+    assert "sensitiveParameters" not in serialized_event
+    assert "resourceIds" not in serialized_event
+
+
+def test_workspace_admin_audit_list_uses_safe_default_arguments(monkeypatch):
+    captured = {}
+
+    def fake_list_admin_audit_activities(**kwargs):
+        captured.update(kwargs)
+        return {"activities": [], "next_page_token": None}
+
+    monkeypatch.setattr(
+        server,
+        "list_admin_audit_activities",
+        fake_list_admin_audit_activities,
+    )
+
+    assert server.workspace_admin_audit_list() == {
+        "activities": [],
+        "next_page_token": None,
+    }
+    assert captured == {
+        "max_results": 25,
+        "page_token": None,
+        "user_key": "all",
+        "event_name": None,
+        "filters": None,
+        "start_time": None,
+        "end_time": None,
+        "actor_ip_address": None,
+        "org_unit_id": None,
+    }
+
+
+def test_admin_audit_serializers_handle_absent_fields():
+    assert server._serialize_admin_audit_nested_parameter({}) == {
+        "parameter_name": None,
+        "string_value": None,
+        "string_values": None,
+        "integer_value": None,
+        "integer_values": None,
+        "boolean_value": None,
+    }
+    assert server._serialize_admin_audit_parameter({}) == {
+        "parameter_name": None,
+        "string_value": None,
+        "string_values": None,
+        "integer_value": None,
+        "integer_values": None,
+        "boolean_value": None,
+        "nested_parameters": None,
+        "nested_parameter_sets": None,
+    }
+    assert server._serialize_admin_audit_event({}) == {
+        "event_type": None,
+        "event_name": None,
+        "parameters": [],
+    }
+    assert server._serialize_admin_audit_activity({}) == {
+        "occurred_at_epoch_seconds": None,
+        "activity_qualifier": None,
+        "actor": {
+            "email": None,
+            "caller_type": None,
+        },
+        "actor_ip_address": None,
+        "events": [],
+    }
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 101},
+        {"page_token": "  "},
+        {"user_key": "\t"},
+        {"start_time": "invalid"},
+        {
+            "start_time": "2026-09-11T00:00:00Z",
+            "end_time": "2026-09-10T00:00:00Z",
+        },
+    ],
+)
+def test_workspace_admin_audit_list_rejects_invalid_arguments(arguments):
+    with pytest.raises(ValueError):
+        server.workspace_admin_audit_list(**arguments)

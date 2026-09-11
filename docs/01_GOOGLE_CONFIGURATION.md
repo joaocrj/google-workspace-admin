@@ -8,7 +8,7 @@
 | Service Account | `codex-workspace@codex-workspace-admin.iam.gserviceaccount.com` |
 | Modelo de autenticação | ADC local + IAM `signJwt` + DWD + OAuth 2.0 |
 | Chave privada de Service Account | Não utilizada nem permitida |
-| API de recursos Workspace | Admin SDK Directory API (`admin.googleapis.com`), incluindo `resources.buildings`, `resources.calendars` e `resources.features` |
+| APIs de recursos Workspace | Admin SDK Directory API e Reports API (`admin.googleapis.com`), incluindo recursos corporativos de Calendar e Admin Audit |
 | Assinatura JWT | Service Account Credentials API (`iamcredentials.googleapis.com`) |
 | Token Workspace | Curta duração, cache somente em memória |
 | Sujeito delegado | Controlado por `config.py`; não é parâmetro de ferramenta MCP |
@@ -26,7 +26,7 @@ ADC do operador local
   -> JWT com iss, sub, scopes, aud, iat e exp
   -> POST oauth2.googleapis.com/token (JWT bearer)
   -> token do Workspace em memória, por sujeito + conjunto normalizado de scopes
-  -> chamada Admin SDK Directory API
+  -> chamada à API Admin SDK aplicável (Directory ou Reports)
 ```
 
 O cache renova o token antes da margem de cinco minutos e não persiste nada em
@@ -81,6 +81,7 @@ Client ID são:
 | Funções e atribuições administrativas | `https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly` |
 | Domínios e aliases | `https://www.googleapis.com/auth/admin.directory.domain.readonly` |
 | Buildings, Resources / Salas e Features (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída para as três coleções em 11/09/2026; Buildings exigiu reautenticação manual prévia da ADC |
+| Admin Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — DWD confirmada manualmente; sujeito Superadministrador; REAL VALIDATION MCP concluída em 11/09/2026 com launcher Python da `.venv`, 1 Activity e próxima página presente; checkpoint Git pendente |
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
@@ -119,6 +120,17 @@ bem-sucedida, retornou zero Features e não indicou página seguinte. Nenhuma
 alteração administrativa, credencial, token de paginação ou dado de Feature foi
 registrado.
 
+`workspace_admin_audit_list` usa exclusivamente
+`https://www.googleapis.com/auth/admin.reports.audit.readonly` para a Reports
+API, com `applicationName=admin` fixo. O usuário confirmou manualmente a DWD
+desse scope e o sujeito delegado como Superadministrador. A REAL VALIDATION
+MCP foi executada uma única vez pelo launcher Python da `.venv`, retornando
+1 Activity e indicando próxima página; nenhum conteúdo de auditoria foi
+registrado. Tentativas anteriores em `codexsandboxoffline` falharam por
+restrições locais de socket/cache ou por um `stderr` incompatível do harness,
+sem evidência de falha no servidor, DWD ou Reports API. Não há nova API, IAM ou
+Service Account prevista, e nenhuma alteração administrativa foi realizada.
+
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.
 Se a organização usa aprovação por múltiplas partes, a alteração também requer
@@ -132,6 +144,8 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - [Habilitar APIs do Google Workspace](https://developers.google.com/workspace/guides/enable-apis)
 - [Permissões IAM para `signJwt`](https://docs.cloud.google.com/iam/docs/service-account-permissions)
 - [Admin SDK Directory API](https://developers.google.com/workspace/admin/directory/reference/rest)
+- [Admin SDK Reports API: `activities.list`](https://developers.google.com/workspace/admin/reports/reference/rest/v1/activities/list)
+- [Admin Activity Report](https://developers.google.com/workspace/admin/reports/v1/guides/manage-audit-admin)
 - [Calendar resources: `resources.calendars.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.calendars/list)
 - [Calendar resource features: `resources.features.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.features/list)
 
@@ -141,7 +155,9 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - Não pôr tokens, JWTs, cabeçalhos HTTP ou ADC em `.env`, documentação, testes
   ou commits.
 - Não autorizar scopes da Google Calendar API, Reports, Drive ou Gmail por
-  conveniência. Buildings, Resources / Salas e Features usam somente o scope
-  readonly da Directory API documentado acima e sua alteração de DWD continua
-  sujeita a autorização explícita.
+  conveniência. Os recursos corporativos de Calendar usam somente o scope
+  readonly da Directory API documentado acima; o scope mínimo de Admin Audit é
+  documentado exclusivamente para a implementação local e já foi confirmado
+  manualmente para esta validação. Qualquer alteração futura na DWD continua
+  sujeita a solicitação prévia e execução manual do usuário.
 - Não permitir que a chamada MCP escolha livremente quem será impersonado.

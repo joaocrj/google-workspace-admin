@@ -86,8 +86,13 @@ FASE 1 — READ / ADMIN INVENTORY
 │       ├── validação real MCP/Codex                       ✅ CONCLUÍDO — 0 Features / sem próxima página
 │       └── revisão + checkpoint                           ✅ CONCLUÍDO — checkpoint desta entrega
 │
-├── 3. Reports / Auditoria                                 ⬜ PENDENTE ← PRÓXIMA ETAPA
-│   ├── Admin Audit                                        ⬜ PENDENTE
+├── 3. Reports / Auditoria                                 ← EM ANDAMENTO
+│   ├── Admin Audit                                        ← EM ANDAMENTO
+│   │   ├── PLAN                                           ✅ CONCLUÍDO
+│   │   ├── IMPLEMENT                                      ✅ CONCLUÍDO
+│   │   ├── scope necessário                               ✅ CONCLUÍDO — confirmado manualmente pelo usuário
+│   │   ├── REAL VALIDATION                                ✅ CONCLUÍDO — 1 Activity / próxima página presente
+│   │   └── commit                                         ⬜ PENDENTE
 │   ├── Login Audit                                        ⬜ PENDENTE
 │   ├── Drive Audit                                        ⬜ PENDENTE
 │   ├── User Usage                                         ⬜ PENDENTE
@@ -150,6 +155,20 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
   chamada real limitada a `max_results=1`: zero Features e sem próxima página.
   Nenhum dado de Feature, token ou credencial foi registrado; o checkpoint Git
   desta entrega conclui Features e o bloco Calendar — recursos corporativos.
+- Em 11/09/2026, Admin Audit recebeu PLAN aprovado e implementação local da
+  Reports API `activities.list` para `applicationName=admin`, serialização
+  limitada de eventos e parâmetros não sensíveis, a 16ª tool MCP e 155/155
+  testes locais aprovados. A DWD para `admin.reports.audit.readonly` e o
+  sujeito delegado Superadministrador foram confirmados manualmente pelo
+  usuário. A REAL VALIDATION foi executada exatamente uma vez pelo launcher
+  Python da `.venv`, com sucesso, 1 Activity e próxima página presente. Nenhum
+  dado de auditoria, credencial, token ou payload real foi registrado; o
+  checkpoint Git permanece pendente.
+- As tentativas anteriores de validação em `codexsandboxoffline` foram
+  diagnosticadas como restrições locais: socket para `oauth2.googleapis.com`,
+  `UnsupportedOperation` causado por `stderr=io.StringIO` e cache do `uv` sem
+  permissão. A redescoberta pelo launcher Python da `.venv` inicializou o MCP
+  com 16 tools sem alteração de código ou configuração administrativa.
 - Na consolidação documental de 10/09/2026, `uv run pytest -v` confirmou
   **56/56 testes aprovados**. `git diff --check` também foi aprovado.
 - Em `c01fd11`, o inventário fornecido já registrava **56/56 testes**,
