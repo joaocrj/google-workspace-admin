@@ -30,9 +30,10 @@ ADC do operador local
 ```
 
 O cache renova o token antes da margem de cinco minutos e não persiste nada em
-disco. Se a ADC local expirar ou for revogada, o diagnóstico pode exigir
-`gcloud auth application-default login`; isso é diferente da renovação normal
-do token Workspace.
+disco. Se a ADC local expirar ou for revogada, a reautenticação local pode
+exigir `gcloud auth application-default login`. Isso é reautenticação da ADC
+local, não renovação manual do token DWD e não exige chave JSON de Service
+Account.
 
 ## Processo realizado no Google Cloud / Google Developer
 
@@ -83,6 +84,7 @@ Client ID são:
 | Buildings, Resources / Salas e Features (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída para as três coleções em 11/09/2026; Buildings exigiu reautenticação manual prévia da ADC |
 | Admin Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — DWD confirmada manualmente; sujeito Superadministrador; REAL VALIDATION MCP concluída em 11/09/2026 com launcher Python da `.venv`, 1 Activity e próxima página presente; checkpoint Git pendente |
 | Login Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — reutiliza o scope já presente e confirmado manualmente para Reports; REAL VALIDATION MCP concluída em 11/09/2026 com uma chamada limitada, 1 Activity e próxima página presente; nenhuma alteração administrativa nova |
+| User Usage (Reports API) | `https://www.googleapis.com/auth/admin.reports.usage.readonly` — método `UserUsageReport.get`; DWD e scopes não foram alterados; REAL VALIDATION executada com sucesso em `2026-09-12`; data do relatório solicitado: `date=2026-09-10`, `max_results=1`, `parameters=accounts:used_quota_in_percentage`, `user_key=all`, `usageReports=1`, próxima página presente, warnings presentes (1), sem retry ou paginação adicional |
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
@@ -145,7 +147,7 @@ Activity, dado pessoal, credencial ou token foi registrado; a validação não
 afirma cobertura de todos os tipos de eventos Login. Nenhuma alteração de DWD,
 IAM, API, Service Account, privilégio ou Google Admin foi realizada.
 
-`workspace_drive_audit_list` será a próxima tool da Reports API, com
+`workspace_drive_audit_list` usa a Reports API, com
 `applicationName=drive` fixo no endpoint
 `/admin/reports/v1/activity/users/{userKey}/applications/drive`. Ela reutiliza
 exclusivamente o scope já autorizado
@@ -173,6 +175,19 @@ nenhum conteúdo real de Activity foi persistido. O checkpoint Git desta entrega
 é concluído com o commit autorizado após as verificações finais; qualquer
 mudança administrativa continua fora do escopo do agente.
 
+`workspace_user_usage_get` usa exclusivamente
+`https://www.googleapis.com/auth/admin.reports.usage.readonly` para o método
+`UserUsageReport.get`, no endpoint
+`/admin/reports/v1/usage/users/{userKey}/dates/{date}`. A implementação local
+não usa `activities.list`, Drive Activity API, `customerUsageReports` nem envia
+`customerId`. A DWD e os scopes não foram alterados para essa validação. A
+REAL VALIDATION foi executada em `2026-09-12`, com uma única chamada para a
+data do relatório solicitado `date=2026-09-10`, `max_results=1`,
+`parameters=accounts:used_quota_in_percentage` e `user_key=all`: sucesso,
+`usageReports=1`, `next_page_token` presente, `warnings_present=true` e
+`warnings_count=1`, sem retry ou paginação adicional. Nenhum conteúdo de uso,
+credencial ou token foi registrado.
+
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.
 Se a organização usa aprovação por múltiplas partes, a alteração também requer
@@ -190,6 +205,13 @@ ferramentas dependentes e exige autorização explícita do usuário.
 - [Admin Activity Report](https://developers.google.com/workspace/admin/reports/v1/guides/manage-audit-admin)
 - [Login Activity Report](https://developers.google.com/workspace/admin/reports/v1/guides/manage-audit-login)
 - [Login Audit Activity Events](https://developers.google.com/workspace/admin/reports/v1/appendix/activity/login)
+- [User Usage Report — `userUsageReport.get`](https://developers.google.com/workspace/admin/reports/reference/rest/v1/userUsageReport/get)
+- [User Usage Parameters](https://developers.google.com/workspace/admin/reports/v1/appendix/usage/user)
+- [Accounts User Usage Parameters](https://developers.google.com/workspace/admin/reports/v1/appendix/usage/user/accounts)
+- [Google Chat User Usage Parameters](https://developers.google.com/workspace/admin/reports/v1/appendix/usage/user/chat)
+- [Classroom User Usage Parameters](https://developers.google.com/workspace/admin/reports/v1/appendix/usage/user/classroom)
+- [Gmail User Usage Parameters](https://developers.google.com/workspace/admin/reports/v1/appendix/usage/user/gmail)
+- [Google Docs User Metrics](https://developers.google.com/workspace/admin/reports/v1/appendix/usage/user/docs)
 - [Calendar resources: `resources.calendars.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.calendars/list)
 - [Calendar resource features: `resources.features.list`](https://developers.google.com/workspace/admin/directory/reference/rest/v1/resources.features/list)
 

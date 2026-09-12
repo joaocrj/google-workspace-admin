@@ -1,7 +1,7 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 17 ferramentas, todas de leitura. Cada camada de API obtém
+catálogo atual possui 19 ferramentas, todas de leitura. Cada camada de API obtém
 um token para o scope mínimo que ela declara e o servidor serializa uma seleção
 de campos antes de devolver a resposta ao Codex.
 
@@ -24,6 +24,8 @@ de campos antes de devolver a resposta ao Codex.
 | `workspace_calendar_features_list` | `directory/resources/features.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | features serializadas e `next_page_token` da página |
 | `workspace_admin_audit_list` | `reports/admin_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Admin Audit serializadas e `next_page_token` da página |
 | `workspace_login_audit_list` | `reports/login_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Login Audit serializadas conservadoramente e `next_page_token` da página |
+| `workspace_drive_audit_list` | `reports/drive_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Drive Audit serializadas conservadoramente e `next_page_token` da página |
+| `workspace_user_usage_get` | `reports/user_usage.py` | `date` obrigatório YYYY-MM-DD válido; `max_results` 1–100, padrão 25; `page_token`, `parameters`, `filters` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | User Usage Reports implementados e validados, serializer allowlisted, warnings sanitizados e `next_page_token` da página |
 
 ## Endpoints Directory em uso
 
@@ -48,6 +50,7 @@ de campos antes de devolver a resposta ao Codex.
 | --- | --- |
 | Admin Audit | `/admin/reports/v1/activity/users/{userKey}/applications/admin` |
 | Login Audit | `/admin/reports/v1/activity/users/{userKey}/applications/login` |
+| User Usage | `/admin/reports/v1/usage/users/{userKey}/dates/{date}` |
 
 Todos os clientes HTTP têm timeout de 30 segundos e propagam respostas HTTP não
 2xx. A paginação **ainda não está consolidada**: as ferramentas existentes
@@ -194,3 +197,45 @@ carregado pelo host, com exatamente uma chamada
 `next_page_token` presente. A cadeia keyless foi validada até a Reports API;
 nenhum conteúdo real de Activity foi persistido. O checkpoint Git desta entrega
 é concluído com o commit autorizado após as verificações finais.
+
+`workspace_user_usage_get` é a 19ª tool local e usa somente o método
+`userUsageReport.get` da Reports API. A assinatura é:
+
+```text
+workspace_user_usage_get(
+    date,
+    max_results=25,
+    page_token=None,
+    user_key="all",
+    parameters=None,
+    filters=None,
+    org_unit_id=None,
+)
+```
+
+Ela usa `UserUsageReport.get` da Reports API, processa uma página por chamada,
+não cria retry automático e limita `max_results` a 1–100. O serializer é
+allowlisted e reduz warnings a indicadores agregados.
+
+`date` deve ser estritamente `YYYY-MM-DD` e representar uma data válida. A
+tool encaminha somente `maxResults`, `pageToken`, `parameters`, `filters` e
+`orgUnitID`; não envia `customerId`, não usa `activities.list`, Drive Activity
+API ou `customerUsageReports`, não percorre páginas e não cria retries.
+
+O retorno preserva, para cada relatório, somente `date`, `profile_id` derivado
+de `entity.profileId` e parâmetros allowlisted. `userEmail`, `entityId`,
+`customerId`, `kind`, `etag`, estruturas desconhecidas, `stringValue` genérico,
+`msgValue` e o payload bruto são omitidos. Timestamps de Accounts só aparecem
+quando foram explicitamente solicitados, usando `timestamp_last_login` como o
+nome atual. Warnings são reduzidos a `warnings_present` e `warnings_count`.
+
+O catálogo local confirmado após o IMPLEMENT é de 19 tools. A implementação e
+os testes locais usam mocks. A REAL VALIDATION foi executada em `2026-09-12`
+pelo MCP original com uma única chamada para a data do relatório solicitado
+`date=2026-09-10`,
+`max_results=1`, `parameters=accounts:used_quota_in_percentage` e
+`user_key=all`: sucesso, `usageReports=1`, `next_page_token` presente,
+`warnings_present=true` e `warnings_count=1`, sem retry ou paginação adicional.
+A resposta final permanece allowlisted e não inclui campos diagnósticos
+temporários no contrato. DWD, scopes e demais configurações administrativas não
+foram alterados.

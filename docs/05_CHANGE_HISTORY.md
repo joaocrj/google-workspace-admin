@@ -21,6 +21,8 @@
 | 11/09/2026 | implementação pendente de checkpoint | Login Audit: PLAN e implementação local de `activities.list` com `applicationName=login`, serializer conservador, 17ª tool MCP e **191/191 testes locais aprovados**; REAL VALIDATION e checkpoint Git pendentes; nenhuma chamada Google ou alteração administrativa realizada |
 | 11/09/2026 | checkpoint desta entrega | Login Audit: redescoberta pós-restart pelo host, uma única chamada MCP com `max_results=1`, sucesso, 1 Activity e próxima página presente; **191/191 testes locais aprovados** e `git diff --check` aprovado; nenhum conteúdo de Activity, PII, credencial ou token registrado; checkpoint concluído |
 | 11/09/2026 | implementação pendente de checkpoint | Drive Audit: PLAN e IMPLEMENT concluídos com módulo independente `reports/drive_audit.py`, serializer allowlist específico, 18ª tool MCP e **230/230 testes locais aprovados** pelo Python direto da `.venv`; REAL VALIDATION concluída exclusivamente pelo MCP original com exatamente uma chamada `max_results=1`, sucesso, 1 Activity e próxima página presente; nenhum conteúdo real de Activity persistido |
+| 12/09/2026 | implementação pendente de REAL VALIDATION | User Usage: IMPLEMENT local de `reports/user_usage.py` com `userUsageReport.get`, 19ª tool MCP, scope `admin.reports.usage.readonly`, validação estrita de data, uma página por chamada, timeout de 30 segundos e nenhum retry; serializer allowlistado com `profile_id`, `timestamp_last_login` como nome atual, timestamps condicionais e warnings sanitizados; REAL VALIDATION não executada por instrução explícita |
+| 12/09/2026 | documentação pós-REAL VALIDATION; checkpoint pendente | User Usage: validação final de `UserUsageReport.get` executada com sucesso em `2026-09-12` com a tool `workspace_user_usage_get`; catálogo 18 → 19; serializer e allowlists confirmados; warnings sanitizados; uma página por chamada e sem retry; **264 testes finais aprovados**; data do relatório solicitado: `date=2026-09-10`, `max_results=1`, `parameters=accounts:used_quota_in_percentage`, `user_key=all`, `usageReports=1`, próxima página presente e warnings presentes (1) |
 
 ## Lições registradas
 
@@ -89,6 +91,22 @@
   `next_page_token` presente. A cadeia keyless até a Reports API foi validada,
   sem retry ou paginação adicional e sem persistir conteúdo real de Activity,
   token, credencial ou payload. O CHECKPOINT foi concluído nesta entrega.
+- User Usage usa a Reports API de User Usage, não `activities.list`, Drive
+  Activity API ou `customerUsageReports`. A identidade devolvida é limitada a
+  `entity.profileId` como `profile_id`; `userEmail` e `entityId` são omitidos.
+  A allowlist aceita somente métricas numéricas, contagens, quotas e booleans
+  administrativas das referências de Accounts, Docs, Gmail, Chat e Classroom;
+  não há passthrough de `stringValue`, `msgValue`, estruturas desconhecidas ou
+  parâmetros não allowlisted. `timestamp_last_login` substitui o nome antigo
+  `last_login_time`, e os três timestamps de Accounts só são devolvidos quando
+  explicitamente solicitados. A entrega local usa mocks; nenhuma chamada Google,
+  alteração administrativa, staging, commit ou push foi feita.
+- Na validação final de User Usage, falhas opacas iniciais ocorreram na camada
+  de autenticação e o diagnóstico temporário identificou `RefreshError`. O
+  usuário reautenticou manualmente a ADC; a validação seguinte obteve sucesso,
+  sem alteração de código funcional, DWD, scopes ou Admin Console. Toda a
+  instrumentação temporária foi removida antes do checkpoint, e campos
+  diagnósticos temporários não fazem parte do contrato final.
 
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do

@@ -66,7 +66,8 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_admin_audit_list" in tool_names
     assert "workspace_login_audit_list" in tool_names
     assert "workspace_drive_audit_list" in tool_names
-    assert len(tool_names) == 18
+    assert "workspace_user_usage_get" in tool_names
+    assert len(tool_names) == 19
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
@@ -83,6 +84,125 @@ async def test_tools_are_registered(client: Client):
     assert "_serialize_drive_audit_event" not in tool_names
     assert "_serialize_drive_audit_parameter" not in tool_names
     assert "_serialize_drive_audit_nested_parameter" not in tool_names
+    assert "_serialize_user_usage_report" not in tool_names
+    assert "_serialize_user_usage_parameter" not in tool_names
+    assert "_serialize_user_usage_page" not in tool_names
+
+
+@pytest.mark.anyio
+async def test_workspace_user_usage_get_through_mcp(client: Client, monkeypatch):
+    captured = {}
+
+    def fake_get_user_usage_report(**kwargs):
+        captured.update(kwargs)
+        return {
+            "usage_reports": [
+                {
+                    "kind": "usageReport",
+                    "date": "2026-09-11",
+                    "entity": {
+                        "profileId": "profile-123",
+                        "userEmail": "omit@example.com",
+                        "entityId": "omit-entity",
+                    },
+                    "parameters": [
+                        {
+                            "name": "accounts:timestamp_last_login",
+                            "datetimeValue": "2026-09-10T00:00:00.000Z",
+                        },
+                        {
+                            "name": "accounts:disabled",
+                            "boolValue": False,
+                        },
+                        {
+                            "name": "accounts:password_strength",
+                            "stringValue": "omit",
+                        },
+                    ],
+                }
+            ],
+            "next_page_token": "test-page",
+            "warnings_present": True,
+            "warnings_count": 2,
+        }
+
+    monkeypatch.setattr(
+        server,
+        "get_user_usage_report",
+        fake_get_user_usage_report,
+    )
+
+    result = await client.call_tool(
+        "workspace_user_usage_get",
+        {
+            "date": "2026-09-11",
+            "max_results": 1,
+            "page_token": "test-page",
+            "user_key": "profile-123",
+            "parameters": "accounts:timestamp_last_login,accounts:disabled",
+            "filters": "accounts:disabled==false",
+            "org_unit_id": "id:org-unit",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured == {
+        "date": "2026-09-11",
+        "max_results": 1,
+        "page_token": "test-page",
+        "user_key": "profile-123",
+        "parameters": "accounts:timestamp_last_login,accounts:disabled",
+        "filters": "accounts:disabled==false",
+        "org_unit_id": "id:org-unit",
+    }
+
+    payload = _json_result(result)
+    assert payload == {
+        "usage_reports": [
+            {
+                "date": "2026-09-11",
+                "profile_id": "profile-123",
+                "parameters": [
+                    {
+                        "parameter_name": "accounts:timestamp_last_login",
+                        "datetime_value": "2026-09-10T00:00:00.000Z",
+                    },
+                    {
+                        "parameter_name": "accounts:disabled",
+                        "boolean_value": False,
+                    },
+                ],
+            }
+        ],
+        "next_page_token": "test-page",
+        "warnings_present": True,
+        "warnings_count": 2,
+    }
+    assert "userEmail" not in str(payload)
+    assert "entityId" not in str(payload)
+    assert "password_strength" not in str(payload)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"date": "2026-09-11", "max_results": 0},
+        {"date": "2026-02-29"},
+        {"date": "2026-09-11", "parameters": " "},
+    ],
+)
+async def test_workspace_user_usage_get_validation_through_mcp(
+    client: Client,
+    arguments,
+):
+    result = await client.call_tool(
+        "workspace_user_usage_get",
+        arguments,
+    )
+
+    assert result.is_error is True
 
 
 @pytest.mark.anyio

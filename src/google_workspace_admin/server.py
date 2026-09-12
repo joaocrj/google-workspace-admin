@@ -40,6 +40,10 @@ from google_workspace_admin.reports.login_audit import (
     _validate_login_audit_arguments,
     list_login_audit_activities,
 )
+from google_workspace_admin.reports.user_usage import (
+    _validate_user_usage_arguments,
+    get_user_usage_report,
+)
 
 mcp = MCPServer(
     name="Google Workspace Admin",
@@ -1060,6 +1064,241 @@ def workspace_drive_audit_list(
         ],
         "next_page_token": page["next_page_token"],
     }
+
+
+_USER_USAGE_INTEGER_PARAMETERS = {
+    "accounts:drive_used_quota_in_mb",
+    "accounts:gmail_used_quota_in_mb",
+    "accounts:num_authorized_apps",
+    "accounts:num_passkeys_enrolled",
+    "accounts:num_roles_assigned",
+    "accounts:num_security_keys",
+    "accounts:total_quota_in_mb",
+    "accounts:used_quota_in_mb",
+    "accounts:used_quota_in_percentage",
+    "chat:num_28day_attachments_uploaded",
+    "chat:num_28day_conversations_read",
+    "chat:num_28day_messages_and_reactions_sent",
+    "chat:num_28day_spaces_created",
+    "classroom:num_courses_created",
+    "classroom:num_posts_created",
+    "docs:num_docs",
+    "docs:num_docs_edited",
+    "docs:num_docs_not_edited_for_3months",
+    "docs:num_docs_not_edited_for_6months",
+    "docs:num_docs_not_edited_for_12months",
+    "docs:num_docs_not_viewed_for_3months",
+    "docs:num_docs_not_viewed_for_6months",
+    "docs:num_docs_not_viewed_for_12months",
+    "docs:num_docs_shared_outside_domain",
+    "docs:num_docs_viewed",
+    "docs:num_docs_with_visibility_anyone_with_link",
+    "docs:num_docs_with_visibility_people_at_domain",
+    "docs:num_docs_with_visibility_people_at_domain_with_link",
+    "docs:num_docs_with_visibility_private",
+    "docs:num_docs_with_visibility_public",
+    "docs:num_docs_externally_visible",
+    "docs:num_docs_internally_visible",
+    "docs:num_drawings",
+    "docs:num_drawings_edited",
+    "docs:num_drawings_viewed",
+    "docs:num_forms",
+    "docs:num_forms_edited",
+    "docs:num_forms_viewed",
+    "docs:num_presentations",
+    "docs:num_presentations_edited",
+    "docs:num_presentations_viewed",
+    "docs:num_shared_docs",
+    "docs:num_spreadsheets",
+    "docs:num_spreadsheets_edited",
+    "docs:num_spreadsheets_viewed",
+    "docs:num_text_documents",
+    "docs:num_text_documents_edited",
+    "docs:num_text_documents_viewed",
+    "docs:num_uploaded_files",
+    "docs:num_uploaded_files_edited",
+    "docs:num_uploaded_files_viewed",
+    "gmail:num_emails_exchanged",
+    "gmail:num_emails_received",
+    "gmail:num_emails_sent",
+    "gmail:num_spam_emails_received",
+}
+_USER_USAGE_BOOLEAN_PARAMETERS = {
+    "accounts:disabled",
+    "accounts:is_2sv_enforced",
+    "accounts:is_2sv_enrolled",
+    "accounts:is_2sv_protected",
+    "accounts:is_archived",
+    "accounts:is_suspended",
+    "gmail:is_gmail_enabled",
+}
+_USER_USAGE_DATETIME_PARAMETERS = {
+    "accounts:timestamp_creation",
+    "accounts:timestamp_last_login",
+    "accounts:timestamp_last_sso",
+}
+_USER_USAGE_PARAMETER_TYPES = {
+    **{
+        parameter_name: "integer"
+        for parameter_name in _USER_USAGE_INTEGER_PARAMETERS
+    },
+    **{
+        parameter_name: "boolean"
+        for parameter_name in _USER_USAGE_BOOLEAN_PARAMETERS
+    },
+    **{
+        parameter_name: "datetime"
+        for parameter_name in _USER_USAGE_DATETIME_PARAMETERS
+    },
+}
+
+
+def _canonical_user_usage_parameter_name(name: object) -> str | None:
+    if not isinstance(name, str) or not name.strip():
+        return None
+
+    normalized_name = name.strip()
+    if ":" not in normalized_name:
+        account_name = f"accounts:{normalized_name}"
+        if account_name in _USER_USAGE_PARAMETER_TYPES:
+            return account_name
+        return normalized_name
+
+    application, parameter_name = normalized_name.split(":", 1)
+    return f"{application.lower()}:{parameter_name}"
+
+
+def _requested_user_usage_parameters(parameters: str | None) -> set[str]:
+    if parameters is None:
+        return set()
+
+    return {
+        canonical_name
+        for requested_name in parameters.split(",")
+        if (
+            canonical_name := _canonical_user_usage_parameter_name(
+                requested_name
+            )
+        ) is not None
+    }
+
+
+def _serialize_user_usage_parameter(
+    parameter: dict,
+    requested_parameters: set[str],
+) -> dict | None:
+    parameter_name = parameter.get("name")
+    canonical_name = _canonical_user_usage_parameter_name(parameter_name)
+    parameter_type = _USER_USAGE_PARAMETER_TYPES.get(canonical_name)
+    if parameter_type is None:
+        return None
+
+    if (
+        parameter_type == "datetime"
+        and canonical_name not in requested_parameters
+    ):
+        return None
+
+    output_name = parameter_name.strip()
+    if parameter_type == "integer":
+        value = parameter.get("intValue")
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return {
+            "parameter_name": output_name,
+            "integer_value": value,
+        }
+
+    if parameter_type == "boolean":
+        value = parameter.get("boolValue")
+        if not isinstance(value, bool):
+            return None
+        return {
+            "parameter_name": output_name,
+            "boolean_value": value,
+        }
+
+    value = parameter.get("datetimeValue")
+    if not isinstance(value, str) or not value:
+        return None
+    return {
+        "parameter_name": output_name,
+        "datetime_value": value,
+    }
+
+
+def _serialize_user_usage_report(
+    usage_report: dict,
+    requested_parameters: set[str],
+) -> dict:
+    entity = usage_report.get("entity") or {}
+    return {
+        "date": usage_report.get("date"),
+        "profile_id": entity.get("profileId"),
+        "parameters": [
+            serialized_parameter
+            for parameter in usage_report.get("parameters", [])
+            if (
+                serialized_parameter := _serialize_user_usage_parameter(
+                    parameter,
+                    requested_parameters,
+                )
+            ) is not None
+        ],
+    }
+
+
+def _serialize_user_usage_page(
+    page: dict,
+    parameters: str | None,
+) -> dict:
+    requested_parameters = _requested_user_usage_parameters(parameters)
+    return {
+        "usage_reports": [
+            _serialize_user_usage_report(
+                usage_report,
+                requested_parameters,
+            )
+            for usage_report in page["usage_reports"]
+        ],
+        "next_page_token": page["next_page_token"],
+        "warnings_present": page["warnings_present"],
+        "warnings_count": page["warnings_count"],
+    }
+
+
+@mcp.tool()
+def workspace_user_usage_get(
+    date: str,
+    max_results: int = 25,
+    page_token: str | None = None,
+    user_key: str = "all",
+    parameters: str | None = None,
+    filters: str | None = None,
+    org_unit_id: str | None = None,
+) -> dict:
+    """Obtém uma página sanitizada de User Usage Report do Workspace."""
+    _validate_user_usage_arguments(
+        date=date,
+        max_results=max_results,
+        page_token=page_token,
+        user_key=user_key,
+        parameters=parameters,
+        filters=filters,
+        org_unit_id=org_unit_id,
+    )
+
+    page = get_user_usage_report(
+        date=date,
+        max_results=max_results,
+        page_token=page_token,
+        user_key=user_key,
+        parameters=parameters,
+        filters=filters,
+        org_unit_id=org_unit_id,
+    )
+
+    return _serialize_user_usage_page(page, parameters)
 
 
 if __name__ == "__main__":

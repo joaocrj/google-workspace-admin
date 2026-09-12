@@ -1,6 +1,6 @@
 # Andamento das fases
 
-Última consolidação documental: **11/09/2026**. Esta árvore combina o estado do
+Última consolidação documental: **12/09/2026**. Esta árvore combina o estado do
 código em `master`, os commits e o inventário de validações fornecido pelo
 usuário. Atualize-a no mesmo change set de qualquer avanço. Evidência de
 produção deve registrar somente status e contagens seguras.
@@ -12,7 +12,7 @@ Os estados formais de entregas são `✅ CONCLUÍDO`, `← EM ANDAMENTO`,
 commit, VALIDADO, VERIFICADA e ADICIONADO são evidências, não estados
 concorrentes; preserve-os como detalhes da entrega.
 
-**Próxima etapa prioritária: Reports / Auditoria.**
+**Próxima etapa prioritária: Reports / Auditoria — User Usage CHECKPOINT.**
 
 A paginação com `nextPageToken` permanece planejada para a etapa de
 **Consolidação da camada Read** e não substitui a próxima entrega prioritária.
@@ -110,7 +110,17 @@ FASE 1 — READ / ADMIN INVENTORY
 │   │   ├── testes locais                                  ✅ CONCLUÍDO — 230/230 passed
 │   │   ├── REAL VALIDATION                                ✅ CONCLUÍDO — exatamente 1 chamada / 1 Activity / próxima página presente
 │   │   └── CHECKPOINT                                     ✅ CONCLUÍDO — revisão final e commit desta entrega
-│   ├── User Usage                                         ⬜ PENDENTE
+│   ├── User Usage                                         ← EM ANDAMENTO
+│   │   ├── PLAN                                           ✅ CONCLUÍDO — contrato aprovado
+│   │   ├── IMPLEMENT                                      ✅ CONCLUÍDO — 19ª tool local
+│   │   ├── scope `admin.reports.usage.readonly`           ✅ CONCLUÍDO — sem alteração administrativa
+│   │   ├── serializer allowlist e PII                     ✅ CONCLUÍDO — profile_id; e-mail/entityId omitidos
+│   │   ├── testes locais                                  ✅ CONCLUÍDO — 264 passed, sem chamada Google
+│   │   ├── REAL VALIDATION                                ✅ CONCLUÍDO — usageReports=1 / próxima página / warnings presentes (1)
+│   │   ├── cleanup diagnóstico                            ✅ CONCLUÍDO — instrumentação temporária removida
+│   │   ├── cleanup MCP temporário                         ✅ CONCLUÍDO — entrada temporária removida
+│   │   ├── revisão documental                             ✅ CONCLUÍDO
+│   │   └── checkpoint/commit                              ⬜ PENDENTE — aguardar autorização explícita
 │   └── Customer Usage                                     ⬜ PENDENTE
 │
 └── 4. Consolidação da camada Read                         ⬜ PENDENTE
@@ -211,6 +221,22 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
   `server.py`, do checkpoint `c01fd11` e da FASE 1. Essa auditoria não executou
   novamente a suíte; a última evidência executada permanece 56/56 em
   10/09/2026.
+- Em 12/09/2026, User Usage foi implementado localmente como a 19ª tool com
+  `UserUsageReport.get`, scope `admin.reports.usage.readonly`, uma página por
+  chamada, timeout de 30 segundos e nenhum retry. O serializer allowlistado
+  preserva somente `date`, `profile_id` de `entity.profileId` e métricas seguras;
+  `timestamp_last_login` é o nome atual e timestamps só aparecem quando
+  explicitamente solicitados. `userEmail`, `entityId`, `customerId`,
+  parâmetros desconhecidos, `stringValue`, `msgValue`, warnings brutos e o
+  payload bruto ficam omitidos. A validação final, executada em `2026-09-12`
+  para a data do relatório solicitado `date=2026-09-10`,
+  confirmou catálogo com 19 tools, **264 passed**, `usageReports=1`,
+  `next_page_token` presente, `warnings_present=true` e `warnings_count=1`,
+  sem retry ou paginação adicional. Uma falha inicial opaca identificou
+  `RefreshError` na autenticação local; o usuário reautenticou manualmente a
+  ADC e a chamada seguinte foi bem-sucedida. Código funcional, DWD, scopes e
+  Admin Console não foram alterados. A instrumentação diagnóstica temporária e
+  o MCP temporário foram removidos; o checkpoint/commit permanece pendente.
 
 Ao executar a suíte novamente, acrescente uma evidência com data e contagem
 atuais; não apague o contexto histórico sem uma razão.

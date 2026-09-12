@@ -1,4 +1,7 @@
+import asyncio
+
 import pytest
+from mcp import Client
 
 from google_workspace_admin import server
 
@@ -2180,3 +2183,117 @@ def test_workspace_drive_audit_list_rejects_invalid_arguments(
 
     with pytest.raises(ValueError):
         server.workspace_drive_audit_list(**arguments)
+
+
+def test_workspace_user_usage_get_sanitizes_page(monkeypatch):
+    captured = {}
+
+    def fake_get_user_usage_report(**kwargs):
+        captured.update(kwargs)
+        return {
+            "usage_reports": [
+                {
+                    "kind": "usageReport",
+                    "date": "2026-09-11",
+                    "entity": {
+                        "profileId": "profile-123",
+                        "userEmail": "omit@example.com",
+                        "entityId": "omit-entity",
+                    },
+                    "parameters": [
+                        {
+                            "name": "accounts:timestamp_last_login",
+                            "datetimeValue": "2026-09-10T00:00:00.000Z",
+                        },
+                        {
+                            "name": "accounts:is_suspended",
+                            "boolValue": True,
+                        },
+                        {
+                            "name": "accounts:first_name",
+                            "stringValue": "omit",
+                        },
+                    ],
+                }
+            ],
+            "next_page_token": "next-page",
+            "warnings_present": True,
+            "warnings_count": 1,
+        }
+
+    monkeypatch.setattr(
+        server,
+        "get_user_usage_report",
+        fake_get_user_usage_report,
+    )
+
+    result = server.workspace_user_usage_get(
+        date="2026-09-11",
+        max_results=1,
+        page_token="page-token",
+        user_key="profile-123",
+        parameters="accounts:timestamp_last_login,accounts:is_suspended",
+        filters="accounts:is_suspended==true",
+        org_unit_id="id:org-unit",
+    )
+
+    assert captured == {
+        "date": "2026-09-11",
+        "max_results": 1,
+        "page_token": "page-token",
+        "user_key": "profile-123",
+        "parameters": "accounts:timestamp_last_login,accounts:is_suspended",
+        "filters": "accounts:is_suspended==true",
+        "org_unit_id": "id:org-unit",
+    }
+    assert result == {
+        "usage_reports": [
+            {
+                "date": "2026-09-11",
+                "profile_id": "profile-123",
+                "parameters": [
+                    {
+                        "parameter_name": "accounts:timestamp_last_login",
+                        "datetime_value": "2026-09-10T00:00:00.000Z",
+                    },
+                    {
+                        "parameter_name": "accounts:is_suspended",
+                        "boolean_value": True,
+                    },
+                ],
+            }
+        ],
+        "next_page_token": "next-page",
+        "warnings_present": True,
+        "warnings_count": 1,
+    }
+    assert "userEmail" not in str(result)
+    assert "entityId" not in str(result)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"date": "2026-09-11", "max_results": 0},
+        {"date": "2026-09-11", "max_results": 101},
+        {"date": "2026-02-29"},
+        {"date": "2026-09-11", "user_key": "  "},
+        {"date": "2026-09-11", "page_token": ""},
+        {"date": "2026-09-11", "parameters": "  "},
+        {"date": "2026-09-11", "filters": "\t"},
+        {"date": "2026-09-11", "org_unit_id": ""},
+    ],
+)
+def test_workspace_user_usage_get_rejects_invalid_arguments(
+    monkeypatch,
+    arguments,
+):
+    monkeypatch.setattr(
+        server,
+        "get_user_usage_report",
+        lambda **kwargs: pytest.fail("A chamada não deveria ocorrer."),
+    )
+
+    with pytest.raises((TypeError, ValueError)):
+        server.workspace_user_usage_get(**arguments)

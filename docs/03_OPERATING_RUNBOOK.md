@@ -228,6 +228,58 @@ ADC → IAM `signJwt` → DWD/OAuth → Reports API → `activities.list` com
 e nenhum conteúdo real de Activity foi persistido. O checkpoint Git desta
 entrega é concluído com o commit autorizado após as verificações finais.
 
+## Operação de User Usage paginada
+
+`workspace_user_usage_get` consulta somente
+`/admin/reports/v1/usage/users/{userKey}/dates/{date}` pelo método
+`userUsageReport.get`, usando o scope
+`https://www.googleapis.com/auth/admin.reports.usage.readonly`. `date` é
+obrigatório, estritamente `YYYY-MM-DD` e deve ser uma data válida.
+
+`max_results` é limitado a 1–100, padrão 25. `page_token`, `parameters`,
+`filters` e `org_unit_id` são opcionais, mas não podem estar vazios;
+`org_unit_id` é encaminhado como `orgUnitID`. Cada chamada faz exatamente um
+GET com timeout de 30 segundos, não envia `customerId`, não cria retries e não
+percorre páginas automaticamente. `nextPageToken` é devolvido como
+`next_page_token` para uma chamada posterior.
+
+O serializer devolve somente `date`, `profile_id` derivado de
+`entity.profileId` e parâmetros explicitamente allowlisted. Omite
+`userEmail`, `entityId`, `customerId`, `kind`, `etag`, payload bruto,
+`stringValue`/`msgValue` genéricos e parâmetros desconhecidos. Os timestamps de
+Accounts `timestamp_creation`, `timestamp_last_login` e `timestamp_last_sso`
+só são serializados quando o nome correspondente estiver explicitamente em
+`parameters`. Warnings são reduzidos a `warnings_present` e
+`warnings_count`.
+
+Os testes locais desta etapa usam exclusivamente mocks. A REAL VALIDATION final
+foi executada em `2026-09-12` pelo MCP original com uma única chamada para a
+data do relatório solicitado `date=2026-09-10`, `max_results=1`,
+`parameters=accounts:used_quota_in_percentage` e `user_key=all`: sucesso,
+`usageReports=1`, `next_page_token` presente, `warnings_present=true`,
+`warnings_count=1`, sem retry e sem paginação adicional.
+
+### Lição operacional: autenticação ADC local
+
+Quando uma nova chamada Workspace falhar de forma opaca na camada de
+autenticação, verifique a ADC e faça a reautenticação local antes de alterar
+DWD, scopes ou privilégios. O procedimento manual permitido ao operador é:
+
+```powershell
+gcloud auth application-default login
+gcloud auth application-default print-access-token > $null
+if ($LASTEXITCODE -eq 0) { "ADC_OK" } else { "ADC_FALHOU" }
+```
+
+O segundo comando valida a ADC sem imprimir o token. Isso é reautenticação
+local da ADC, não renovação manual do token DWD e não exige chave JSON de
+Service Account. Alterações no Google Admin Console, Google Cloud, IAM, DWD ou
+scopes continuam exclusivamente manuais; Codex/MCP não deve executá-las.
+
+A instrumentação diagnóstica temporária usada nesta investigação foi removida
+completamente e não é procedimento operacional normal. Campos diagnósticos
+temporários também não fazem parte do contrato final da ferramenta.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização
