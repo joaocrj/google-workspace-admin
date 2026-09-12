@@ -148,3 +148,49 @@ VALIDATION MCP foi concluída em uma única chamada
 `workspace_login_audit_list(max_results=1)`, retornando 1 Activity e
 `next_page_token` presente; nenhum conteúdo de Activity foi registrado. O
 checkpoint Git é concluído nesta entrega.
+
+`workspace_drive_audit_list` é a 18ª tool local e consulta somente
+`/admin/reports/v1/activity/users/{userKey}/applications/drive` da Reports API,
+com `applicationName=drive` fixo. Sua assinatura é:
+
+```text
+workspace_drive_audit_list(
+    max_results=25,
+    page_token=None,
+    user_key="all",
+    event_name=None,
+    filters=None,
+    start_time=None,
+    end_time=None,
+    actor_ip_address=None,
+    org_unit_id=None,
+)
+```
+
+`max_results` é limitado a 1–100, padrão 25. Os parâmetros opcionais não
+podem ser vazios ou conter somente whitespace; datas devem estar em RFC3339 e,
+quando ambas presentes, `start_time` deve anteceder `end_time`. A tool passa
+somente `maxResults`, `pageToken`, `eventName`, `filters`, `startTime`,
+`endTime`, `actorIpAddress` e `orgUnitID`. Não envia `customerId`, filtros
+recentes de recurso/rede/status/aplicação/agente/dispositivo nem
+`includeSensitiveData`, não interpreta integralmente a gramática de `filters`,
+não percorre páginas e não cria retries.
+
+O retorno é uma única página em `{"activities": [...],
+"next_page_token": ...}`. O serializer de Drive é independente do serializer
+de Admin Audit e usa allowlist: expõe timestamp/qualificador, tipo/nome do
+evento, `primary_event`, categorias operacionais allowlisted, ator/IP
+normalizados e IDs de arquivo/Shared Drive como identificadores opacos. Mantém
+somente o nome de parâmetros potencialmente sensíveis como `doc_title`,
+`owner`, `target_user`, `target_domain`, queries, URLs, labels e valores de
+conteúdo. Omite estruturas desconhecidas, `sensitiveParameters`,
+`resourceIds`, `resourceDetails`, `networkInfo`, `userDeviceInfo`, OAuth,
+agentic metadata, `kind`, `etag`, `ownerDomain` e payload bruto.
+
+O catálogo esperado após esta implementação é de 18 tools. Em 11/09/2026, a
+REAL VALIDATION do Drive Audit foi concluída exclusivamente pelo MCP original
+carregado pelo host, com exatamente uma chamada
+`workspace_drive_audit_list(max_results=1)`: sucesso, 1 Activity e
+`next_page_token` presente. A cadeia keyless foi validada até a Reports API;
+nenhum conteúdo real de Activity foi persistido. O checkpoint Git desta entrega
+é concluído com o commit autorizado após as verificações finais.

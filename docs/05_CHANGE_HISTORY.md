@@ -20,6 +20,7 @@
 | 11/09/2026 | checkpoint pendente | Admin Audit: PLAN, implementação local de `reports.activities.list` com `applicationName=admin`, launcher MCP Python da `.venv`, 16ª tool MCP e 155/155 testes locais; REAL VALIDATION MCP executada uma única vez com sucesso, 1 Activity e próxima página presente; DWD `admin.reports.audit.readonly` e sujeito Superadministrador confirmados manualmente; nenhum conteúdo de auditoria registrado |
 | 11/09/2026 | implementação pendente de checkpoint | Login Audit: PLAN e implementação local de `activities.list` com `applicationName=login`, serializer conservador, 17ª tool MCP e **191/191 testes locais aprovados**; REAL VALIDATION e checkpoint Git pendentes; nenhuma chamada Google ou alteração administrativa realizada |
 | 11/09/2026 | checkpoint desta entrega | Login Audit: redescoberta pós-restart pelo host, uma única chamada MCP com `max_results=1`, sucesso, 1 Activity e próxima página presente; **191/191 testes locais aprovados** e `git diff --check` aprovado; nenhum conteúdo de Activity, PII, credencial ou token registrado; checkpoint concluído |
+| 11/09/2026 | implementação pendente de checkpoint | Drive Audit: PLAN e IMPLEMENT concluídos com módulo independente `reports/drive_audit.py`, serializer allowlist específico, 18ª tool MCP e **230/230 testes locais aprovados** pelo Python direto da `.venv`; REAL VALIDATION concluída exclusivamente pelo MCP original com exatamente uma chamada `max_results=1`, sucesso, 1 Activity e próxima página presente; nenhum conteúdo real de Activity persistido |
 
 ## Lições registradas
 
@@ -74,6 +75,20 @@
   sessão; restart manual do Codex; POST-RESTART CHECK; e tentativa 3 concluída
   pelo MCP do host com uma única chamada bem-sucedida. O resultado foi mantido
   sanitizado, sem Activity, PII ou material de autenticação.
+- Drive Audit permanece separado de Drive Activity API v2 e usa somente
+  `activities.list` com `applicationName=drive`. A implementação mantém o
+  scope já utilizado por Admin Audit e Login Audit, uma página por chamada,
+  `page_token` explícito e nenhum retry. O serializer é allowlistado para
+  minimizar títulos, destinatários, queries, conteúdo e estruturas complexas,
+  mantendo apenas os IDs opacos necessários à correlação administrativa. A
+  documentação preserva a distinção entre janela de relatório de até 180 dias
+  e retenção geral de seis meses; nenhuma regra artificial foi adicionada ao
+  código. Em 11/09/2026, a REAL VALIDATION foi concluída exclusivamente pelo
+  MCP original carregado pelo host com exatamente uma chamada
+  `workspace_drive_audit_list(max_results=1)`: sucesso, 1 Activity e
+  `next_page_token` presente. A cadeia keyless até a Reports API foi validada,
+  sem retry ou paginação adicional e sem persistir conteúdo real de Activity,
+  token, credencial ou payload. O CHECKPOINT foi concluído nesta entrega.
 
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do

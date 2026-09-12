@@ -65,7 +65,8 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_calendar_features_list" in tool_names
     assert "workspace_admin_audit_list" in tool_names
     assert "workspace_login_audit_list" in tool_names
-    assert len(tool_names) == 17
+    assert "workspace_drive_audit_list" in tool_names
+    assert len(tool_names) == 18
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
@@ -78,6 +79,10 @@ async def test_tools_are_registered(client: Client):
     assert "_serialize_login_audit_event" not in tool_names
     assert "_serialize_login_audit_parameter" not in tool_names
     assert "_serialize_login_audit_nested_parameter" not in tool_names
+    assert "_serialize_drive_audit_activity" not in tool_names
+    assert "_serialize_drive_audit_event" not in tool_names
+    assert "_serialize_drive_audit_parameter" not in tool_names
+    assert "_serialize_drive_audit_nested_parameter" not in tool_names
 
 
 @pytest.mark.anyio
@@ -1208,6 +1213,129 @@ async def test_workspace_login_audit_list_validation_through_mcp(
 ):
     result = await client.call_tool(
         "workspace_login_audit_list",
+        arguments,
+    )
+
+    assert result.is_error is True
+
+
+@pytest.mark.anyio
+async def test_workspace_drive_audit_list_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_drive_audit_activities(**kwargs):
+        captured.update(kwargs)
+        return {
+            "activities": [
+                {
+                    "id": {
+                        "time": "0",
+                        "uniqueQualifier": "1",
+                    },
+                    "actor": {
+                        "email": "drive@example.com",
+                        "callerType": "USER",
+                        "profileId": "omit-profile",
+                    },
+                    "ipAddress": "198.51.100.13",
+                    "events": [
+                        {
+                            "type": "DRIVE",
+                            "name": "create",
+                            "parameters": [
+                                {"name": "doc_id", "value": "doc-123"},
+                                {
+                                    "name": "doc_title",
+                                    "value": "omit title",
+                                },
+                                {"name": "billable", "boolValue": False},
+                            ],
+                            "sensitiveParameters": [
+                                {"name": "secret", "value": "omit"}
+                            ],
+                            "resourceIds": ["omit-resource"],
+                        }
+                    ],
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_drive_audit_activities",
+        fake_list_drive_audit_activities,
+    )
+
+    result = await client.call_tool(
+        "workspace_drive_audit_list",
+        {
+            "max_results": 1,
+            "user_key": "drive@example.com",
+            "event_name": "create",
+            "filters": "doc_type==document",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured == {
+        "max_results": 1,
+        "page_token": None,
+        "user_key": "drive@example.com",
+        "event_name": "create",
+        "filters": "doc_type==document",
+        "start_time": None,
+        "end_time": None,
+        "actor_ip_address": None,
+        "org_unit_id": None,
+    }
+
+    payload = _json_result(result)
+    assert payload["next_page_token"] == "test-page"
+    assert payload["activities"][0]["actor"] == {
+        "email": "drive@example.com",
+        "caller_type": "USER",
+    }
+    assert payload["activities"][0]["events"][0]["parameters"][0][
+        "string_value"
+    ] == "doc-123"
+    assert payload["activities"][0]["events"][0]["parameters"][1][
+        "string_value"
+    ] is None
+    assert payload["activities"][0]["events"][0]["parameters"][2][
+        "boolean_value"
+    ] is False
+    assert "sensitiveParameters" not in str(payload)
+    assert "resourceIds" not in str(payload)
+    assert "omit title" not in str(payload)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 101},
+        {"page_token": "   "},
+        {"user_key": "  "},
+        {"event_name": "\t"},
+        {"filters": ""},
+        {"start_time": "invalid"},
+        {
+            "start_time": "2026-09-11T00:00:00Z",
+            "end_time": "2026-09-10T00:00:00Z",
+        },
+    ],
+)
+async def test_workspace_drive_audit_list_validation_through_mcp(
+    client: Client,
+    arguments,
+):
+    result = await client.call_tool(
+        "workspace_drive_audit_list",
         arguments,
     )
 

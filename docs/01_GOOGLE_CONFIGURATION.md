@@ -145,6 +145,34 @@ Activity, dado pessoal, credencial ou token foi registrado; a validação não
 afirma cobertura de todos os tipos de eventos Login. Nenhuma alteração de DWD,
 IAM, API, Service Account, privilégio ou Google Admin foi realizada.
 
+`workspace_drive_audit_list` será a próxima tool da Reports API, com
+`applicationName=drive` fixo no endpoint
+`/admin/reports/v1/activity/users/{userKey}/applications/drive`. Ela reutiliza
+exclusivamente o scope já autorizado
+`https://www.googleapis.com/auth/admin.reports.audit.readonly`; não requer novo
+scope, nova API, alteração de DWD, IAM, Service Account, sujeito ou privilégio
+delegado. A implementação mantém páginas de 1–100 registros, padrão 25,
+`page_token` explícito, timeout de 30 segundos, uma requisição por chamada,
+sem retry ou auto-paginação. O contrato não envia `customerId`, filtros novos
+de recursos/rede/status/agentes/dispositivos nem `includeSensitiveData`.
+
+Drive Audit não acessa conteúdo de arquivos e não usa Drive Activity API v2,
+Drive `files.get`, Docs API, Sheets API, Slides API ou exportação. O serializer
+é específico e allowlistado: mantém timestamp, qualificador, evento, ator/IP e
+IDs opacos necessários à correlação, mas omite títulos, proprietários,
+destinatários, queries, conteúdo, `sensitiveParameters`, `resourceDetails`,
+`networkInfo`, `userDeviceInfo`, aplicações OAuth, dados agentic e estruturas
+desconhecidas. A documentação operacional preserva a nuance entre a janela do
+relatório descrita como até 180 dias e a retenção geral de auditoria descrita
+como seis meses; essa diferença não vira uma regra artificial local. Em
+11/09/2026, a REAL VALIDATION do Drive Audit foi concluída exclusivamente pelo
+MCP original carregado pelo host, com exatamente uma chamada
+`workspace_drive_audit_list(max_results=1)`: sucesso, 1 Activity e
+`next_page_token` presente. A cadeia keyless foi validada até a Reports API;
+nenhum conteúdo real de Activity foi persistido. O checkpoint Git desta entrega
+é concluído com o commit autorizado após as verificações finais; qualquer
+mudança administrativa continua fora do escopo do agente.
+
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.
 Se a organização usa aprovação por múltiplas partes, a alteração também requer

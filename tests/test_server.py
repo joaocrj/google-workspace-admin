@@ -1793,3 +1793,390 @@ def test_workspace_login_audit_list_rejects_invalid_arguments(
 
     with pytest.raises(ValueError):
         server.workspace_login_audit_list(**arguments)
+
+
+def test_workspace_drive_audit_list_serializes_with_drive_allowlist(monkeypatch):
+    captured = {}
+
+    def fake_list_drive_audit_activities(**kwargs):
+        captured.update(kwargs)
+        return {
+            "activities": [
+                {
+                    "kind": "audit#activity",
+                    "etag": "omit-etag",
+                    "ownerDomain": "omit-domain",
+                    "ipAddress": "198.51.100.12",
+                    "networkInfo": {"regionCode": "BR"},
+                    "resourceDetails": [{"id": "omit-resource"}],
+                    "userDeviceInfo": {"deviceId": "omit-device"},
+                    "isAgenticAction": True,
+                    "id": {
+                        "time": "123",
+                        "uniqueQualifier": "456",
+                        "applicationName": "drive",
+                        "customerId": "omit-customer",
+                    },
+                    "actor": {
+                        "email": "actor@example.com",
+                        "callerType": "USER",
+                        "profileId": "omit-profile",
+                        "key": "omit-key",
+                        "applicationInfo": {
+                            "oauthClientId": "omit-client",
+                        },
+                    },
+                    "events": [
+                        {
+                            "type": "DRIVE",
+                            "name": "change_user_access",
+                            "primaryEvent": False,
+                            "parameters": [
+                                {"name": "doc_id", "value": "doc-123"},
+                                {
+                                    "name": "shared_drive_id",
+                                    "value": "drive-123",
+                                },
+                                {
+                                    "name": "owner_shared_drive_id",
+                                    "value": "owner-drive-123",
+                                },
+                                {"name": "doc_type", "value": "document"},
+                                {
+                                    "name": "visibility",
+                                    "multiValue": [],
+                                },
+                                {"name": "billable", "boolValue": False},
+                                {"name": "is_encrypted", "boolValue": True},
+                                {
+                                    "name": "owner_is_shared_drive",
+                                    "boolValue": False,
+                                },
+                                {
+                                    "name": "doc_title",
+                                    "value": "omit title",
+                                },
+                                {
+                                    "name": "target_user",
+                                    "value": "omit-target@example.com",
+                                },
+                                {
+                                    "name": "unknown_parameter",
+                                    "value": "omit unknown",
+                                },
+                                {
+                                    "name": "nested",
+                                    "messageValue": {
+                                        "parameter": [
+                                            {
+                                                "name": "doc_title",
+                                                "value": "omit nested title",
+                                            }
+                                        ]
+                                    },
+                                },
+                                {
+                                    "name": "empty_nested_sets",
+                                    "multiMessageValue": [],
+                                },
+                            ],
+                            "sensitiveParameters": [
+                                {"name": "secret", "value": "omit"}
+                            ],
+                            "resourceIds": ["omit-resource"],
+                            "status": {"statusCode": "200"},
+                        }
+                    ],
+                }
+            ],
+            "next_page_token": "test-page",
+        }
+
+    monkeypatch.setattr(
+        server,
+        "list_drive_audit_activities",
+        fake_list_drive_audit_activities,
+    )
+
+    result = server.workspace_drive_audit_list(
+        max_results=100,
+        page_token="test-page",
+        user_key="drive@example.com",
+        event_name="change_user_access",
+        filters="doc_type==document",
+        start_time="2026-09-10T00:00:00Z",
+        end_time="2026-09-11T00:00:00Z",
+        actor_ip_address="198.51.100.12",
+        org_unit_id="id:org-unit",
+    )
+
+    assert captured == {
+        "max_results": 100,
+        "page_token": "test-page",
+        "user_key": "drive@example.com",
+        "event_name": "change_user_access",
+        "filters": "doc_type==document",
+        "start_time": "2026-09-10T00:00:00Z",
+        "end_time": "2026-09-11T00:00:00Z",
+        "actor_ip_address": "198.51.100.12",
+        "org_unit_id": "id:org-unit",
+    }
+    assert result == {
+        "activities": [
+            {
+                "occurred_at_epoch_seconds": "123",
+                "activity_qualifier": "456",
+                "actor": {
+                    "email": "actor@example.com",
+                    "caller_type": "USER",
+                },
+                "actor_ip_address": "198.51.100.12",
+                "events": [
+                    {
+                        "event_type": "DRIVE",
+                        "event_name": "change_user_access",
+                        "primary_event": False,
+                        "parameters": [
+                            {
+                                "parameter_name": "doc_id",
+                                "string_value": "doc-123",
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "shared_drive_id",
+                                "string_value": "drive-123",
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "owner_shared_drive_id",
+                                "string_value": "owner-drive-123",
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "doc_type",
+                                "string_value": "document",
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "visibility",
+                                "string_value": None,
+                                "string_values": [],
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "billable",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": False,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "is_encrypted",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": True,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "owner_is_shared_drive",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": False,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "doc_title",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "target_user",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "unknown_parameter",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "nested",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": [
+                                    {"parameter_name": "doc_title"}
+                                ],
+                                "nested_parameter_sets": None,
+                            },
+                            {
+                                "parameter_name": "empty_nested_sets",
+                                "string_value": None,
+                                "string_values": None,
+                                "integer_value": None,
+                                "integer_values": None,
+                                "boolean_value": None,
+                                "nested_parameters": None,
+                                "nested_parameter_sets": [],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+        "next_page_token": "test-page",
+    }
+    serialized = result["activities"][0]
+    assert "kind" not in serialized
+    assert "etag" not in serialized
+    assert "networkInfo" not in serialized
+    assert "resourceDetails" not in serialized
+    assert "userDeviceInfo" not in serialized
+    assert "profileId" not in serialized["actor"]
+    assert "applicationInfo" not in serialized["actor"]
+    assert "sensitiveParameters" not in str(result)
+    assert "omit title" not in str(result)
+    assert "omit-target@example.com" not in str(result)
+    assert "omit unknown" not in str(result)
+
+
+def test_workspace_drive_audit_list_uses_safe_default_arguments(monkeypatch):
+    captured = {}
+
+    def fake_list_drive_audit_activities(**kwargs):
+        captured.update(kwargs)
+        return {"activities": [], "next_page_token": None}
+
+    monkeypatch.setattr(
+        server,
+        "list_drive_audit_activities",
+        fake_list_drive_audit_activities,
+    )
+
+    assert server.workspace_drive_audit_list() == {
+        "activities": [],
+        "next_page_token": None,
+    }
+    assert captured == {
+        "max_results": 25,
+        "page_token": None,
+        "user_key": "all",
+        "event_name": None,
+        "filters": None,
+        "start_time": None,
+        "end_time": None,
+        "actor_ip_address": None,
+        "org_unit_id": None,
+    }
+
+
+def test_drive_audit_serializers_handle_absent_fields():
+    assert server._serialize_drive_audit_nested_parameter({}) == {
+        "parameter_name": None,
+    }
+    assert server._serialize_drive_audit_parameter({}) == {
+        "parameter_name": None,
+        "string_value": None,
+        "string_values": None,
+        "integer_value": None,
+        "integer_values": None,
+        "boolean_value": None,
+        "nested_parameters": None,
+        "nested_parameter_sets": None,
+    }
+    assert server._serialize_drive_audit_event({}) == {
+        "event_type": None,
+        "event_name": None,
+        "primary_event": None,
+        "parameters": [],
+    }
+    assert server._serialize_drive_audit_activity({}) == {
+        "occurred_at_epoch_seconds": None,
+        "activity_qualifier": None,
+        "actor": {
+            "email": None,
+            "caller_type": None,
+        },
+        "actor_ip_address": None,
+        "events": [],
+    }
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"max_results": 0},
+        {"max_results": 101},
+        {"page_token": "  "},
+        {"user_key": "\t"},
+        {"event_name": ""},
+        {"filters": "   "},
+        {"start_time": "invalid"},
+        {
+            "start_time": "2026-09-11T00:00:00Z",
+            "end_time": "2026-09-10T00:00:00Z",
+        },
+    ],
+)
+def test_workspace_drive_audit_list_rejects_invalid_arguments(
+    monkeypatch,
+    arguments,
+):
+    monkeypatch.setattr(
+        server,
+        "list_drive_audit_activities",
+        lambda **kwargs: pytest.fail("A chamada não deveria ocorrer."),
+    )
+
+    with pytest.raises(ValueError):
+        server.workspace_drive_audit_list(**arguments)

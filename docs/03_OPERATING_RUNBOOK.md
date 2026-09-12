@@ -187,6 +187,47 @@ paginação: retornou 1 Activity e `next_page_token` presente. Nenhum conteúdo 
 Activity, PII, credencial ou token foi registrado; a evidência cobre uma única
 página/chamada operacional e não todos os tipos de eventos Login.
 
+## Operação de Drive Audit paginada
+
+`workspace_drive_audit_list` consulta somente
+`/admin/reports/v1/activity/users/{userKey}/applications/drive` da Reports API.
+`applicationName=drive` é fixo; `user_key` filtra as atividades e não altera o
+sujeito DWD. O scope é
+`https://www.googleapis.com/auth/admin.reports.audit.readonly`, já utilizado
+por Admin Audit e Login Audit.
+
+A tool limita `max_results` a 1–100, padrão 25, aceita `page_token` explícito e
+retorna somente uma página por chamada. `nextPageToken` é convertido para
+`next_page_token`; não há auto-paginação, loop oculto ou retry automático. O
+timeout HTTP permanece em 30 segundos e respostas HTTP não-2xx são propagadas
+com `raise_for_status()`.
+
+`page_token`, `user_key`, `event_name`, `filters`, `start_time`, `end_time`,
+`actor_ip_address` e `org_unit_id` não podem ser vazios ou conter somente
+whitespace. Datas devem ser RFC3339 e `start_time` deve anteceder `end_time`
+quando ambas forem fornecidas. Uma única extremidade temporal pode ser omitida,
+conforme permitido pela API. Não é aplicado limite local artificial de 180 dias:
+a documentação operacional preserva separadamente a janela de relatório de até
+180 dias e a retenção geral de seis meses.
+
+O serializer de Drive não repassa a Activity original. Ele usa allowlist para
+timestamp, qualificador, tipo/nome do evento, categorias operacionais, ator/IP
+e IDs opacos necessários à correlação. Valores de títulos, owners,
+destinatários, queries, URLs, conteúdo e labels ficam omitidos; estruturas como
+`sensitiveParameters`, `resourceIds`, `resourceDetails`, `networkInfo`,
+`userDeviceInfo`, OAuth, dados agentic, `kind`, `etag`, `ownerDomain` e campos
+desconhecidos não são retornados.
+
+Os testes locais são mockados e não substituem a validação real. Em 11/09/2026,
+após autorização explícita, a REAL VALIDATION foi concluída exclusivamente pelo
+MCP original carregado pelo host com exatamente uma chamada
+`workspace_drive_audit_list(max_results=1)`: sucesso, 1 Activity e
+`next_page_token` presente. A cadeia Codex host → MCP stdio → Python `.venv` →
+ADC → IAM `signJwt` → DWD/OAuth → Reports API → `activities.list` com
+`applicationName=drive` foi validada; não houve retry nem paginação adicional,
+e nenhum conteúdo real de Activity foi persistido. O checkpoint Git desta
+entrega é concluído com o commit autorizado após as verificações finais.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização

@@ -102,7 +102,14 @@ FASE 1 — READ / ADMIN INVENTORY
 │   │   ├── scope necessário                               ✅ CONCLUÍDO — já presente; sem alteração administrativa
 │   │   ├── REAL VALIDATION — tentativa 3                  ✅ CONCLUÍDO — 1 Activity / próxima página presente
 │   │   └── CHECKPOINT                                     ✅ CONCLUÍDO
-│   ├── Drive Audit                                        ⬜ PENDENTE
+│   ├── Drive Audit                                        ← EM ANDAMENTO
+│   │   ├── PLAN                                           ✅ CONCLUÍDO
+│   │   ├── IMPLEMENT                                      ✅ CONCLUÍDO — 18ª tool local
+│   │   ├── scope necessário                               ✅ CONCLUÍDO — reutiliza admin.reports.audit.readonly
+│   │   ├── serializer allowlist específico                 ✅ CONCLUÍDO — sem conteúdo de arquivos ou payload bruto
+│   │   ├── testes locais                                  ✅ CONCLUÍDO — 230/230 passed
+│   │   ├── REAL VALIDATION                                ✅ CONCLUÍDO — exatamente 1 chamada / 1 Activity / próxima página presente
+│   │   └── CHECKPOINT                                     ✅ CONCLUÍDO — revisão final e commit desta entrega
 │   ├── User Usage                                         ⬜ PENDENTE
 │   └── Customer Usage                                     ⬜ PENDENTE
 │
@@ -172,6 +179,13 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE
   Python da `.venv`, com sucesso, 1 Activity e próxima página presente. Nenhum
   dado de auditoria, credencial, token ou payload real foi registrado; o
   checkpoint Git permanece pendente.
+- Em 11/09/2026, a REAL VALIDATION do Drive Audit foi concluída exclusivamente
+  pelo MCP original carregado pelo host, com exatamente uma chamada limitada a
+  `max_results=1`: sucesso, 1 Activity e `next_page_token` presente. A cadeia
+  keyless até `activities.list` com `applicationName=drive` foi validada; não
+  houve retry ou paginação adicional, e nenhum conteúdo real de Activity,
+  token, credencial ou payload foi persistido. O checkpoint Git permanece
+  pendente.
 - As tentativas anteriores de validação em `codexsandboxoffline` foram
   diagnosticadas como restrições locais: socket para `oauth2.googleapis.com`,
   `UnsupportedOperation` causado por `stderr=io.StringIO` e cache do `uv` sem

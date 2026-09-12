@@ -32,6 +32,10 @@ from google_workspace_admin.reports.admin_audit import (
     _validate_admin_audit_arguments,
     list_admin_audit_activities,
 )
+from google_workspace_admin.reports.drive_audit import (
+    _validate_drive_audit_arguments,
+    list_drive_audit_activities,
+)
 from google_workspace_admin.reports.login_audit import (
     _validate_login_audit_arguments,
     list_login_audit_activities,
@@ -882,6 +886,176 @@ def workspace_login_audit_list(
     return {
         "activities": [
             _serialize_login_audit_activity(activity)
+            for activity in page["activities"]
+        ],
+        "next_page_token": page["next_page_token"],
+    }
+
+
+_DRIVE_SAFE_STRING_PARAMETERS = {
+    "doc_type",
+    "visibility",
+    "deletion_reason",
+    "membership_change_type",
+    "added_role",
+    "removed_role",
+}
+_DRIVE_SAFE_ID_PARAMETERS = {
+    "doc_id",
+    "shared_drive_id",
+    "owner_shared_drive_id",
+}
+_DRIVE_SAFE_BOOLEAN_PARAMETERS = {
+    "billable",
+    "is_encrypted",
+    "owner_is_shared_drive",
+    "primary_event",
+}
+
+
+def _serialize_drive_audit_nested_parameter(parameter: dict) -> dict:
+    """Preserva somente o nome de parâmetros aninhados do Drive Audit."""
+    return {
+        "parameter_name": parameter.get("name"),
+    }
+
+
+def _serialize_drive_audit_parameter(parameter: dict) -> dict:
+    """Serializa parâmetros do Drive Audit conforme uma allowlist explícita."""
+    parameter_name = parameter.get("name")
+    message_value = parameter.get("messageValue")
+    multi_message_value = parameter.get("multiMessageValue")
+    safe_value_parameter = (
+        parameter_name in _DRIVE_SAFE_STRING_PARAMETERS
+        or parameter_name in _DRIVE_SAFE_ID_PARAMETERS
+    )
+
+    return {
+        "parameter_name": parameter_name,
+        "string_value": (
+            parameter.get("value")
+            if safe_value_parameter
+            else None
+        ),
+        "string_values": (
+            parameter.get("multiValue")
+            if safe_value_parameter
+            else None
+        ),
+        "integer_value": None,
+        "integer_values": None,
+        "boolean_value": (
+            parameter.get("boolValue")
+            if parameter_name in _DRIVE_SAFE_BOOLEAN_PARAMETERS
+            else None
+        ),
+        "nested_parameters": (
+            [
+                _serialize_drive_audit_nested_parameter(nested_parameter)
+                for nested_parameter in message_value.get("parameter", [])
+            ]
+            if message_value is not None
+            else None
+        ),
+        "nested_parameter_sets": (
+            [
+                [
+                    _serialize_drive_audit_nested_parameter(
+                        nested_parameter
+                    )
+                    for nested_parameter in message_set.get("parameter", [])
+                ]
+                for message_set in multi_message_value
+            ]
+            if multi_message_value is not None
+            else None
+        ),
+    }
+
+
+def _serialize_drive_audit_event(event: dict) -> dict:
+    """Serializa um evento Drive sem payload ou estruturas desconhecidas."""
+    primary_event = event.get("primaryEvent")
+    if primary_event is None:
+        for parameter in event.get("parameters", []):
+            if (
+                parameter.get("name") == "primary_event"
+                and "boolValue" in parameter
+            ):
+                primary_event = parameter.get("boolValue")
+                break
+
+    return {
+        "event_type": event.get("type"),
+        "event_name": event.get("name"),
+        "primary_event": primary_event,
+        "parameters": [
+            _serialize_drive_audit_parameter(parameter)
+            for parameter in event.get("parameters", [])
+        ],
+    }
+
+
+def _serialize_drive_audit_activity(activity: dict) -> dict:
+    """Seleciona campos administrativos seguros de uma atividade Drive."""
+    activity_id = activity.get("id") or {}
+    actor = activity.get("actor") or {}
+
+    return {
+        "occurred_at_epoch_seconds": activity_id.get("time"),
+        "activity_qualifier": activity_id.get("uniqueQualifier"),
+        "actor": {
+            "email": actor.get("email"),
+            "caller_type": actor.get("callerType"),
+        },
+        "actor_ip_address": activity.get("ipAddress"),
+        "events": [
+            _serialize_drive_audit_event(event)
+            for event in activity.get("events", [])
+        ],
+    }
+
+
+@mcp.tool()
+def workspace_drive_audit_list(
+    max_results: int = 25,
+    page_token: str | None = None,
+    user_key: str = "all",
+    event_name: str | None = None,
+    filters: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    actor_ip_address: str | None = None,
+    org_unit_id: str | None = None,
+) -> dict:
+    """Lista uma página segura de atividades de Drive Audit do Workspace."""
+    _validate_drive_audit_arguments(
+        max_results=max_results,
+        page_token=page_token,
+        user_key=user_key,
+        event_name=event_name,
+        filters=filters,
+        start_time=start_time,
+        end_time=end_time,
+        actor_ip_address=actor_ip_address,
+        org_unit_id=org_unit_id,
+    )
+
+    page = list_drive_audit_activities(
+        max_results=max_results,
+        page_token=page_token,
+        user_key=user_key,
+        event_name=event_name,
+        filters=filters,
+        start_time=start_time,
+        end_time=end_time,
+        actor_ip_address=actor_ip_address,
+        org_unit_id=org_unit_id,
+    )
+
+    return {
+        "activities": [
+            _serialize_drive_audit_activity(activity)
             for activity in page["activities"]
         ],
         "next_page_token": page["next_page_token"],
