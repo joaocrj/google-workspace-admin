@@ -8,15 +8,15 @@ de campos antes de devolver a resposta ao Codex.
 | Ferramenta | Módulo | Parâmetros e limites | Resultado resumido |
 | --- | --- | --- | --- |
 | `workspace_status` | `server.py` | nenhum | estado e arquitetura de autenticação |
-| `workspace_users_list` | `directory/users.py` | `max_results` 1–100, padrão 5 | usuários ordenados por e-mail |
+| `workspace_users_list` | `directory/users.py` | `max_results` 1–100, padrão 5; `page_token` opcional não vazio | uma página de usuários ordenados por e-mail e `next_page_token` |
 | `workspace_user_get` | `directory/users.py` | `user_key` não vazio | usuário por e-mail, alias ou ID |
-| `workspace_groups_list` | `directory/groups.py` | `max_results` 1–200, padrão 20 | grupos do customer atual |
-| `workspace_group_members_list` | `directory/group_members.py` | `group_key`; `max_results` 1–200 | membros diretos do grupo |
+| `workspace_groups_list` | `directory/groups.py` | `max_results` 1–200, padrão 20; `page_token` opcional não vazio | uma página de grupos do customer atual e `next_page_token` |
+| `workspace_group_members_list` | `directory/group_members.py` | `group_key`; `max_results` 1–200; `page_token` opcional não vazio | uma página de membros diretos e `next_page_token` |
 | `workspace_orgunits_list` | `directory/orgunits.py` | caminho com `/`; tipo válido | unidades organizacionais |
-| `workspace_mobile_devices_list` | `directory/mobile_devices.py` | `max_results` 1–100, padrão 100 | dispositivos móveis, projeção FULL |
-| `workspace_chromeos_devices_list` | `directory/chromeos_devices.py` | `max_results` 1–300, padrão 100 | dispositivos ChromeOS, projeção FULL |
-| `workspace_roles_list` | `directory/roles.py` | `max_results` 1–100, padrão 100 | funções administrativas |
-| `workspace_role_assignments_list` | `directory/role_assignments.py` | `max_results` 1–100, padrão 100 | atribuições de função |
+| `workspace_mobile_devices_list` | `directory/mobile_devices.py` | `max_results` 1–100, padrão 100; `page_token` opcional não vazio | uma página de dispositivos móveis, projeção FULL e `next_page_token` |
+| `workspace_chromeos_devices_list` | `directory/chromeos_devices.py` | `max_results` 1–300, padrão 100; `page_token` opcional não vazio | uma página de dispositivos ChromeOS, projeção FULL e `next_page_token` |
+| `workspace_roles_list` | `directory/roles.py` | `max_results` 1–100, padrão 100; `page_token` opcional não vazio | uma página de funções administrativas e `next_page_token` |
+| `workspace_role_assignments_list` | `directory/role_assignments.py` | `max_results` 1–100, padrão 100; `page_token` opcional não vazio | uma página de atribuições e `next_page_token` |
 | `workspace_domains_list` | `directory/domains.py` | nenhum | domínios do customer atual |
 | `workspace_domain_aliases_list` | `directory/domain_aliases.py` | `parent_domain_name` opcional | aliases de domínio |
 | `workspace_buildings_list` | `directory/resources/buildings.py` | `max_results` 1–500, padrão 100; `page_token` opcional não vazio | edifícios serializados e `next_page_token` da página |
@@ -54,13 +54,14 @@ de campos antes de devolver a resposta ao Codex.
 | User Usage | `/admin/reports/v1/usage/users/{userKey}/dates/{date}` |
 | Customer Usage | `/admin/reports/v1/usage/dates/{date}` |
 
-Todos os clientes HTTP têm timeout de 30 segundos e propagam respostas HTTP não
-2xx. A paginação **ainda não está consolidada**: as ferramentas existentes
-passam `maxResults`, mas não percorrem `nextPageToken`. A tool
-`workspace_buildings_list` e `workspace_calendar_resources_list` preservam o
-token opaco da API como `next_page_token` e aceitam-no como `page_token`, sem
-percorrer páginas automaticamente. A consolidação geral continua uma entrega
-pendente da FASE 1.
+Todos os clientes HTTP têm timeout de 30 segundos, não fazem retry e convertem
+falhas HTTP/transportes dos módulos Directory consolidados em erros seguros,
+sem body ou headers. As ferramentas list pagináveis passam `max_results` como
+`maxResults`, `page_token` como `pageToken` e processam exatamente uma página;
+`nextPageToken` é devolvido como `next_page_token`. Não há auto-pagination.
+`page_token` deve ser `None` ou uma string não vazia; valores vazios e tipos
+arbitrários são rejeitados. `max_results` rejeita bool, float, string numérica,
+zero e valores acima do limite específico do endpoint.
 
 Buildings pertence à coleção `resources.buildings` da Admin SDK Directory API.
 Resources / Salas pertence à coleção irmã `resources.calendars`; Features
@@ -121,7 +122,7 @@ usuário, assim como o sujeito delegado Superadministrador. O launcher atual do
 processo MCP usa diretamente o Python da `.venv`. A REAL VALIDATION foi
 executada exatamente uma vez por MCP e retornou 1 Activity com
 `next_page_token` presente; nenhum conteúdo da Activity foi registrado. O
-checkpoint Git permanece pendente.
+checkpoint Git está concluído.
 
 ## Limites de exposição
 
@@ -130,6 +131,21 @@ serializadores em `server.py` selecionam somente os campos administrativos útei
 para cada recurso. Ao incluir novo campo, justifique sua necessidade e avalie
 se ele expõe identificadores pessoais, dados de dispositivo ou outra informação
 sensível.
+
+Os serializers de Mobile e ChromeOS preservam deliberadamente `device_id`,
+serial, IMEI/MEID, MAC, `annotated_user` e `annotated_location` quando
+fornecidos pela API, porque são necessários ao inventário administrativo. A
+exposição é intencional e deve ser tratada como potencialmente sensível pelo
+consumidor. Admin Audit mantém o contrato de parâmetros já validado; seus
+valores podem ser dados administrativos potencialmente sensíveis.
+
+Para a migração de menor privilégio, o CODE TARGET e a DWD atual são `users` →
+`admin.directory.user.readonly`, `groups` →
+`admin.directory.group.readonly`, `group members` →
+`admin.directory.group.member.readonly` e `orgunits` →
+`admin.directory.orgunit.readonly`. A migração manual foi confirmada pelo
+usuário e as quatro validações reais readonly foram concluídas com sucesso.
+Os scopes amplos anteriores permanecem somente no histórico.
 
 `workspace_login_audit_list` é a 17ª tool local. Ela fixa
 `applicationName=login`, usa exclusivamente o scope
@@ -231,8 +247,9 @@ de `entity.profileId` e parâmetros allowlisted. `userEmail`, `entityId`,
 quando foram explicitamente solicitados, usando `timestamp_last_login` como o
 nome atual. Warnings são reduzidos a `warnings_present` e `warnings_count`.
 
-O catálogo local confirmado após o IMPLEMENT é de 19 tools. A implementação e
-os testes locais usam mocks. A REAL VALIDATION foi executada em `2026-09-12`
+O catálogo local confirmado após o IMPLEMENT de User Usage era de 19 tools
+antes da inclusão de Customer Usage. A implementação e os testes locais usam
+mocks. A REAL VALIDATION foi executada em `2026-09-12`
 pelo MCP original com uma única chamada para a data do relatório solicitado
 `date=2026-09-10`,
 `max_results=1`, `parameters=accounts:used_quota_in_percentage` e
@@ -276,5 +293,6 @@ O serializer preserva somente `date` e métricas integer solicitadas e
 allowlisted. Omite entity, identificadores, `kind`, `etag`, `stringValue`,
 `datetimeValue`, `msgValue`, `boolValue`, warnings brutos e o payload bruto.
 Warnings, quando presentes, são reduzidos a `warnings_present` e
-`warnings_count`. A REAL VALIDATION permanece pendente; os testes locais usam
-mocks.
+`warnings_count`. A REAL VALIDATION V9 foi concluída anteriormente com uma
+única chamada autorizada; os testes desta IMPLEMENT usam mocks e não executam
+nova chamada Google.

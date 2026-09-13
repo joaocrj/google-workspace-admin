@@ -1,4 +1,5 @@
 from mcp.server import MCPServer
+from pydantic import StrictInt
 
 from google_workspace_admin.directory.chromeos_devices import (
     list_chromeos_devices,
@@ -49,20 +50,70 @@ from google_workspace_admin.reports.user_usage import (
     _validate_user_usage_arguments,
     get_user_usage_report,
 )
+from google_workspace_admin.http_errors import (
+    PageResult,
+    SafeOperationError,
+    WorkspaceApiError,
+    require_dict_list,
+    validate_max_results,
+    validate_next_page_token,
+    validate_optional_string,
+    validate_page_token,
+)
 
 mcp = MCPServer(
     name="Google Workspace Admin",
 )
 
 
+def _extract_page(
+    page: object,
+    item_key: str,
+    operation: str,
+) -> tuple[list[dict], str | None]:
+    if isinstance(page, PageResult):
+        items = list(page)
+        next_page_token = page.next_page_token
+    elif isinstance(page, dict):
+        items = page.get(item_key, [])
+        next_page_token = page.get("next_page_token")
+    elif isinstance(page, list):
+        # Compatibilidade com mocks e helpers internos legados.
+        items = page
+        next_page_token = None
+    else:
+        raise WorkspaceApiError(
+            operation=operation,
+            category="malformed_response",
+            code="RESPONSE_VALIDATION",
+            layer="response",
+        )
+
+    if not isinstance(items, list) or any(
+        not isinstance(item, dict) for item in items
+    ):
+        raise WorkspaceApiError(
+            operation=operation,
+            category="malformed_response",
+            code="RESPONSE_VALIDATION",
+            layer="response",
+        )
+
+    return items, validate_next_page_token(next_page_token, operation)
+
+
 def _serialize_user(user: dict) -> dict:
     """Seleciona os campos de usuário que podem ser expostos pelo MCP."""
+    name = user.get("name")
+    if not isinstance(name, dict):
+        name = {}
+
     return {
         "id": user.get("id"),
         "primary_email": user.get("primaryEmail"),
-        "full_name": user.get("name", {}).get("fullName"),
-        "given_name": user.get("name", {}).get("givenName"),
-        "family_name": user.get("name", {}).get("familyName"),
+        "full_name": name.get("fullName"),
+        "given_name": name.get("givenName"),
+        "family_name": name.get("familyName"),
         "suspended": user.get("suspended"),
         "archived": user.get("archived"),
         "is_admin": user.get("isAdmin"),
@@ -94,19 +145,49 @@ def _serialize_domain_alias(domain_alias: dict) -> dict:
 
 
 @mcp.tool()
-def workspace_users_list(max_results: int = 5) -> list[dict]:
+def workspace_users_list(
+    max_results: StrictInt = 5,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista usuários do Google Workspace.
 
     Args:
-        max_results: Quantidade máxima de usuários a retornar.
+        max_results: Quantidade máxima de usuários na página.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 100:
-        raise ValueError("max_results deve estar entre 1 e 100.")
+    try:
+        validate_max_results(max_results, 100)
+        validate_page_token(page_token)
 
-    users = list_users(max_results=max_results)
+        page = list_users(
+            max_results=max_results,
+            page_token=page_token,
+        )
+        users, next_page_token = _extract_page(
+            page,
+            "users",
+            "Directory users.list",
+        )
 
-    return [_serialize_user(user) for user in users]
+        return {
+            "users": [_serialize_user(user) for user in users],
+            "next_page_token": next_page_token,
+        }
+    except SafeOperationError:
+        raise
+    except ValueError:
+        raise SafeOperationError(
+            code="LOCAL_VALIDATION",
+            layer="validation",
+            operation="users.list",
+        ) from None
+    except Exception:
+        raise SafeOperationError(
+            code="UNEXPECTED_LOCAL",
+            layer="local",
+            operation="users.list",
+        ) from None
 
 
 @mcp.tool()
@@ -135,19 +216,34 @@ def _serialize_group(group: dict) -> dict:
 
 
 @mcp.tool()
-def workspace_groups_list(max_results: int = 20) -> list[dict]:
+def workspace_groups_list(
+    max_results: StrictInt = 20,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista grupos do Google Workspace.
 
     Args:
-        max_results: Quantidade máxima de grupos a retornar.
+        max_results: Quantidade máxima de grupos na página.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 200:
-        raise ValueError("max_results deve estar entre 1 e 200.")
+    validate_max_results(max_results, 200)
+    validate_page_token(page_token)
 
-    groups = list_groups(max_results=max_results)
+    page = list_groups(
+        max_results=max_results,
+        page_token=page_token,
+    )
+    groups, next_page_token = _extract_page(
+        page,
+        "groups",
+        "Directory groups.list",
+    )
 
-    return [_serialize_group(group) for group in groups]
+    return {
+        "groups": [_serialize_group(group) for group in groups],
+        "next_page_token": next_page_token,
+    }
 
 
 def _serialize_group_member(member: dict) -> dict:
@@ -165,30 +261,41 @@ def _serialize_group_member(member: dict) -> dict:
 @mcp.tool()
 def workspace_group_members_list(
     group_key: str,
-    max_results: int = 200,
-) -> list[dict]:
+    max_results: StrictInt = 200,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista membros diretos de um grupo do Google Workspace.
 
     Args:
         group_key: E-mail, alias ou ID imutável do grupo.
-        max_results: Quantidade máxima de membros a retornar.
+        max_results: Quantidade máxima de membros na página.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
     if not group_key.strip():
         raise ValueError("group_key não pode estar vazio.")
 
-    if max_results < 1 or max_results > 200:
-        raise ValueError("max_results deve estar entre 1 e 200.")
+    validate_max_results(max_results, 200)
+    validate_page_token(page_token)
 
-    members = list_group_members(
+    page = list_group_members(
         group_key=group_key,
         max_results=max_results,
+        page_token=page_token,
+    )
+    members, next_page_token = _extract_page(
+        page,
+        "members",
+        "Directory group members.list",
     )
 
-    return [
-        _serialize_group_member(member)
-        for member in members
-    ]
+    return {
+        "members": [
+            _serialize_group_member(member)
+            for member in members
+        ],
+        "next_page_token": next_page_token,
+    }
 
 
 def _serialize_orgunit(orgunit: dict) -> dict:
@@ -274,25 +381,36 @@ def _serialize_mobile_device(device: dict) -> dict:
 
 @mcp.tool()
 def workspace_mobile_devices_list(
-    max_results: int = 100,
-) -> list[dict]:
+    max_results: StrictInt = 100,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista dispositivos móveis de usuários do Google Workspace.
 
     Args:
         max_results: Quantidade máxima de dispositivos a retornar.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 100:
-        raise ValueError("max_results deve estar entre 1 e 100.")
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
 
-    devices = list_mobile_devices(
+    page = list_mobile_devices(
         max_results=max_results,
+        page_token=page_token,
+    )
+    devices, next_page_token = _extract_page(
+        page,
+        "mobile_devices",
+        "Directory mobile devices.list",
     )
 
-    return [
-        _serialize_mobile_device(device)
-        for device in devices
-    ]
+    return {
+        "mobile_devices": [
+            _serialize_mobile_device(device)
+            for device in devices
+        ],
+        "next_page_token": next_page_token,
+    }
 
 
 def _serialize_chromeos_device(device: dict) -> dict:
@@ -321,25 +439,36 @@ def _serialize_chromeos_device(device: dict) -> dict:
 
 @mcp.tool()
 def workspace_chromeos_devices_list(
-    max_results: int = 100,
-) -> list[dict]:
+    max_results: StrictInt = 100,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista dispositivos ChromeOS do Google Workspace.
 
     Args:
         max_results: Quantidade máxima de dispositivos a retornar.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 300:
-        raise ValueError("max_results deve estar entre 1 e 300.")
+    validate_max_results(max_results, 300)
+    validate_page_token(page_token)
 
-    devices = list_chromeos_devices(
+    page = list_chromeos_devices(
         max_results=max_results,
+        page_token=page_token,
+    )
+    devices, next_page_token = _extract_page(
+        page,
+        "chromeos_devices",
+        "Directory chromeos devices.list",
     )
 
-    return [
-        _serialize_chromeos_device(device)
-        for device in devices
-    ]
+    return {
+        "chromeos_devices": [
+            _serialize_chromeos_device(device)
+            for device in devices
+        ],
+        "next_page_token": next_page_token,
+    }
 
 
 def _serialize_role(role: dict) -> dict:
@@ -356,25 +485,36 @@ def _serialize_role(role: dict) -> dict:
 
 @mcp.tool()
 def workspace_roles_list(
-    max_results: int = 100,
-) -> list[dict]:
+    max_results: StrictInt = 100,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista funções administrativas do Google Workspace.
 
     Args:
         max_results: Quantidade máxima de funções a retornar.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 100:
-        raise ValueError("max_results deve estar entre 1 e 100.")
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
 
-    roles = list_roles(
+    page = list_roles(
         max_results=max_results,
+        page_token=page_token,
+    )
+    roles, next_page_token = _extract_page(
+        page,
+        "roles",
+        "Directory roles.list",
     )
 
-    return [
-        _serialize_role(role)
-        for role in roles
-    ]
+    return {
+        "roles": [
+            _serialize_role(role)
+            for role in roles
+        ],
+        "next_page_token": next_page_token,
+    }
 
 
 def _serialize_role_assignment(assignment: dict) -> dict:
@@ -390,35 +530,61 @@ def _serialize_role_assignment(assignment: dict) -> dict:
 
 @mcp.tool()
 def workspace_role_assignments_list(
-    max_results: int = 100,
-) -> list[dict]:
+    max_results: StrictInt = 100,
+    page_token: str | None = None,
+) -> dict:
     """
     Lista atribuições de funções administrativas do Google Workspace.
 
     Args:
         max_results: Quantidade máxima de atribuições a retornar.
+        page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 100:
-        raise ValueError("max_results deve estar entre 1 e 100.")
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
 
-    assignments = list_role_assignments(
+    page = list_role_assignments(
         max_results=max_results,
+        page_token=page_token,
+    )
+    assignments, next_page_token = _extract_page(
+        page,
+        "role_assignments",
+        "Directory role assignments.list",
     )
 
-    return [
-        _serialize_role_assignment(assignment)
-        for assignment in assignments
-    ]
+    return {
+        "role_assignments": [
+            _serialize_role_assignment(assignment)
+            for assignment in assignments
+        ],
+        "next_page_token": next_page_token,
+    }
 
 
 def _serialize_domain(domain: dict) -> dict:
     """Seleciona os campos de domínio expostos pelo MCP."""
+    if not isinstance(domain, dict):
+        raise WorkspaceApiError(
+            operation="Directory domains.list",
+            category="malformed_response",
+        )
+
+    domain_aliases = require_dict_list(
+        domain,
+        "domainAliases",
+        "Directory domains.list",
+    )
+
     return {
         "domain_name": domain.get("domainName"),
         "verified": domain.get("verified"),
         "is_primary": domain.get("isPrimary"),
         "creation_time": domain.get("creationTime"),
-        "domain_aliases": domain.get("domainAliases", []),
+        "domain_aliases": [
+            _serialize_domain_alias(domain_alias)
+            for domain_alias in domain_aliases
+        ],
     }
 
 
@@ -445,6 +611,8 @@ def workspace_domain_aliases_list(
     Quando parent_domain_name é informado, retorna somente os aliases
     associados ao domínio pai especificado.
     """
+    validate_optional_string(parent_domain_name, "parent_domain_name")
+
     domain_aliases = list_domain_aliases(
         parent_domain_name=parent_domain_name
     )
@@ -491,7 +659,7 @@ def _serialize_building(building: dict) -> dict:
 
 @mcp.tool()
 def workspace_buildings_list(
-    max_results: int = 100,
+    max_results: StrictInt = 100,
     page_token: str | None = None,
 ) -> dict:
     """
@@ -501,23 +669,26 @@ def workspace_buildings_list(
         max_results: Quantidade máxima de edifícios na página.
         page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 500:
-        raise ValueError("max_results deve estar entre 1 e 500.")
-
-    if page_token is not None and not page_token.strip():
-        raise ValueError("page_token não pode estar vazio.")
+    validate_max_results(max_results, 500)
+    validate_page_token(page_token)
 
     page = list_buildings(
         max_results=max_results,
         page_token=page_token,
     )
 
+    buildings, next_page_token = _extract_page(
+        page,
+        "buildings",
+        "Directory buildings.list",
+    )
+
     return {
         "buildings": [
             _serialize_building(building)
-            for building in page["buildings"]
+            for building in buildings
         ],
-        "next_page_token": page["next_page_token"],
+        "next_page_token": next_page_token,
     }
 
 
@@ -545,7 +716,7 @@ def _serialize_calendar_resource(resource: dict) -> dict:
 
 @mcp.tool()
 def workspace_calendar_resources_list(
-    max_results: int = 100,
+    max_results: StrictInt = 100,
     page_token: str | None = None,
     order_by: str | None = None,
     query: str | None = None,
@@ -559,17 +730,11 @@ def workspace_calendar_resources_list(
         order_by: Ordenação oficial da Directory API para os recursos.
         query: Filtro oficial da Directory API para os recursos.
     """
-    if max_results < 1 or max_results > 500:
-        raise ValueError("max_results deve estar entre 1 e 500.")
+    validate_max_results(max_results, 500)
+    validate_page_token(page_token)
 
-    if page_token is not None and not page_token.strip():
-        raise ValueError("page_token não pode estar vazio.")
-
-    if order_by is not None and not order_by.strip():
-        raise ValueError("order_by não pode estar vazio.")
-
-    if query is not None and not query.strip():
-        raise ValueError("query não pode estar vazio.")
+    validate_optional_string(order_by, "order_by")
+    validate_optional_string(query, "query")
 
     page = list_calendar_resources(
         max_results=max_results,
@@ -578,12 +743,18 @@ def workspace_calendar_resources_list(
         query=query,
     )
 
+    resources, next_page_token = _extract_page(
+        page,
+        "resources",
+        "Directory resources.calendars.list",
+    )
+
     return {
         "resources": [
             _serialize_calendar_resource(resource)
-            for resource in page["resources"]
+            for resource in resources
         ],
-        "next_page_token": page["next_page_token"],
+        "next_page_token": next_page_token,
     }
 
 
@@ -596,7 +767,7 @@ def _serialize_calendar_feature(feature: dict) -> dict:
 
 @mcp.tool()
 def workspace_calendar_features_list(
-    max_results: int = 100,
+    max_results: StrictInt = 100,
     page_token: str | None = None,
 ) -> dict:
     """
@@ -606,23 +777,26 @@ def workspace_calendar_features_list(
         max_results: Quantidade máxima de features na página.
         page_token: Token opaco de continuação retornado pela página anterior.
     """
-    if max_results < 1 or max_results > 500:
-        raise ValueError("max_results deve estar entre 1 e 500.")
-
-    if page_token is not None and not page_token.strip():
-        raise ValueError("page_token não pode estar vazio.")
+    validate_max_results(max_results, 500)
+    validate_page_token(page_token)
 
     page = list_calendar_features(
         max_results=max_results,
         page_token=page_token,
     )
 
+    features, next_page_token = _extract_page(
+        page,
+        "features",
+        "Directory resources.features.list",
+    )
+
     return {
         "features": [
             _serialize_calendar_feature(feature)
-            for feature in page["features"]
+            for feature in features
         ],
-        "next_page_token": page["next_page_token"],
+        "next_page_token": next_page_token,
     }
 
 
@@ -708,7 +882,7 @@ def _serialize_admin_audit_activity(activity: dict) -> dict:
 
 @mcp.tool()
 def workspace_admin_audit_list(
-    max_results: int = 25,
+    max_results: StrictInt = 25,
     page_token: str | None = None,
     user_key: str = "all",
     event_name: str | None = None,
@@ -719,6 +893,9 @@ def workspace_admin_audit_list(
     org_unit_id: str | None = None,
 ) -> dict:
     """Lista uma página de atividades administrativas do Workspace."""
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
+
     _validate_admin_audit_arguments(
         max_results=max_results,
         page_token=page_token,
@@ -743,12 +920,18 @@ def workspace_admin_audit_list(
         org_unit_id=org_unit_id,
     )
 
+    activities, next_page_token = _extract_page(
+        page,
+        "activities",
+        "Reports admin activities.list",
+    )
+
     return {
         "activities": [
             _serialize_admin_audit_activity(activity)
-            for activity in page["activities"]
+            for activity in activities
         ],
-        "next_page_token": page["next_page_token"],
+        "next_page_token": next_page_token,
     }
 
 
@@ -857,7 +1040,7 @@ def _serialize_login_audit_activity(activity: dict) -> dict:
 
 @mcp.tool()
 def workspace_login_audit_list(
-    max_results: int = 25,
+    max_results: StrictInt = 25,
     page_token: str | None = None,
     user_key: str = "all",
     event_name: str | None = None,
@@ -868,6 +1051,9 @@ def workspace_login_audit_list(
     org_unit_id: str | None = None,
 ) -> dict:
     """Lista uma página segura de atividades de Login Audit do Workspace."""
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
+
     _validate_login_audit_arguments(
         max_results=max_results,
         page_token=page_token,
@@ -892,12 +1078,18 @@ def workspace_login_audit_list(
         org_unit_id=org_unit_id,
     )
 
+    activities, next_page_token = _extract_page(
+        page,
+        "activities",
+        "Reports login activities.list",
+    )
+
     return {
         "activities": [
             _serialize_login_audit_activity(activity)
-            for activity in page["activities"]
+            for activity in activities
         ],
-        "next_page_token": page["next_page_token"],
+        "next_page_token": next_page_token,
     }
 
 
@@ -1027,7 +1219,7 @@ def _serialize_drive_audit_activity(activity: dict) -> dict:
 
 @mcp.tool()
 def workspace_drive_audit_list(
-    max_results: int = 25,
+    max_results: StrictInt = 25,
     page_token: str | None = None,
     user_key: str = "all",
     event_name: str | None = None,
@@ -1038,6 +1230,9 @@ def workspace_drive_audit_list(
     org_unit_id: str | None = None,
 ) -> dict:
     """Lista uma página segura de atividades de Drive Audit do Workspace."""
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
+
     _validate_drive_audit_arguments(
         max_results=max_results,
         page_token=page_token,
@@ -1062,12 +1257,18 @@ def workspace_drive_audit_list(
         org_unit_id=org_unit_id,
     )
 
+    activities, next_page_token = _extract_page(
+        page,
+        "activities",
+        "Reports drive activities.list",
+    )
+
     return {
         "activities": [
             _serialize_drive_audit_activity(activity)
-            for activity in page["activities"]
+            for activity in activities
         ],
-        "next_page_token": page["next_page_token"],
+        "next_page_token": next_page_token,
     }
 
 
@@ -1192,6 +1393,9 @@ def _serialize_user_usage_parameter(
     parameter: dict,
     requested_parameters: set[str],
 ) -> dict | None:
+    if not isinstance(parameter, dict):
+        return None
+
     parameter_name = parameter.get("name")
     canonical_name = _canonical_user_usage_parameter_name(parameter_name)
     parameter_type = _USER_USAGE_PARAMETER_TYPES.get(canonical_name)
@@ -1236,13 +1440,20 @@ def _serialize_user_usage_report(
     usage_report: dict,
     requested_parameters: set[str],
 ) -> dict:
-    entity = usage_report.get("entity") or {}
+    entity = usage_report.get("entity")
+    if not isinstance(entity, dict):
+        entity = {}
+
+    raw_parameters = usage_report.get("parameters", [])
+    if not isinstance(raw_parameters, list):
+        raw_parameters = []
+
     return {
         "date": usage_report.get("date"),
         "profile_id": entity.get("profileId"),
         "parameters": [
             serialized_parameter
-            for parameter in usage_report.get("parameters", [])
+            for parameter in raw_parameters
             if (
                 serialized_parameter := _serialize_user_usage_parameter(
                     parameter,
@@ -1258,24 +1469,41 @@ def _serialize_user_usage_page(
     parameters: str | None,
 ) -> dict:
     requested_parameters = _requested_user_usage_parameters(parameters)
+    raw_usage_reports = page.get("usage_reports", [])
+    if not isinstance(raw_usage_reports, list):
+        raw_usage_reports = []
+
+    warnings_present = page.get("warnings_present")
+    if not isinstance(warnings_present, bool):
+        warnings_present = False
+
+    warnings_count = page.get("warnings_count")
+    if (
+        isinstance(warnings_count, bool)
+        or not isinstance(warnings_count, int)
+        or warnings_count < 0
+    ):
+        warnings_count = 0
+
     return {
         "usage_reports": [
             _serialize_user_usage_report(
                 usage_report,
                 requested_parameters,
             )
-            for usage_report in page["usage_reports"]
+            for usage_report in raw_usage_reports
+            if isinstance(usage_report, dict)
         ],
-        "next_page_token": page["next_page_token"],
-        "warnings_present": page["warnings_present"],
-        "warnings_count": page["warnings_count"],
+        "next_page_token": page.get("next_page_token"),
+        "warnings_present": warnings_present,
+        "warnings_count": warnings_count,
     }
 
 
 @mcp.tool()
 def workspace_user_usage_get(
     date: str,
-    max_results: int = 25,
+    max_results: StrictInt = 25,
     page_token: str | None = None,
     user_key: str = "all",
     parameters: str | None = None,
@@ -1283,6 +1511,9 @@ def workspace_user_usage_get(
     org_unit_id: str | None = None,
 ) -> dict:
     """Obtém uma página sanitizada de User Usage Report do Workspace."""
+    validate_max_results(max_results, 100)
+    validate_page_token(page_token)
+
     _validate_user_usage_arguments(
         date=date,
         max_results=max_results,
@@ -1303,7 +1534,18 @@ def workspace_user_usage_get(
         org_unit_id=org_unit_id,
     )
 
-    return _serialize_user_usage_page(page, parameters)
+    usage_reports, next_page_token = _extract_page(
+        page,
+        "usage_reports",
+        "Reports user usage.get",
+    )
+    normalized_page = {
+        **page,
+        "usage_reports": usage_reports,
+        "next_page_token": next_page_token,
+    }
+
+    return _serialize_user_usage_page(normalized_page, parameters)
 
 
 def _serialize_customer_usage_parameter(
@@ -1412,6 +1654,8 @@ def workspace_customer_usage_get(
     page_token: str | None = None,
 ) -> dict:
     """Obtém uma página sanitizada de Customer Usage Report."""
+    validate_page_token(page_token)
+
     normalized_parameters = _validate_customer_usage_arguments(
         date=date,
         parameters=parameters,
@@ -1424,7 +1668,21 @@ def workspace_customer_usage_get(
         page_token=page_token,
     )
 
-    return _serialize_customer_usage_page(page, normalized_parameters)
+    usage_reports, next_page_token = _extract_page(
+        page,
+        "usage_reports",
+        "Reports customer usage.get",
+    )
+    normalized_page = {
+        **page,
+        "usage_reports": usage_reports,
+        "next_page_token": next_page_token,
+    }
+
+    return _serialize_customer_usage_page(
+        normalized_page,
+        normalized_parameters,
+    )
 
 
 if __name__ == "__main__":

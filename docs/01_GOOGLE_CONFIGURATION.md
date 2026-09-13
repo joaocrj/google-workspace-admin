@@ -68,31 +68,55 @@ da Service Account, recuperado no Google Cloud Console em *IAM & Admin > Service
 Accounts > [conta] > Advanced settings* — não use o e-mail da Service Account
 no campo de Client ID.
 
-Os scopes que o código atual solicita e que devem estar autorizados para esse
-Client ID são:
+Os scopes abaixo são o inventário DWD operacional atualmente documentado para
+esse Client ID. Os quatro scopes Directory migrados usam os targets
+`.readonly`, confirmados manualmente pelo usuário e validados individualmente.
+Os valores amplos anteriores permanecem somente no histórico de marcos.
 
 | Recurso atual | Scope solicitado pelo código |
 | --- | --- |
-| Usuários | `https://www.googleapis.com/auth/admin.directory.user` |
-| Grupos | `https://www.googleapis.com/auth/admin.directory.group` |
-| Membros de grupos | `https://www.googleapis.com/auth/admin.directory.group.member` |
-| Unidades organizacionais | `https://www.googleapis.com/auth/admin.directory.orgunit` |
+| Usuários | `https://www.googleapis.com/auth/admin.directory.user.readonly` |
+| Grupos | `https://www.googleapis.com/auth/admin.directory.group.readonly` |
+| Membros de grupos | `https://www.googleapis.com/auth/admin.directory.group.member.readonly` |
+| Unidades organizacionais | `https://www.googleapis.com/auth/admin.directory.orgunit.readonly` |
 | Dispositivos móveis | `https://www.googleapis.com/auth/admin.directory.device.mobile.readonly` |
 | Dispositivos ChromeOS | `https://www.googleapis.com/auth/admin.directory.device.chromeos.readonly` |
 | Funções e atribuições administrativas | `https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly` |
 | Domínios e aliases | `https://www.googleapis.com/auth/admin.directory.domain.readonly` |
 | Buildings, Resources / Salas e Features (recursos corporativos) | `https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly` — DWD confirmada administrativamente; validação MCP real concluída para as três coleções em 11/09/2026; Buildings exigiu reautenticação manual prévia da ADC |
-| Admin Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — DWD confirmada manualmente; sujeito Superadministrador; REAL VALIDATION MCP concluída em 11/09/2026 com launcher Python da `.venv`, 1 Activity e próxima página presente; checkpoint Git pendente |
+| Admin Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — DWD confirmada manualmente; sujeito Superadministrador; REAL VALIDATION MCP concluída em 11/09/2026 com launcher Python da `.venv`, 1 Activity e próxima página presente; checkpoint Git concluído |
 | Login Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — reutiliza o scope já presente e confirmado manualmente para Reports; REAL VALIDATION MCP concluída em 11/09/2026 com uma chamada limitada, 1 Activity e próxima página presente; nenhuma alteração administrativa nova |
 | User Usage (Reports API) | `https://www.googleapis.com/auth/admin.reports.usage.readonly` — método `UserUsageReport.get`; DWD e scopes não foram alterados; REAL VALIDATION executada com sucesso em `2026-09-12`; data do relatório solicitado: `date=2026-09-10`, `max_results=1`, `parameters=accounts:used_quota_in_percentage`, `user_key=all`, `usageReports=1`, próxima página presente, warnings presentes (1), sem retry ou paginação adicional |
-| Customer Usage (Reports API) | `https://www.googleapis.com/auth/admin.reports.usage.readonly` — método `CustomerUsageReports.get`; reutiliza DWD e scope já autorizado; IMPLEMENT concluído após testes locais; REAL VALIDATION pendente; nenhuma alteração administrativa nova |
+| Customer Usage (Reports API) | `https://www.googleapis.com/auth/admin.reports.usage.readonly` — método `CustomerUsageReports.get`; reutiliza DWD e scope já autorizado; IMPLEMENT concluído; REAL VALIDATION V9 concluída; checkpoint concluído; nenhuma alteração administrativa nova |
+
+### CODE TARGET e migração DWD manual
+
+Na camada READ, os alvos de código desta consolidação são:
+
+| Área | CODE TARGET | DWD MANUAL MIGRATION |
+| --- | --- | --- |
+| users/list e users/get | `admin.directory.user.readonly` | COMPLETE — confirmação manual |
+| groups/list | `admin.directory.group.readonly` | COMPLETE — confirmação manual |
+| group members/list | `admin.directory.group.member.readonly` | COMPLETE — confirmação manual |
+| orgunits/list | `admin.directory.orgunit.readonly` | COMPLETE — confirmação manual |
+
+**DWD STATUS: MIGRATION CONFIRMED MANUALLY; REAL VALIDATION PASSED.** O
+usuário substituiu manualmente, no Admin Console, os quatro scopes antigos
+pelos targets acima e confirmou a propagação. Este repositório não altera DWD,
+Admin Console, IAM, APIs ou Google Cloud automaticamente.
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
-gerenciamento de funções já existia. Os scopes de usuário, grupos e OUs não
-terminam em `.readonly`, embora as ferramentas atuais apenas consultem dados;
-isso é uma dívida de menor privilégio a ser avaliada cuidadosamente, sem
-quebrar o comportamento existente.
+gerenciamento de funções já existia. O código READ e a DWD atual apontam users,
+groups, group members e orgunits para os quatro targets `.readonly` acima.
+Os scopes amplos anteriores não são estado operacional atual.
+
+Os serializers de Mobile e ChromeOS preservam deliberadamente IDs de
+dispositivo, serial, IMEI/MEID, MAC, localização e usuário anotados porque são
+campos necessários ao inventário administrativo; a exposição é intencional e
+deve ser tratada como potencialmente sensível pelo consumidor. Parâmetros de
+Admin Audit também podem conter dados administrativos potencialmente sensíveis
+e não devem ser redistribuídos sem necessidade.
 
 `workspace_buildings_list` usa exclusivamente o scope readonly de recursos de
 Calendar acima, porque Buildings é a coleção `resources.buildings` da **Admin
@@ -201,8 +225,9 @@ allowlisted de Accounts. O `page_token` é encaminhado como `pageToken`, uma
 única página é processada por chamada, `nextPageToken` é normalizado como
 `next_page_token`, não há retry automático e o timeout é de 30 segundos.
 `date` representa exclusivamente a data solicitada do relatório, nunca a data
-de execução ou validação. A REAL VALIDATION de Customer Usage ainda está
-pendente; nenhum resultado real foi registrado.
+de execução ou validação. A REAL VALIDATION V9 de Customer Usage foi concluída
+anteriormente com uma única chamada limitada; esta IMPLEMENT não executa nova
+validação real.
 
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.

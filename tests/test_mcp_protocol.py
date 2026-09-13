@@ -21,6 +21,15 @@ async def client():
         yield connected_client
 
 
+@pytest.fixture
+async def non_raising_client():
+    async with Client(
+        server.mcp,
+        raise_exceptions=False,
+    ) as connected_client:
+        yield connected_client
+
+
 def _json_result(result):
     """
     Extrai o retorno JSON de uma tool MCP.
@@ -38,6 +47,52 @@ def _json_result(result):
     assert result.content[0].type == "text"
 
     return json.loads(result.content[0].text)
+
+
+_STRICT_MAX_RESULTS_CASES = [
+    ("workspace_users_list", "list_users", {}),
+    ("workspace_groups_list", "list_groups", {}),
+    (
+        "workspace_group_members_list",
+        "list_group_members",
+        {"group_key": "group-fixture@example.invalid"},
+    ),
+    ("workspace_mobile_devices_list", "list_mobile_devices", {}),
+    ("workspace_chromeos_devices_list", "list_chromeos_devices", {}),
+    ("workspace_roles_list", "list_roles", {}),
+    (
+        "workspace_role_assignments_list",
+        "list_role_assignments",
+        {},
+    ),
+    ("workspace_buildings_list", "list_buildings", {}),
+    (
+        "workspace_calendar_resources_list",
+        "list_calendar_resources",
+        {},
+    ),
+    (
+        "workspace_calendar_features_list",
+        "list_calendar_features",
+        {},
+    ),
+    (
+        "workspace_admin_audit_list",
+        "list_admin_audit_activities",
+        {},
+    ),
+    (
+        "workspace_login_audit_list",
+        "list_login_audit_activities",
+        {},
+    ),
+    (
+        "workspace_drive_audit_list",
+        "list_drive_audit_activities",
+        {},
+    ),
+    ("workspace_user_usage_get", "get_user_usage_report", {"date": "2026-09-11"}),
+]
 
 
 @pytest.mark.anyio
@@ -70,6 +125,12 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_user_usage_get" in tool_names
     assert "workspace_customer_usage_get" in tool_names
     assert len(tool_names) == 20
+    assert len(tools.tools) == len(tool_names)
+    users_tool = next(
+        tool for tool in tools.tools if tool.name == "workspace_users_list"
+    )
+    assert "max_results" in users_tool.input_schema["properties"]
+    assert "page_token" in users_tool.input_schema["properties"]
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
@@ -92,6 +153,89 @@ async def test_tools_are_registered(client: Client):
     assert "_serialize_customer_usage_report" not in tool_names
     assert "_serialize_customer_usage_parameter" not in tool_names
     assert "_serialize_customer_usage_page" not in tool_names
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool_name", "dependency_name", "base_arguments"),
+    _STRICT_MAX_RESULTS_CASES,
+)
+@pytest.mark.parametrize("invalid_value", [True, 1.0, "1"])
+async def test_mcp_boundary_rejects_coercible_max_results(
+    non_raising_client: Client,
+    monkeypatch,
+    tool_name,
+    dependency_name,
+    base_arguments,
+    invalid_value,
+):
+    called = False
+
+    def forbidden_dependency(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("a rejeição deve ocorrer antes da execução")
+
+    monkeypatch.setattr(server, dependency_name, forbidden_dependency)
+
+    result = await non_raising_client.call_tool(
+        tool_name,
+        {
+            **base_arguments,
+            "max_results": invalid_value,
+        },
+    )
+
+    assert result.is_error is True
+    assert called is False
+
+
+@pytest.mark.anyio
+async def test_mcp_boundary_accepts_valid_integer_and_preserves_limit(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_list_groups(max_results=20, page_token=None):
+        captured.update(
+            max_results=max_results,
+            page_token=page_token,
+        )
+        return {"groups": [], "next_page_token": None}
+
+    monkeypatch.setattr(server, "list_groups", fake_list_groups)
+
+    result = await client.call_tool(
+        "workspace_groups_list",
+        {"max_results": 10},
+    )
+
+    assert result.is_error is False
+    assert captured == {"max_results": 10, "page_token": None}
+
+
+@pytest.mark.anyio
+async def test_mcp_boundary_rejects_groups_value_above_endpoint_limit(
+    non_raising_client: Client,
+    monkeypatch,
+):
+    called = False
+
+    def forbidden_dependency(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("limite inválido não deve executar a tool")
+
+    monkeypatch.setattr(server, "list_groups", forbidden_dependency)
+
+    result = await non_raising_client.call_tool(
+        "workspace_groups_list",
+        {"max_results": 201},
+    )
+
+    assert result.is_error is True
+    assert called is False
 
 
 @pytest.mark.anyio
@@ -345,7 +489,7 @@ async def test_workspace_users_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_users",
-        lambda max_results=5: fake_users,
+        lambda max_results=5, page_token=None: fake_users,
     )
 
     result = await client.call_tool(
@@ -359,10 +503,11 @@ async def test_workspace_users_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["primary_email"] == "teste@example.com"
-    assert payload[0]["full_name"] == "Usuário Teste"
-    assert payload[0]["org_unit_path"] == "/Teste"
+    assert len(payload["users"]) == 1
+    assert payload["users"][0]["primary_email"] == "teste@example.com"
+    assert payload["users"][0]["full_name"] == "Usuário Teste"
+    assert payload["users"][0]["org_unit_path"] == "/Teste"
+    assert payload["next_page_token"] is None
 
 
 @pytest.mark.anyio
@@ -425,6 +570,39 @@ async def test_workspace_users_list_validation_through_mcp(
 
 
 @pytest.mark.anyio
+async def test_workspace_users_list_error_is_safe_at_mcp_boundary(
+    non_raising_client: Client,
+    monkeypatch,
+):
+    def fail_users(**kwargs):
+        raise RuntimeError(
+            "SECRET_ACCESS_TOKEN_SENTINEL SECRET_BODY_SENTINEL "
+            "SECRET_EMAIL_SENTINEL"
+        )
+
+    monkeypatch.setattr(server, "list_users", fail_users)
+
+    result = await non_raising_client.call_tool(
+        "workspace_users_list",
+        {
+            "max_results": 1,
+            "page_token": None,
+        },
+    )
+
+    assert result.is_error is True
+    diagnostic = " ".join(
+        content.text
+        for content in result.content
+        if content.type == "text"
+    )
+    assert "UNEXPECTED_LOCAL" in diagnostic
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in diagnostic
+    assert "SECRET_BODY_SENTINEL" not in diagnostic
+    assert "SECRET_EMAIL_SENTINEL" not in diagnostic
+
+
+@pytest.mark.anyio
 async def test_workspace_groups_list_through_mcp(
     client: Client,
     monkeypatch,
@@ -432,7 +610,7 @@ async def test_workspace_groups_list_through_mcp(
     fake_groups = [
         {
             "id": "group-123",
-            "email": "classroom_teachers@cevalente.com.br",
+            "email": "test-group@example.invalid",
             "name": "Classroom Teachers",
             "description": "Grupo de professores",
             "directMembersCount": "3",
@@ -443,7 +621,7 @@ async def test_workspace_groups_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_groups",
-        lambda max_results=20: fake_groups,
+        lambda max_results=20, page_token=None: fake_groups,
     )
 
     result = await client.call_tool(
@@ -457,16 +635,17 @@ async def test_workspace_groups_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["id"] == "group-123"
+    assert len(payload["groups"]) == 1
+    assert payload["groups"][0]["id"] == "group-123"
     assert (
-        payload[0]["email"]
-        == "classroom_teachers@cevalente.com.br"
+        payload["groups"][0]["email"]
+        == "test-group@example.invalid"
     )
-    assert payload[0]["name"] == "Classroom Teachers"
-    assert payload[0]["description"] == "Grupo de professores"
-    assert payload[0]["direct_members_count"] == "3"
-    assert payload[0]["admin_created"] is True
+    assert payload["groups"][0]["name"] == "Classroom Teachers"
+    assert payload["groups"][0]["description"] == "Grupo de professores"
+    assert payload["groups"][0]["direct_members_count"] == "3"
+    assert payload["groups"][0]["admin_created"] is True
+    assert payload["next_page_token"] is None
 
 
 @pytest.mark.anyio
@@ -488,7 +667,7 @@ async def test_workspace_group_members_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_group_members",
-        lambda group_key, max_results=200: fake_members,
+        lambda group_key, max_results=200, page_token=None: fake_members,
     )
 
     result = await client.call_tool(
@@ -503,13 +682,14 @@ async def test_workspace_group_members_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["id"] == "member-123"
-    assert payload[0]["email"] == "usuario@cevalente.com.br"
-    assert payload[0]["role"] == "MEMBER"
-    assert payload[0]["type"] == "USER"
-    assert payload[0]["status"] == "ACTIVE"
-    assert payload[0]["delivery_settings"] == "ALL_MAIL"
+    assert len(payload["members"]) == 1
+    assert payload["members"][0]["id"] == "member-123"
+    assert payload["members"][0]["email"] == "usuario@cevalente.com.br"
+    assert payload["members"][0]["role"] == "MEMBER"
+    assert payload["members"][0]["type"] == "USER"
+    assert payload["members"][0]["status"] == "ACTIVE"
+    assert payload["members"][0]["delivery_settings"] == "ALL_MAIL"
+    assert payload["next_page_token"] is None
 
 
 @pytest.mark.anyio
@@ -603,7 +783,7 @@ async def test_workspace_mobile_devices_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_mobile_devices",
-        lambda max_results=100: fake_devices,
+        lambda max_results=100, page_token=None: fake_devices,
     )
 
     result = await client.call_tool(
@@ -617,20 +797,21 @@ async def test_workspace_mobile_devices_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["resource_id"] == "resource-123"
-    assert payload[0]["device_id"] == "device-123"
-    assert payload[0]["name"] == ["Usuário Teste"]
-    assert payload[0]["email"] == ["teste@cevalente.com.br"]
-    assert payload[0]["model"] == "SM-A155M"
-    assert payload[0]["manufacturer"] == "Samsung"
-    assert payload[0]["type"] == "ANDROID"
-    assert payload[0]["os"] == "Android 16"
-    assert payload[0]["status"] == "APPROVED"
-    assert payload[0]["serial_number"] == "serial-123"
-    assert payload[0]["network_operator"] == "Claro"
-    assert payload[0]["default_language"] == "pt-BR"
-    assert payload[0]["managed_account_is_on_owner_profile"] is True
+    assert len(payload["mobile_devices"]) == 1
+    assert payload["mobile_devices"][0]["resource_id"] == "resource-123"
+    assert payload["mobile_devices"][0]["device_id"] == "device-123"
+    assert payload["mobile_devices"][0]["name"] == ["Usuário Teste"]
+    assert payload["mobile_devices"][0]["email"] == ["teste@cevalente.com.br"]
+    assert payload["mobile_devices"][0]["model"] == "SM-A155M"
+    assert payload["mobile_devices"][0]["manufacturer"] == "Samsung"
+    assert payload["mobile_devices"][0]["type"] == "ANDROID"
+    assert payload["mobile_devices"][0]["os"] == "Android 16"
+    assert payload["mobile_devices"][0]["status"] == "APPROVED"
+    assert payload["mobile_devices"][0]["serial_number"] == "serial-123"
+    assert payload["mobile_devices"][0]["network_operator"] == "Claro"
+    assert payload["mobile_devices"][0]["default_language"] == "pt-BR"
+    assert payload["mobile_devices"][0]["managed_account_is_on_owner_profile"] is True
+    assert payload["next_page_token"] is None
 
 
 @pytest.mark.anyio
@@ -677,7 +858,7 @@ async def test_workspace_chromeos_devices_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_chromeos_devices",
-        lambda max_results=100: fake_devices,
+        lambda max_results=100, page_token=None: fake_devices,
     )
 
     result = await client.call_tool(
@@ -691,18 +872,19 @@ async def test_workspace_chromeos_devices_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["device_id"] == "chromeos-device-123"
-    assert payload[0]["serial_number"] == "SERIAL-123"
-    assert payload[0]["model"] == "Chromebook Plus"
-    assert payload[0]["manufacturer"] == "Acer"
-    assert payload[0]["status"] == "ACTIVE"
-    assert payload[0]["os_version"] == "140.0.7339.185"
-    assert payload[0]["org_unit_path"] == "/CEV_USERS"
-    assert payload[0]["annotated_user"] == "usuario@cevalente.com.br"
-    assert payload[0]["annotated_location"] == "Escritório"
-    assert payload[0]["annotated_asset_id"] == "ASSET-123"
-    assert payload[0]["notes"] == "Equipamento de teste"
+    assert len(payload["chromeos_devices"]) == 1
+    assert payload["chromeos_devices"][0]["device_id"] == "chromeos-device-123"
+    assert payload["chromeos_devices"][0]["serial_number"] == "SERIAL-123"
+    assert payload["chromeos_devices"][0]["model"] == "Chromebook Plus"
+    assert payload["chromeos_devices"][0]["manufacturer"] == "Acer"
+    assert payload["chromeos_devices"][0]["status"] == "ACTIVE"
+    assert payload["chromeos_devices"][0]["os_version"] == "140.0.7339.185"
+    assert payload["chromeos_devices"][0]["org_unit_path"] == "/CEV_USERS"
+    assert payload["chromeos_devices"][0]["annotated_user"] == "usuario@cevalente.com.br"
+    assert payload["chromeos_devices"][0]["annotated_location"] == "Escritório"
+    assert payload["chromeos_devices"][0]["annotated_asset_id"] == "ASSET-123"
+    assert payload["chromeos_devices"][0]["notes"] == "Equipamento de teste"
+    assert payload["next_page_token"] is None
 
 
 @pytest.mark.anyio
@@ -737,7 +919,7 @@ async def test_workspace_roles_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_roles",
-        lambda max_results=100: fake_roles,
+        lambda max_results=100, page_token=None: fake_roles,
     )
 
     result = await client.call_tool(
@@ -751,13 +933,14 @@ async def test_workspace_roles_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["role_id"] == "role-123"
-    assert payload[0]["role_name"] == "_SEED_ADMIN_ROLE"
-    assert payload[0]["role_description"] == "Super administrador"
-    assert payload[0]["role_privileges"] == []
-    assert payload[0]["is_system_role"] is True
-    assert payload[0]["is_super_admin_role"] is True
+    assert len(payload["roles"]) == 1
+    assert payload["roles"][0]["role_id"] == "role-123"
+    assert payload["roles"][0]["role_name"] == "_SEED_ADMIN_ROLE"
+    assert payload["roles"][0]["role_description"] == "Super administrador"
+    assert payload["roles"][0]["role_privileges"] == []
+    assert payload["roles"][0]["is_system_role"] is True
+    assert payload["roles"][0]["is_super_admin_role"] is True
+    assert payload["next_page_token"] is None
 
 
 @pytest.mark.anyio
@@ -778,7 +961,7 @@ async def test_workspace_role_assignments_list_through_mcp(
     monkeypatch.setattr(
         server,
         "list_role_assignments",
-        lambda max_results=100: fake_assignments,
+        lambda max_results=100, page_token=None: fake_assignments,
     )
 
     result = await client.call_tool(
@@ -792,12 +975,13 @@ async def test_workspace_role_assignments_list_through_mcp(
 
     payload = _json_result(result)
 
-    assert len(payload) == 1
-    assert payload[0]["role_assignment_id"] == "assignment-123"
-    assert payload[0]["role_id"] == "role-123"
-    assert payload[0]["assigned_to"] == "100056319502616315227"
-    assert payload[0]["scope_type"] == "CUSTOMER"
-    assert payload[0]["org_unit_id"] is None
+    assert len(payload["role_assignments"]) == 1
+    assert payload["role_assignments"][0]["role_assignment_id"] == "assignment-123"
+    assert payload["role_assignments"][0]["role_id"] == "role-123"
+    assert payload["role_assignments"][0]["assigned_to"] == "100056319502616315227"
+    assert payload["role_assignments"][0]["scope_type"] == "CUSTOMER"
+    assert payload["role_assignments"][0]["org_unit_id"] is None
+    assert payload["next_page_token"] is None
 
 @pytest.mark.anyio
 async def test_workspace_domains_list_through_mcp(
@@ -848,10 +1032,10 @@ async def test_workspace_domains_list_through_mcp(
 
     assert len(aliases) == 1
     assert (
-        aliases[0]["domainAliasName"]
+        aliases[0]["domain_alias_name"]
         == "cevalente.com.br.test-google-a.com"
     )
-    assert aliases[0]["parentDomainName"] == "cevalente.com.br"
+    assert aliases[0]["parent_domain_name"] == "cevalente.com.br"
     assert aliases[0]["verified"] is True
 
 @pytest.mark.anyio

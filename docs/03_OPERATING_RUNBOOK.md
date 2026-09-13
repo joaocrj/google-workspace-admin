@@ -64,6 +64,41 @@ Ao alterar o catálogo, valide `tests/test_mcp_protocol.py`, a suíte completa e
 quando necessário, a enumeração real das tools. Confirme também que
 helpers/serializers não foram expostos acidentalmente.
 
+## Operação Directory consolidada
+
+As tools `workspace_users_list`, `workspace_groups_list`,
+`workspace_group_members_list`, `workspace_mobile_devices_list`,
+`workspace_chromeos_devices_list`, `workspace_roles_list` e
+`workspace_role_assignments_list` processam uma única página por chamada.
+`max_results` é encaminhado como `maxResults`, `page_token` como `pageToken` e
+`nextPageToken` retorna como `next_page_token`; não existe auto-pagination ou
+segunda chamada implícita. O limite permanece específico de cada endpoint:
+users 100, groups/members 200, mobile 100, ChromeOS 300 e roles/assignments
+100.
+
+`page_token` deve ser `None` ou uma string não vazia. String vazia,
+whitespace-only e outros tipos são rejeitados. `max_results` rejeita bool,
+float, string numérica, valores menores que 1 e valores acima do limite da
+API. Shapes inesperados de listas ou tokens retornam erro seguro, sem body,
+headers, query sensível ou material de autenticação. Chamadas HTTP Directory
+consolidadas usam timeout explícito de 30 segundos, sem retry oculto.
+
+O CODE TARGET de scopes READ é `admin.directory.user.readonly`,
+`admin.directory.group.readonly`, `admin.directory.group.member.readonly` e
+`admin.directory.orgunit.readonly` para users, groups, group members e
+orgunits, respectivamente. A migração DWD manual foi confirmada pelo usuário
+e as quatro validações reais readonly passaram. Alterações futuras de DWD
+continuam sendo manuais e fora do escopo do agente.
+
+IDs de dispositivo, serial, IMEI/MEID, MAC, localização anotada e usuário
+anotado de Mobile/ChromeOS são preservados deliberadamente para inventário
+administrativo. Esses campos devem ser tratados como potencialmente sensíveis.
+Os valores de parâmetros de Admin Audit também podem ser dados administrativos
+potencialmente sensíveis; o contrato da tool não é redesenhado nesta etapa.
+
+O timeout do `Request()` usado pela ADC permanece fora desta consolidação:
+`DEFER / requires library behavior verification`.
+
 ## Operação de Buildings paginada
 
 `workspace_buildings_list` é uma consulta somente de leitura à coleção
@@ -156,7 +191,8 @@ do sujeito delegado Superadministrador, a REAL VALIDATION foi executada uma
 tentativas anteriores em `codexsandboxoffline` foram restrições de transporte,
 socket ou cache do `uv`; não foram falhas comprovadas da API. Não altere DWD,
 IAM, APIs, scopes, privilégios, Google Cloud ou Admin Console; qualquer
-reautenticação ADC continua manual pelo usuário.
+reautenticação ADC continua manual pelo usuário. O checkpoint Git desta
+entrega está concluído.
 
 ## Operação de Login Audit paginada
 
@@ -280,6 +316,31 @@ A instrumentação diagnóstica temporária usada nesta investigação foi remov
 completamente e não é procedimento operacional normal. Campos diagnósticos
 temporários também não fazem parte do contrato final da ferramenta.
 
+### Diagnóstico estruturado e seguro de erros
+
+As tools Directory consolidadas e o caminho DWD correspondente propagam falhas
+conhecidas com um contrato interno curto e determinístico: `code`, `layer`,
+`operation` e `http_status`. A mensagem também contém somente esses metadados,
+para que o host possa classificá-la mesmo quando não preservar os atributos da
+exceção. As categorias atuais são:
+
+- `ADC_REFRESH`: falha ao renovar credenciais ADC localmente;
+- `IAM_SIGN_JWT`: falha HTTP ou de transporte no `signJwt` do IAM;
+- `DWD_TOKEN_EXCHANGE`: falha HTTP ou de transporte na troca OAuth DWD;
+- `WORKSPACE_HTTP`: falha HTTP, timeout ou transporte na Workspace API;
+- `RESPONSE_VALIDATION`: JSON, shape ou token de página inesperado após a
+  resposta;
+- `LOCAL_VALIDATION`: argumento local inválido;
+- `UNEXPECTED_LOCAL`: falha local não prevista, sem texto da exceção original.
+
+O diagnóstico operacional deve registrar apenas a categoria, a camada, a
+operação segura e o status HTTP quando disponível. Não se deve registrar ou
+retransmitir body, `response.text`, headers, URL completa, query sensível,
+token, JWT, credencial ou registro de usuário. Não há persistência em arquivo,
+telemetria, `print()` ou retry implícito. `ADC_REFRESH` requer ação manual do
+operador; `WORKSPACE_HTTP` deve ser separado de `RESPONSE_VALIDATION`, e
+nenhuma falha autoriza paginação ou nova tentativa automática.
+
 ## Operação de Customer Usage
 
 `workspace_customer_usage_get` consulta
@@ -306,7 +367,8 @@ allowlisted. Omite integralmente entity, identificadores, `kind`, `etag`,
 `stringValue`, `datetimeValue`, `msgValue`, `boolValue`, warnings brutos e o
 payload bruto. Warnings são reduzidos a `warnings_present` e
 `warnings_count`. O catálogo tem 20 tools após o IMPLEMENT; a REAL VALIDATION
-de Customer Usage ainda está pendente.
+V9 de Customer Usage foi concluída anteriormente. Esta IMPLEMENT não executa
+nova validação real.
 
 ## Testes de integração Google
 

@@ -1,6 +1,6 @@
 # Andamento das fases
 
-Última consolidação documental: **12/09/2026**. Esta árvore é a fonte
+Última consolidação documental: **13/09/2026 — READ LAYER CONSOLIDATION CHECKPOINT / COMMIT V1 / COMPLETE**. Esta árvore é a fonte
 persistente do roadmap/status e combina o estado do código em `master`, os
 commits e o inventário de validações fornecido pelo usuário. Atualize-a no
 mesmo change set de qualquer avanço. Evidência de produção deve registrar
@@ -9,7 +9,7 @@ somente status e contagens seguras.
 ## Convenção de estados e evidências
 
 Os estados formais de entregas são `✅ CONCLUÍDO`, `← EM ANDAMENTO`,
-`⬜ PENDENTE` e `⛔ BLOQUEADO`. Resultados como HTTP 200, contagens, hashes de
+`⬜ PENDENTE` e `⚠️ BLOQUEADO`. Resultados como HTTP 200, contagens, hashes de
 commit, VALIDADO, VERIFICADA e ADICIONADO são evidências, não estados
 concorrentes; preserve-os como detalhes da entrega.
 
@@ -24,15 +24,28 @@ REVIEW/CHECKPOINT → COMMIT`.
 Nenhuma feature será considerada documentalmente concluída enquanto sua
 posição/status correspondente não estiver refletida nesta árvore.
 
-**Ponteiro atual: FASE 1 → 4. Consolidação da camada Read.** Source Discovery
-DIAG V1 foi concluído com classificação H6; o Host Remediation FINAL PLAN V2
-também foi concluído. O R2 Manual Lifecycle foi concluído com SUCCESS na
-validação do catálogo do host original. A REAL GOOGLE CALL V9, a FINAL REVIEW e
-o CHECKPOINT / COMMIT foram concluídos com sucesso.
-
-A paginação com `nextPageToken` permanece planejada para a etapa de
-**Consolidação da camada Read** e não substitui a próxima entrega prioritária.
-Buildings preserva o token por página, sem antecipar essa consolidação global.
+**Ponteiro atual: STOP — READ LAYER CONSOLIDATION COMPLETE; próxima fase não iniciada.** O FINAL REVIEW V1 ficou
+preservado como histórico bloqueado pelos achados FR-01 a FR-04, apesar de
+**411 testes aprovados** naquele momento. O FINAL REVIEW V2 confirmou os quatro
+achados corrigidos/verificados, **459 testes aprovados**, catálogo com 20 tools,
+diff limpo e ausência de chamadas Google. O CHECKPOINT / COMMIT V1 é registrado
+neste commit; nenhuma próxima fase foi iniciada.
+Source Discovery DIAG V1,
+Host Remediation FINAL PLAN V2, R2 Manual Lifecycle e a REAL GOOGLE CALL V9
+histórica foram concluídos. O PLAN V1 e o IMPLEMENT V1 da Consolidação da
+camada Read também foram concluídos localmente. A migração manual da DWD foi
+confirmada pelo usuário. A remediação local de observabilidade foi concluída; Users foi
+aprovado na REAL VALIDATION V4, Groups na REAL VALIDATION V1, Group Members nas
+REAL VALIDATION V1 e V2 e OrgUnits na REAL VALIDATION V1, todos com chamadas
+limitadas e sem exposição de registros. A validação DWD readonly está completa
+e a remediação dos quatro achados do Final Review V1 foi concluída localmente.
+A REAL VALIDATION V3 também ficou bloqueada em D9: o executor não
+disponibilizou o contrato diagnóstico seguro, e o carregamento da remediação
+pelo host permaneceu não confirmável. Não houve nova tentativa ou teste de
+Groups. Depois disso, o usuário concluiu manualmente o restart completo do
+Codex e a reautenticação da ADC. O host novo expôs catálogo compatível; a
+remediação interna é inferida a partir do host novo, não diretamente provada
+pelo schema.
 
 ```text
 FASE 1 — READ / ADMIN INVENTORY
@@ -41,23 +54,23 @@ FASE 1 — READ / ADMIN INVENTORY
 │   ├── Users                                              ✅ CONCLUÍDO
 │   │   ├── API Directory                                   ✅ CONCLUÍDO
 │   │   ├── endpoint `/admin/directory/v1/users`            ✅ CONCLUÍDO
-│   │   ├── scope `admin.directory.user`                    ✅ CONCLUÍDO
+│   │   ├── scope histórico `admin.directory.user`; CODE TARGET `admin.directory.user.readonly` ✅
 │   │   ├── módulo `directory/users.py`                     ✅ CONCLUÍDO
 │   │   ├── workspace_users_list                            ✅ CONCLUÍDO
 │   │   └── workspace_user_get                              ✅ CONCLUÍDO
 │   ├── Groups                                             ✅ CONCLUÍDO
 │   │   ├── endpoint `/admin/directory/v1/groups`           ✅ CONCLUÍDO
-│   │   ├── scope `admin.directory.group`                   ✅ CONCLUÍDO
+│   │   ├── scope histórico `admin.directory.group`; CODE TARGET `admin.directory.group.readonly` ✅
 │   │   ├── módulo `directory/groups.py`                    ✅ CONCLUÍDO
 │   │   └── workspace_groups_list                           ✅ CONCLUÍDO
 │   ├── Group Members                                      ✅ CONCLUÍDO
 │   │   ├── endpoint `/admin/directory/v1/groups/{groupKey}/members` ✅ CONCLUÍDO
-│   │   ├── scope `admin.directory.group.member`            ✅ CONCLUÍDO
+│   │   ├── scope histórico `admin.directory.group.member`; CODE TARGET `admin.directory.group.member.readonly` ✅
 │   │   ├── módulo `directory/group_members.py`             ✅ CONCLUÍDO
 │   │   └── workspace_group_members_list                    ✅ CONCLUÍDO
 │   ├── Organizational Units — Read                        ✅ CONCLUÍDO
 │   │   ├── endpoint `/admin/directory/v1/customer/my_customer/orgunits` ✅ CONCLUÍDO
-│   │   ├── scope `admin.directory.orgunit`                 ✅ CONCLUÍDO
+│   │   ├── scope histórico `admin.directory.orgunit`; CODE TARGET `admin.directory.orgunit.readonly` ✅
 │   │   ├── módulo `directory/orgunits.py`                  ✅ CONCLUÍDO
 │   │   └── workspace_orgunits_list                         ✅ CONCLUÍDO
 │   ├── Mobile Devices                                     ✅ CONCLUÍDO — commit 6c3cc87
@@ -142,7 +155,7 @@ FASE 1 — READ / ADMIN INVENTORY
 │       ├── execução real MCP/Codex                          ✅ CONCLUÍDO — 0 FEATURES / sem próxima página
 │       └── revisão + commit                                 ✅ CONCLUÍDO — 85bc49e
 │
-├── 3. Reports / Auditoria                                 ← EM ANDAMENTO
+├── 3. Reports / Auditoria                                 ✅ CONCLUÍDO
 │   ├── Admin Audit                                        ✅ CONCLUÍDO
 │   │   ├── PLAN                                           ✅ CONCLUÍDO
 │   │   ├── IMPLEMENT                                      ✅ CONCLUÍDO
@@ -246,13 +259,13 @@ FASE 1 — READ / ADMIN INVENTORY
 │       │   ├── testes automatizados                              ✅ 307/307
 │       │   ├── `git diff --check`                                ✅
 │       │   └── commit                                             ✅ CONCLUÍDO — feat: add workspace customer usage reports
-│       ├── REAL VALIDATION V1                                  ⛔ HOST 19
+│       ├── REAL VALIDATION V1                                  ⚠️ HOST 19 (histórico)
 │       │   ├── host catalog                                    ⚠️ 19
 │       │   ├── `workspace_customer_usage_get`                    ❌ AUSENTE
 │       │   └── Google call                                      ⏭️ NÃO EXECUTADA
 │       ├── REAL VALIDATION V2                                  ✅ DIAGNÓSTICO
 │       │   └── restart externo                                  ⚠️ NECESSÁRIO
-│       ├── REAL VALIDATION V3                                  ⛔ HOST 19 PÓS-RESTART
+│       ├── REAL VALIDATION V3                                  ⚠️ HOST 19 PÓS-RESTART (histórico)
 │       ├── REAL VALIDATION V4                                  ✅ DIAGNÓSTICO
 │       │   ├── source                                            ✅ CORRETO
 │       │   ├── decorator                                         ✅ CORRETO
@@ -333,14 +346,93 @@ FASE 1 — READ / ADMIN INVENTORY
 │       └── CHECKPOINT / COMMIT                                   ✅ CONCLUÍDO — THIS COMMIT
 │           └── `feat: add workspace customer usage reports`       ✅ CONCLUÍDO
 │
-└── 4. Consolidação da camada Read                         ⬜ PENDENTE
-    ├── paginação com nextPageToken                        ⬜ PENDENTE
-    ├── tratamento uniforme de erros                       ⬜ PENDENTE
-    ├── revisão de scopes mínimos                          ⬜ PENDENTE
-    ├── serialização consistente                           ⬜ PENDENTE
-    ├── consistência do catálogo MCP                       ⬜ PENDENTE
-    ├── documentação final                                 ⬜ PENDENTE
-    └── inventário/testes finais                           ⬜ PENDENTE
+└── 4. Consolidação da camada Read                         ✅ CONCLUÍDO — CHECKPOINT / COMMIT V1
+    ├── PLAN V1                                             ✅ CONCLUÍDO
+    ├── paginação explícita com nextPageToken               ✅ CONCLUÍDO — sem auto-pagination
+    ├── tratamento uniforme de erros                       ✅ CONCLUÍDO — erros HTTP seguros
+    ├── revisão de scopes mínimos                          ✅ CONCLUÍDO — CODE TARGET readonly
+    │   └── DWD READONLY MIGRATION                         ✅ CONCLUÍDO — confirmação manual do usuário
+    ├── serialização consistente                           ✅ CONCLUÍDO — aliases allowlistados
+    ├── consistência do catálogo MCP                       ✅ CONCLUÍDO — 20 tools únicas
+    ├── documentação final                                 ✅ CONCLUÍDO — docs 01–05
+    ├── inventário/testes finais                           ✅ CONCLUÍDO — suíte local aprovada
+    ├── IMPLEMENT V1                                       ✅ CONCLUÍDO
+    ├── REMEDIATION PLAN V1                                ✅ CONCLUÍDO
+    ├── REMEDIATION IMPLEMENT V1                           ✅ CONCLUÍDO — FR-01 a FR-04 corrigidos
+    │   ├── FR-01 / StrictInt na fronteira MCP              ✅ CORRIGIDO — 14 max_results
+    │   ├── FR-02 / contexto canônico de operação           ✅ CORRIGIDO — quatro operações
+    │   ├── FR-03 / fixtures sintéticas                     ✅ CORRIGIDO — identificador real removido
+    │   ├── FR-04 / documentação sincronizada               ✅ CORRIGIDO — docs/01–05
+    │   └── testes locais                                   ✅ 459 passed; 48 casos adicionados
+    ├── FINAL REVIEW V1                                    ⚠️ BLOQUEADO — FR-01 a FR-04
+    │   ├── baseline                                       ✅ master; HEAD 6624305e8a60de09efda5b6626b317755c07536c
+    │   ├── arquivos / staging                             ✅ 25 autorizados; 0 inesperados; staging vazio
+    │   ├── testes locais                                  ✅ 411 passed; uv run pytest -q
+    │   ├── catálogo / invariantes                         ✅ 20 tools; helpers ausentes; mcp.run final
+    │   ├── quatro validações readonly                     ✅ PASSED — histórico preservado abaixo
+    │   ├── FR-01 / validação inteira na fronteira MCP      ⚠️ BLOQUEADO — coerção antes do wrapper
+    │   ├── FR-02 / contexto seguro de operação             ⚠️ BLOQUEADO — quatro nomes viram unknown
+    │   ├── FR-03 / identificador real em fixtures          ⚠️ BLOQUEADO — ocorrência preexistente no HEAD
+    │   └── FR-04 / consistência documental                ⚠️ BLOQUEADO — estados e cobertura divergentes
+    ├── CHECKPOINT / COMMIT                                ✅ CONCLUÍDO — este commit
+    ├── VALIDATION                                         ✅ CONCLUÍDO — quatro scopes readonly PASSED
+        ├── DWD VALIDATION / user.readonly                 ✅ CONCLUÍDO — Real Validation V4 PASSED
+        │   ├── VALIDATION V1                              ⚠️ BLOQUEADO — D9
+        │   ├── DIAGNOSTIC V1                              ✅ CONCLUÍDO — source/host MATCH
+        │   ├── EVIDENCE V1                                ⚠️ BLOQUEADO — D9; decisão R7
+        │   ├── VALIDATION V2                              ⚠️ BLOQUEADO — D9
+        │   │   └── DIAGNOSTIC VALIDATION V2               ⚠️ CONCLUÍDO — evidência insuficiente preservada
+        │   ├── REMEDIATION PLAN V1                        ✅ CONCLUÍDO
+        │   ├── REMEDIATION IMPLEMENT V1                   ✅ CONCLUÍDO — sem chamada Google
+        │   ├── REAL VALIDATION V3                         ⚠️ BLOQUEADO — D9; host/remediação não confirmável
+        │   ├── HOST REMEDIATION V1                        ✅ CONCLUÍDO — restart completo manual do Codex
+        │   │   ├── launcher                                      ✅ EXPECTED
+        │   │   └── processo genérico encerrado                    ✅ NÃO EXECUTADO
+        │   ├── POST-RESTART HOST VALIDATION V1             ✅ CONCLUÍDO — source/host MATCH
+        │   │   ├── catálogo do host                              ✅ 20 tools
+        │   │   ├── workspace_users_list                           ✅ PRESENTE
+        │   │   ├── max_results / page_token                        ✅ PRESENTES
+        │   │   ├── fresh host após restart completo                ✅ SIM
+        │   │   └── internal remediation                            ✅ INFERIDA DO HOST NOVO
+        │   └── REAL VALIDATION V4                         ✅ CONCLUÍDO — user.readonly PASSED
+        │       ├── chamada Users                                  ✅ 1 chamada, max_results=1
+        │       ├── users_count / next_page_token                   ✅ 1 / PRESENTE; token não utilizado
+        │       ├── scope                                            ✅ admin.directory.user.readonly
+        │       └── retry/paginação adicional                         ✅ NÃO EXECUTADOS
+        ├── DWD VALIDATION / group.readonly                ✅ CONCLUÍDO — Real Validation V1 PASSED
+        │   └── GROUP READONLY REAL VALIDATION V1          ✅ CONCLUÍDO
+        │       ├── chamada Groups                                  ✅ 1 chamada, max_results=1
+        │       ├── groups_count / next_page_token                   ✅ 1 / AUSENTE
+        │       ├── scope                                            ✅ admin.directory.group.readonly
+        │       └── retry/paginação adicional                         ✅ NÃO EXECUTADOS
+        ├── DWD VALIDATION / group.member.readonly         ✅ CONCLUÍDO — Real Validation V2 PASSED
+        │   ├── GROUP MEMBER READONLY REAL VALIDATION V1  ✅ CONCLUÍDO — PASSED
+        │   │   ├── chamada Group Members                         ✅ 1 chamada, max_results=1
+        │   │   ├── members_count / next_page_token                 ✅ 0 / AUSENTE
+        │   │   ├── scope                                           ✅ admin.directory.group.member.readonly
+        │   │   └── retry/paginação adicional                        ✅ NÃO EXECUTADOS
+        │   ├── MANUAL GROUP KEY INPUT                    ✅ PROVIDED
+        │   └── GROUP MEMBER READONLY REAL VALIDATION V2  ✅ CONCLUÍDO — PASSED
+        │       ├── chamada Group Members                         ✅ 1 chamada, max_results=1
+        │       ├── members_count / next_page_token                 ✅ 0 / AUSENTE
+        │       ├── scope                                           ✅ admin.directory.group.member.readonly
+        │       └── retry/paginação adicional                        ✅ NÃO EXECUTADOS
+        └── DWD VALIDATION / orgunit.readonly              ✅ CONCLUÍDO — Real Validation V1 PASSED
+            └── ORGUNIT READONLY REAL VALIDATION V1       ✅ CONCLUÍDO
+                ├── chamada OrgUnits                            ✅ 1 chamada, path=/, type=children
+                ├── orgunits_count / next_page_token              ✅ 2 / NÃO SUPORTADO
+                ├── scope                                        ✅ admin.directory.orgunit.readonly
+                └── retry/paginação adicional                     ✅ NÃO EXECUTADOS
+    └── FINAL REVIEW V2                                    ✅ CONCLUÍDO — FR-01 a FR-04 FIXED / VERIFIED
+        ├── revisão integral do diff                         ✅ 25 caminhos; 0 inesperados; 0 não autorizados
+        ├── FR-01 / StrictInt na fronteira MCP                ✅ VERIFIED — 14/14; rejeição antes da execução
+        ├── FR-02 / contexto canônico de operação              ✅ VERIFIED — 4/4; nenhum `unknown`
+        ├── FR-03 / fixtures sintéticas                        ✅ VERIFIED — identificador real ausente
+        ├── FR-04 / documentação                               ✅ VERIFIED — docs/01–05 sincronizados
+        ├── testes direcionados / suíte completa                ✅ 272 / 459 passed; sem skips/xfails novos
+        ├── catálogo / invariantes                              ✅ 20 tools únicas; helpers ausentes; mcp.run final
+        ├── semântica Google                                    ✅ request, scopes, sucesso e paginação inalterados
+        └── próximo ponteiro                                    → STOP — próxima fase não iniciada
 
 FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE — POSTERIOR
 │
@@ -479,6 +571,93 @@ FASE 2 — WRITE / ADMINISTRATION                            ⬜ PENDENTE — PO
   registro MCP, serializer, invariantes de `server.py`, documentação e busca
   de segurança aprovados. O roadmap foi sincronizado; CHECKPOINT / COMMIT foi
   concluído neste commit. Nenhum push foi realizado.
+- Em 12/09/2026, a Consolidação da camada Read — PLAN V1 e IMPLEMENT V1 — foi
+  concluída localmente. Os sete módulos Directory pagináveis passaram a usar
+  `max_results`/`page_token` explícitos, sem auto-pagination; os quatro CODE
+  TARGETS de scope `.readonly` foram aplicados sem alterar DWD; falhas HTTP,
+  shapes e aliases aninhados receberam tratamento seguro. O catálogo permaneceu
+  com 20 tools únicas, helpers não expostos e `mcp.run()` final absoluto. A
+  suíte local concluiu com **398 passed** (`307` anteriores + `91` testes), e
+  `git diff --check` foi aprovado. Nenhuma chamada Google, Workspace ou MCP
+  funcional foi realizada nesta entrega. A migração DWD readonly continuava
+  manual e pendente naquele checkpoint; a validação posterior permanece
+  registrada separadamente abaixo.
+
+- Em 13/09/2026, após confirmação manual do usuário para os quatro scopes
+  Directory `.readonly`, a validação DWD READONLY de Users executou exatamente
+  uma chamada limitada de `workspace_users_list(max_results=1,
+  page_token=None)`. O host expôs 20 tools e a tool estava presente, mas o
+  retorno não forneceu uma categoria segura identificável; o resultado foi
+  registrado como `OTHER SAFE CATEGORY`. Não houve retry, segunda página ou
+  registro de dados de usuário. Groups, Group Members e OrgUnits permanecem
+  pendentes.
+
+- Em 13/09/2026, a DWD USERS DIAGNOSTIC VALIDATION V2 executou exatamente uma
+  segunda e última chamada controlada de `workspace_users_list(max_results=1,
+  page_token=None)`. O executor retornou bloqueio, mas não disponibilizou tipo
+  de exceção, mensagem segura, status HTTP, operação, categoria ou camada. A
+  mensagem foi retida; a classificação permanece D9 — evidência insuficiente.
+  Não houve retry, paginação, exposição de dados ou alteração de ADC/DWD. O
+  próximo ponteiro é REMEDIATION.
+
+### READ-LAYER-CONSOLIDATION-FINAL-REVIEW-V1 — 13/09/2026
+
+Resultado: **BLOCKED**. Próxima entrega: **READ CONSOLIDATION REMEDIATION**,
+dependente de autorização separada. Nenhum source ou teste foi corrigido.
+Esta atualização de docs/04 e docs/05 registra somente o resultado do review;
+as inconsistências documentais encontradas permanecem explicitamente pendentes.
+
+- **FR-01 — P1:** as sete tools Directory usam anotações `int` comuns. O
+  validador de argumentos do SDK MCP converte `True`, `1.0` e a string numérica
+  `"1"` para inteiro antes de `validate_max_results`; os 21 casos foram
+  aceitos numa verificação local do modelo de argumentos, sem invocar tools.
+  A rejeição estrita nos módulos não garante a rejeição na fronteira pública.
+  Remediação proposta: impedir coerção nessa fronteira e acrescentar testes
+  de argumentos/protocolo com dependências mockadas. Arquivos candidatos:
+  `src/google_workspace_admin/server.py` e `tests/test_mcp_protocol.py`.
+- **FR-02 — P2:** `Directory members.list`, `Directory mobiledevices.list`,
+  `Directory chromeosdevices.list` e `Directory roleAssignments.list` não
+  correspondem aos aliases de `http_errors.py`. A construção local de erros
+  confirma `operation=unknown`, embora code e HTTP status sejam preservados.
+  Remediação proposta: alinhar os aliases aos chamadores e testar o contexto
+  das quatro operações; nenhum payload deve ser incorporado ao diagnóstico.
+  Arquivos candidatos: `src/google_workspace_admin/http_errors.py` e testes
+  dos quatro módulos correspondentes.
+- **FR-03 — P2:** o identificador fornecido manualmente coincide com quatro
+  literais já presentes nos testes (dois em `tests/test_server.py` e dois em
+  `tests/test_mcp_protocol.py`). A mesma contagem existe no HEAD baseline;
+  portanto não se trata de persistência nova pela validação. Não há ocorrência
+  nos documentos. Mesmo assim, o critério absoluto de ausência em arquivos
+  não é satisfeito. Remediação proposta: substituir essas fixtures por dados
+  sintéticos nos dois arquivos, preservando o comportamento dos testes.
+  O valor não é reproduzido neste registro.
+- **FR-04 — P2:** docs/01 ainda lista scopes broad sob o título de scopes do
+  código e marca a migração como PENDING; docs/02 e docs/03 também a tratam
+  como pendente. Em docs/04, o agregador VALIDATION ainda aguarda Groups,
+  apesar dos quatro filhos PASSED, e a reautenticação manual ADC está na
+  narrativa, sem nó próprio na árvore Users. O runbook generaliza o contrato
+  estruturado para todas as tools READ, mas a normalização local/fallback
+  existe especificamente em Users; outros módulos ainda usam caminhos
+  anteriores. As novas linhas de docs/05 estão separadas da tabela por linhas
+  vazias, e há referência de User Usage como superada por V9 de Customer Usage.
+  Remediação proposta: sincronizar docs/01–05 com a cobertura efetiva e manter
+  todos os eventos históricos, sem novas validações reais por ritual.
+
+Verificações aprovadas: quatro scopes `.readonly` exclusivos no source;
+paginação explícita dos sete módulos; aliases aninhados allowlistados;
+catálogo source/documentação/host com 20 nomes coincidentes; `mcp.run()` final;
+ausência de novos literais de credencial, token ou chave privada identificados
+no diff/arquivos novos; `git diff --check` sem erros. A alteração de retorno
+das sete listas para objetos de página é parte da consolidação de paginação;
+os campos de sucesso dos itens permanecem preservados, exceto a sanitização
+intencional de aliases aninhados.
+
+`uv run pytest -q`: **411 passed in 2.19s**. A primeira execução encontrou
+somente acesso negado ao cache local do uv; a execução com acesso autorizado
+ao cache passou sem alteração de projeto/configuração. Os testes de protocolo
+usam cliente em memória e dependências mockadas. Google/Workspace, MCP
+funcional do host, DWD token exchange e IAM signJwt reais: **0 chamadas**.
+HEAD permaneceu no baseline; staging, commit e push: **0**.
 
 Ao executar a suíte novamente, acrescente uma evidência com data e contagem
 atuais; não apague o contexto histórico sem uma razão.

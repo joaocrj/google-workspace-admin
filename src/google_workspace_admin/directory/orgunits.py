@@ -1,10 +1,15 @@
 import httpx
 
 from google_workspace_admin.auth.dwd import get_workspace_access_token
+from google_workspace_admin.http_errors import (
+    parse_json_object,
+    require_dict_list,
+    request_safe,
+)
 
 
 DIRECTORY_ORGUNIT_SCOPE = (
-    "https://www.googleapis.com/auth/admin.directory.orgunit"
+    "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
 )
 
 ORGUNITS_URL = (
@@ -54,10 +59,18 @@ def list_orgunits(
     }
 
     with httpx.Client(timeout=30.0) as client:
-        response = client.get(
+        response = request_safe(
+            client,
+            "get",
             ORGUNITS_URL,
+            "Directory orgunits.list",
             headers=_authorization_headers(),
             params=params,
         )
-        response.raise_for_status()
-        return response.json().get("organizationUnits", [])
+        payload = parse_json_object(response, "Directory orgunits.list")
+
+    return require_dict_list(
+        payload,
+        "organizationUnits",
+        "Directory orgunits.list",
+    )

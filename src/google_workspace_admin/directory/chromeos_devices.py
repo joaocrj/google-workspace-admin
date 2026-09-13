@@ -1,6 +1,15 @@
 import httpx
 
 from google_workspace_admin.auth.dwd import get_workspace_access_token
+from google_workspace_admin.http_errors import (
+    PageResult,
+    get_next_page_token,
+    parse_json_object,
+    require_dict_list,
+    request_safe,
+    validate_max_results,
+    validate_page_token,
+)
 
 
 DIRECTORY_CHROMEOS_DEVICE_SCOPE = (
@@ -22,24 +31,40 @@ def _authorization_headers() -> dict[str, str]:
 
 def list_chromeos_devices(
     max_results: int = 100,
-) -> list[dict]:
+    page_token: str | None = None,
+) -> PageResult:
     """
     Lista dispositivos ChromeOS do Google Workspace.
     """
-    if max_results < 1 or max_results > 300:
-        raise ValueError("max_results deve estar entre 1 e 300.")
+    validate_max_results(max_results, 300)
+    validate_page_token(page_token)
 
     params = {
         "maxResults": max_results,
         "projection": "FULL",
     }
+    if page_token is not None:
+        params["pageToken"] = page_token
 
     with httpx.Client(timeout=30.0) as client:
-        response = client.get(
+        response = request_safe(
+            client,
+            "get",
             CHROMEOS_DEVICES_URL,
+            "Directory chromeos devices.list",
             headers=_authorization_headers(),
             params=params,
         )
-        response.raise_for_status()
+        payload = parse_json_object(
+            response,
+            "Directory chromeos devices.list",
+        )
 
-        return response.json().get("chromeosdevices", [])
+    return PageResult(
+        require_dict_list(
+            payload,
+            "chromeosdevices",
+            "Directory chromeos devices.list",
+        ),
+        get_next_page_token(payload, "Directory chromeos devices.list"),
+    )

@@ -1,9 +1,17 @@
 import asyncio
 
+import httpx
 import pytest
+from google.auth.exceptions import RefreshError
 from mcp import Client
 
+from google_workspace_admin.auth import dwd
 from google_workspace_admin import server
+from google_workspace_admin.directory import orgunits
+from google_workspace_admin.http_errors import (
+    SafeOperationError,
+    WorkspaceApiError,
+)
 
 
 def test_workspace_status():
@@ -12,6 +20,225 @@ def test_workspace_status():
     assert result["status"] == "ok"
     assert result["server"] == "google-workspace-admin"
     assert result["authentication"] == "ADC -> IAM signJwt -> DWD"
+
+
+def test_dwd_http_error_does_not_expose_raw_response(monkeypatch):
+    class FakeCredentials:
+        token = "adc-token"
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def post(self, url, **kwargs):
+            request = httpx.Request("POST", url)
+            return httpx.Response(
+                403,
+                request=request,
+                content=b"RAW DWD RESPONSE SECRET",
+            )
+
+    monkeypatch.setattr(dwd, "get_cached_token", lambda **kwargs: None)
+    monkeypatch.setattr(
+        dwd,
+        "get_adc_credentials",
+        lambda: (FakeCredentials(), None),
+    )
+    monkeypatch.setattr(dwd.httpx, "Client", FakeClient)
+
+    with pytest.raises(dwd.DwdAuthenticationError) as error:
+        dwd.get_workspace_access_token(scopes=["scope.example.readonly"])
+
+    assert error.value.code == "IAM_SIGN_JWT"
+    assert error.value.layer == "iam"
+    assert error.value.operation == "signJwt"
+    assert error.value.http_status == 403
+    assert "RAW DWD RESPONSE SECRET" not in str(error.value)
+    assert "Authorization" not in str(error.value)
+    assert "adc-token" not in str(error.value)
+    assert "RAW DWD RESPONSE SECRET" not in repr(vars(error.value))
+    assert "adc-token" not in repr(vars(error.value))
+
+
+def test_dwd_refresh_error_is_safe_structured(monkeypatch):
+    monkeypatch.setattr(dwd, "get_cached_token", lambda **kwargs: None)
+
+    def fail_refresh():
+        raise RefreshError("SECRET_ACCESS_TOKEN_SENTINEL")
+
+    monkeypatch.setattr(dwd, "get_adc_credentials", fail_refresh)
+
+    with pytest.raises(dwd.DwdAuthenticationError) as error:
+        dwd.get_workspace_access_token(scopes=["scope.example.readonly"])
+
+    assert error.value.code == "ADC_REFRESH"
+    assert error.value.layer == "adc"
+    assert error.value.operation == "credential_refresh"
+    assert error.value.http_status is None
+    assert str(error.value) == (
+        "code=ADC_REFRESH; layer=adc; "
+        "operation=credential_refresh; http_status=none"
+    )
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in str(error.value)
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in repr(vars(error.value))
+
+
+@pytest.mark.parametrize("status_code", [400, 500])
+def test_dwd_signjwt_http_errors_are_structured(monkeypatch, status_code):
+    class FakeCredentials:
+        token = "SECRET_ACCESS_TOKEN_SENTINEL"
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def post(self, url, **kwargs):
+            request = httpx.Request("POST", url)
+            return httpx.Response(
+                status_code,
+                request=request,
+                content=b"SECRET_BODY_SENTINEL",
+            )
+
+    monkeypatch.setattr(dwd, "get_cached_token", lambda **kwargs: None)
+    monkeypatch.setattr(
+        dwd,
+        "get_adc_credentials",
+        lambda: (FakeCredentials(), None),
+    )
+    monkeypatch.setattr(dwd.httpx, "Client", FakeClient)
+
+    with pytest.raises(dwd.DwdAuthenticationError) as error:
+        dwd.get_workspace_access_token(scopes=["scope.example.readonly"])
+
+    assert error.value.code == "IAM_SIGN_JWT"
+    assert error.value.layer == "iam"
+    assert error.value.operation == "signJwt"
+    assert error.value.http_status == status_code
+    diagnostic = str(error.value)
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in diagnostic
+    assert "SECRET_BODY_SENTINEL" not in diagnostic
+    assert "Authorization" not in diagnostic
+    public_diagnostics = repr(vars(error.value))
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in public_diagnostics
+    assert "SECRET_BODY_SENTINEL" not in public_diagnostics
+
+
+@pytest.mark.parametrize("status_code", [400, 500])
+def test_dwd_token_exchange_http_errors_are_structured(
+    monkeypatch,
+    status_code,
+):
+    class FakeCredentials:
+        token = "SECRET_ACCESS_TOKEN_SENTINEL"
+
+    class FakeClient:
+        def __init__(self, timeout):
+            self.calls = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def post(self, url, **kwargs):
+            self.calls += 1
+            request = httpx.Request("POST", url)
+            if self.calls == 1:
+                return httpx.Response(
+                    200,
+                    request=request,
+                    json={"signedJwt": "SECRET_JWT_SENTINEL"},
+                )
+            return httpx.Response(
+                status_code,
+                request=request,
+                content=b"SECRET_BODY_SENTINEL",
+            )
+
+    monkeypatch.setattr(dwd, "get_cached_token", lambda **kwargs: None)
+    monkeypatch.setattr(
+        dwd,
+        "get_adc_credentials",
+        lambda: (FakeCredentials(), None),
+    )
+    monkeypatch.setattr(dwd.httpx, "Client", FakeClient)
+
+    with pytest.raises(dwd.DwdAuthenticationError) as error:
+        dwd.get_workspace_access_token(scopes=["scope.example.readonly"])
+
+    assert error.value.code == "DWD_TOKEN_EXCHANGE"
+    assert error.value.layer == "dwd"
+    assert error.value.operation == "token_exchange"
+    assert error.value.http_status == status_code
+    diagnostic = str(error.value)
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in diagnostic
+    assert "SECRET_JWT_SENTINEL" not in diagnostic
+    assert "SECRET_BODY_SENTINEL" not in diagnostic
+    assert "Authorization" not in diagnostic
+    public_diagnostics = repr(vars(error.value))
+    assert "SECRET_ACCESS_TOKEN_SENTINEL" not in public_diagnostics
+    assert "SECRET_JWT_SENTINEL" not in public_diagnostics
+    assert "SECRET_BODY_SENTINEL" not in public_diagnostics
+
+
+def test_dwd_malformed_signjwt_response_is_response_validation(monkeypatch):
+    class FakeCredentials:
+        token = "SECRET_ACCESS_TOKEN_SENTINEL"
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def post(self, url, **kwargs):
+            request = httpx.Request("POST", url)
+            return httpx.Response(
+                200,
+                request=request,
+                content=b"SECRET_BODY_SENTINEL",
+            )
+
+    monkeypatch.setattr(dwd, "get_cached_token", lambda **kwargs: None)
+    monkeypatch.setattr(
+        dwd,
+        "get_adc_credentials",
+        lambda: (FakeCredentials(), None),
+    )
+    monkeypatch.setattr(dwd.httpx, "Client", FakeClient)
+
+    with pytest.raises(dwd.DwdAuthenticationError) as error:
+        dwd.get_workspace_access_token(scopes=["scope.example.readonly"])
+
+    assert error.value.code == "RESPONSE_VALIDATION"
+    assert error.value.layer == "response"
+    assert error.value.operation == "signJwt"
+    assert error.value.http_status == 200
+    assert "SECRET_BODY_SENTINEL" not in str(error.value)
+
+
+def test_orgunit_scope_targets_readonly_directory_permission():
+    assert orgunits.DIRECTORY_ORGUNIT_SCOPE.endswith(
+        "admin.directory.orgunit.readonly"
+    )
 
 
 def test_workspace_users_list(monkeypatch):
@@ -37,16 +264,17 @@ def test_workspace_users_list(monkeypatch):
     monkeypatch.setattr(
         server,
         "list_users",
-        lambda max_results=5: fake_users,
+        lambda max_results=5, page_token=None: fake_users,
     )
 
     result = server.workspace_users_list(max_results=5)
 
-    assert len(result) == 1
-    assert result[0]["primary_email"] == "teste@example.com"
-    assert result[0]["full_name"] == "Usuário Teste"
-    assert result[0]["suspended"] is False
-    assert result[0]["org_unit_path"] == "/Teste"
+    assert len(result["users"]) == 1
+    assert result["users"][0]["primary_email"] == "teste@example.com"
+    assert result["users"][0]["full_name"] == "Usuário Teste"
+    assert result["users"][0]["suspended"] is False
+    assert result["users"][0]["org_unit_path"] == "/Teste"
+    assert result["next_page_token"] is None
 
 
 def test_workspace_user_get(monkeypatch):
@@ -86,8 +314,11 @@ def test_workspace_user_get(monkeypatch):
 def test_workspace_users_list_rejects_zero():
     try:
         server.workspace_users_list(max_results=0)
-    except ValueError as exc:
-        assert "entre 1 e 100" in str(exc)
+    except SafeOperationError as exc:
+        assert exc.code == "LOCAL_VALIDATION"
+        assert exc.layer == "validation"
+        assert exc.operation == "users.list"
+        assert exc.http_status is None
     else:
         raise AssertionError("ValueError esperado.")
 
@@ -95,16 +326,61 @@ def test_workspace_users_list_rejects_zero():
 def test_workspace_users_list_rejects_above_100():
     try:
         server.workspace_users_list(max_results=101)
-    except ValueError as exc:
-        assert "entre 1 e 100" in str(exc)
+    except SafeOperationError as exc:
+        assert exc.code == "LOCAL_VALIDATION"
+        assert exc.layer == "validation"
+        assert exc.operation == "users.list"
+        assert exc.http_status is None
     else:
         raise AssertionError("ValueError esperado.")
-        
+
+
+def test_workspace_users_list_normalizes_unexpected_local_error(monkeypatch):
+    def fail_users(**kwargs):
+        raise RuntimeError("SECRET_BODY_SENTINEL")
+
+    monkeypatch.setattr(server, "list_users", fail_users)
+
+    with pytest.raises(SafeOperationError) as error:
+        server.workspace_users_list(max_results=1)
+
+    assert error.value.code == "UNEXPECTED_LOCAL"
+    assert error.value.layer == "local"
+    assert error.value.operation == "users.list"
+    assert error.value.http_status is None
+    assert "SECRET_BODY_SENTINEL" not in str(error.value)
+
+
+def test_workspace_users_list_rejects_invalid_response_shape(monkeypatch):
+    monkeypatch.setattr(
+        server,
+        "list_users",
+        lambda **kwargs: {"users": "SECRET_BODY_SENTINEL"},
+    )
+
+    with pytest.raises(SafeOperationError) as error:
+        server.workspace_users_list(max_results=1)
+
+    assert error.value.code == "RESPONSE_VALIDATION"
+    assert error.value.layer == "response"
+    assert error.value.operation == "users.list"
+    assert "SECRET_BODY_SENTINEL" not in str(error.value)
+
+
+def test_workspace_users_list_rejects_empty_page_token_safely():
+    with pytest.raises(SafeOperationError) as error:
+        server.workspace_users_list(max_results=1, page_token="")
+
+    assert error.value.code == "LOCAL_VALIDATION"
+    assert error.value.layer == "validation"
+    assert error.value.operation == "users.list"
+
+
 def test_workspace_groups_list(monkeypatch):
     fake_groups = [
         {
             "id": "group-123",
-            "email": "classroom_teachers@cevalente.com.br",
+            "email": "test-group@example.invalid",
             "name": "Classroom Teachers",
             "description": "Grupo de professores",
             "directMembersCount": "3",
@@ -114,21 +390,24 @@ def test_workspace_groups_list(monkeypatch):
 
     monkeypatch.setattr(
         "google_workspace_admin.server.list_groups",
-        lambda max_results: fake_groups,
+        lambda max_results, page_token=None: fake_groups,
     )
 
     result = server.workspace_groups_list(max_results=10)
 
-    assert result == [
-        {
-            "id": "group-123",
-            "email": "classroom_teachers@cevalente.com.br",
-            "name": "Classroom Teachers",
-            "description": "Grupo de professores",
-            "direct_members_count": "3",
-            "admin_created": True,
-        }
-    ]
+    assert result == {
+        "groups": [
+            {
+                "id": "group-123",
+                "email": "test-group@example.invalid",
+                "name": "Classroom Teachers",
+                "description": "Grupo de professores",
+                "direct_members_count": "3",
+                "admin_created": True,
+            }
+        ],
+        "next_page_token": None,
+    }
 
 def test_workspace_groups_list_rejects_zero():
     with pytest.raises(
@@ -159,7 +438,7 @@ def test_workspace_group_members_list(monkeypatch):
 
     monkeypatch.setattr(
         "google_workspace_admin.server.list_group_members",
-        lambda group_key, max_results: fake_members,
+        lambda group_key, max_results, page_token=None: fake_members,
     )
 
     result = server.workspace_group_members_list(
@@ -167,16 +446,19 @@ def test_workspace_group_members_list(monkeypatch):
         max_results=100,
     )
 
-    assert result == [
-        {
-            "id": "member-123",
-            "email": "usuario@cevalente.com.br",
-            "role": "MEMBER",
-            "type": "USER",
-            "status": "ACTIVE",
-            "delivery_settings": "ALL_MAIL",
-        }
-    ]
+    assert result == {
+        "members": [
+            {
+                "id": "member-123",
+                "email": "usuario@cevalente.com.br",
+                "role": "MEMBER",
+                "type": "USER",
+                "status": "ACTIVE",
+                "delivery_settings": "ALL_MAIL",
+            }
+        ],
+        "next_page_token": None,
+    }
 
 
 def test_workspace_group_members_list_rejects_empty_group_key():
@@ -210,6 +492,147 @@ def test_workspace_group_members_list_rejects_above_limit():
             group_key="grupo@cevalente.com.br",
             max_results=201,
         )
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "dependency_name", "result_key", "limit"),
+    [
+        ("workspace_users_list", "list_users", "users", 100),
+        ("workspace_groups_list", "list_groups", "groups", 200),
+        ("workspace_mobile_devices_list", "list_mobile_devices", "mobile_devices", 100),
+        ("workspace_chromeos_devices_list", "list_chromeos_devices", "chromeos_devices", 300),
+        ("workspace_roles_list", "list_roles", "roles", 100),
+        ("workspace_role_assignments_list", "list_role_assignments", "role_assignments", 100),
+    ],
+)
+def test_directory_wrappers_forward_page_token(
+    monkeypatch,
+    tool_name,
+    dependency_name,
+    result_key,
+    limit,
+):
+    captured = {}
+
+    def fake_list(max_results, page_token=None):
+        captured["max_results"] = max_results
+        captured["page_token"] = page_token
+        return {result_key: [{}], "next_page_token": "next-page"}
+
+    monkeypatch.setattr(server, dependency_name, fake_list)
+
+    if tool_name == "workspace_group_members_list":
+        result = getattr(server, tool_name)(
+            group_key="group@example.com",
+            max_results=limit,
+            page_token="previous-page",
+        )
+    else:
+        result = getattr(server, tool_name)(
+            max_results=limit,
+            page_token="previous-page",
+        )
+
+    assert captured == {
+        "max_results": limit,
+        "page_token": "previous-page",
+    }
+    assert len(result[result_key]) == 1
+    assert result["next_page_token"] == "next-page"
+
+
+def test_group_member_wrapper_forwards_page_token(monkeypatch):
+    captured = {}
+
+    def fake_list(group_key, max_results, page_token=None):
+        captured.update(
+            group_key=group_key,
+            max_results=max_results,
+            page_token=page_token,
+        )
+        return {"members": [{}], "next_page_token": "next-page"}
+
+    monkeypatch.setattr(server, "list_group_members", fake_list)
+
+    result = server.workspace_group_members_list(
+        group_key="group@example.com",
+        max_results=200,
+        page_token="previous-page",
+    )
+
+    assert captured == {
+        "group_key": "group@example.com",
+        "max_results": 200,
+        "page_token": "previous-page",
+    }
+    assert len(result["members"]) == 1
+    assert result["next_page_token"] == "next-page"
+
+
+@pytest.mark.parametrize(
+    (
+        "tool_name",
+        "dependency_name",
+        "result_key",
+        "tool_arguments",
+        "expected_operation",
+    ),
+    [
+        (
+            "workspace_group_members_list",
+            "list_group_members",
+            "members",
+            {"group_key": "group-fixture@example.invalid"},
+            "group_members.list",
+        ),
+        (
+            "workspace_mobile_devices_list",
+            "list_mobile_devices",
+            "mobile_devices",
+            {},
+            "mobile_devices.list",
+        ),
+        (
+            "workspace_chromeos_devices_list",
+            "list_chromeos_devices",
+            "chromeos_devices",
+            {},
+            "chromeos_devices.list",
+        ),
+        (
+            "workspace_role_assignments_list",
+            "list_role_assignments",
+            "role_assignments",
+            {},
+            "role_assignments.list",
+        ),
+    ],
+)
+def test_directory_wrappers_preserve_canonical_operation_context(
+    monkeypatch,
+    tool_name,
+    dependency_name,
+    result_key,
+    tool_arguments,
+    expected_operation,
+):
+    monkeypatch.setattr(
+        server,
+        dependency_name,
+        lambda **kwargs: {
+            result_key: [{}],
+            "next_page_token": 42,
+        },
+    )
+
+    with pytest.raises(WorkspaceApiError) as error:
+        getattr(server, tool_name)(**tool_arguments)
+
+    assert error.value.code == "RESPONSE_VALIDATION"
+    assert error.value.layer == "response"
+    assert error.value.operation == expected_operation
+    assert error.value.http_status is None
+    assert "42" not in str(error.value)
 
 def test_workspace_orgunits_list(monkeypatch):
     fake_orgunits = [
@@ -353,42 +776,45 @@ def test_workspace_mobile_devices_list(monkeypatch):
 
     monkeypatch.setattr(
         "google_workspace_admin.server.list_mobile_devices",
-        lambda max_results=100: fake_devices,
+        lambda max_results=100, page_token=None: fake_devices,
     )
 
     result = server.workspace_mobile_devices_list(
         max_results=50,
     )
 
-    assert result == [
-        {
-            "resource_id": "resource-123",
-            "device_id": "device-123",
-            "name": ["Usuário Teste"],
-            "email": ["teste@cevalente.com.br"],
-            "model": "SM-A155M",
-            "manufacturer": "Samsung",
-            "type": "ANDROID",
-            "os": "Android 16",
-            "status": "APPROVED",
-            "first_sync": "2026-01-01T10:00:00.000Z",
-            "last_sync": "2026-09-08T12:00:00.000Z",
-            "hardware_id": "hardware-123",
-            "serial_number": "serial-123",
-            "imei": "imei-123",
-            "meid": "meid-123",
-            "wifi_mac_address": "00:11:22:33:44:55",
-            "network_operator": "Claro",
-            "default_language": "pt-BR",
-            "managed_account_is_on_owner_profile": True,
-        }
-    ]
+    assert result == {
+        "mobile_devices": [
+            {
+                "resource_id": "resource-123",
+                "device_id": "device-123",
+                "name": ["Usuário Teste"],
+                "email": ["teste@cevalente.com.br"],
+                "model": "SM-A155M",
+                "manufacturer": "Samsung",
+                "type": "ANDROID",
+                "os": "Android 16",
+                "status": "APPROVED",
+                "first_sync": "2026-01-01T10:00:00.000Z",
+                "last_sync": "2026-09-08T12:00:00.000Z",
+                "hardware_id": "hardware-123",
+                "serial_number": "serial-123",
+                "imei": "imei-123",
+                "meid": "meid-123",
+                "wifi_mac_address": "00:11:22:33:44:55",
+                "network_operator": "Claro",
+                "default_language": "pt-BR",
+                "managed_account_is_on_owner_profile": True,
+            }
+        ],
+        "next_page_token": None,
+    }
 
 
 def test_workspace_mobile_devices_list_uses_default(monkeypatch):
     captured = {}
 
-    def fake_list_mobile_devices(max_results=100):
+    def fake_list_mobile_devices(max_results=100, page_token=None):
         captured["max_results"] = max_results
         return []
 
@@ -399,7 +825,10 @@ def test_workspace_mobile_devices_list_uses_default(monkeypatch):
 
     result = server.workspace_mobile_devices_list()
 
-    assert result == []
+    assert result == {
+        "mobile_devices": [],
+        "next_page_token": None,
+    }
     assert captured["max_results"] == 100
 
 
@@ -448,41 +877,44 @@ def test_workspace_chromeos_devices_list(monkeypatch):
 
     monkeypatch.setattr(
         "google_workspace_admin.server.list_chromeos_devices",
-        lambda max_results=100: fake_devices,
+        lambda max_results=100, page_token=None: fake_devices,
     )
 
     result = server.workspace_chromeos_devices_list(
         max_results=50,
     )
 
-    assert result == [
-        {
-            "device_id": "chromeos-device-123",
-            "serial_number": "SERIAL-123",
-            "model": "Chromebook Plus",
-            "manufacturer": "Acer",
-            "status": "ACTIVE",
-            "os_version": "140.0.7339.185",
-            "platform_version": "16371.68.0",
-            "firmware_version": "Google_Test.12345",
-            "mac_address": "00:11:22:33:44:55",
-            "ethernet_mac_address": "00:11:22:33:44:66",
-            "org_unit_path": "/CEV_USERS",
-            "annotated_user": "usuario@cevalente.com.br",
-            "annotated_location": "Escritório",
-            "annotated_asset_id": "ASSET-123",
-            "last_sync": "2026-09-10T12:00:00.000Z",
-            "last_enrollment_time": "2026-01-01T10:00:00.000Z",
-            "support_end_date": "2030-01-01T00:00:00.000Z",
-            "notes": "Equipamento de teste",
-        }
-    ]
+    assert result == {
+        "chromeos_devices": [
+            {
+                "device_id": "chromeos-device-123",
+                "serial_number": "SERIAL-123",
+                "model": "Chromebook Plus",
+                "manufacturer": "Acer",
+                "status": "ACTIVE",
+                "os_version": "140.0.7339.185",
+                "platform_version": "16371.68.0",
+                "firmware_version": "Google_Test.12345",
+                "mac_address": "00:11:22:33:44:55",
+                "ethernet_mac_address": "00:11:22:33:44:66",
+                "org_unit_path": "/CEV_USERS",
+                "annotated_user": "usuario@cevalente.com.br",
+                "annotated_location": "Escritório",
+                "annotated_asset_id": "ASSET-123",
+                "last_sync": "2026-09-10T12:00:00.000Z",
+                "last_enrollment_time": "2026-01-01T10:00:00.000Z",
+                "support_end_date": "2030-01-01T00:00:00.000Z",
+                "notes": "Equipamento de teste",
+            }
+        ],
+        "next_page_token": None,
+    }
 
 
 def test_workspace_chromeos_devices_list_uses_default(monkeypatch):
     captured = {}
 
-    def fake_list_chromeos_devices(max_results=100):
+    def fake_list_chromeos_devices(max_results=100, page_token=None):
         captured["max_results"] = max_results
         return []
 
@@ -493,7 +925,10 @@ def test_workspace_chromeos_devices_list_uses_default(monkeypatch):
 
     result = server.workspace_chromeos_devices_list()
 
-    assert result == []
+    assert result == {
+        "chromeos_devices": [],
+        "next_page_token": None,
+    }
     assert captured["max_results"] == 100
 
 
@@ -535,34 +970,37 @@ def test_workspace_roles_list(monkeypatch):
     monkeypatch.setattr(
         server,
         "list_roles",
-        lambda max_results=100: fake_roles,
+        lambda max_results=100, page_token=None: fake_roles,
     )
 
     result = server.workspace_roles_list(
         max_results=50,
     )
 
-    assert result == [
-        {
-            "role_id": "role-123",
-            "role_name": "_SEED_ADMIN_ROLE",
-            "role_description": "Super administrador",
-            "role_privileges": [
-                {
-                    "privilegeName": "USERS_RETRIEVE",
-                    "serviceId": "00haapch16h1ysv",
-                }
-            ],
-            "is_system_role": True,
-            "is_super_admin_role": True,
-        }
-    ]
+    assert result == {
+        "roles": [
+            {
+                "role_id": "role-123",
+                "role_name": "_SEED_ADMIN_ROLE",
+                "role_description": "Super administrador",
+                "role_privileges": [
+                    {
+                        "privilegeName": "USERS_RETRIEVE",
+                        "serviceId": "00haapch16h1ysv",
+                    }
+                ],
+                "is_system_role": True,
+                "is_super_admin_role": True,
+            }
+        ],
+        "next_page_token": None,
+    }
 
 
 def test_workspace_roles_list_uses_default(monkeypatch):
     captured = {}
 
-    def fake_list_roles(max_results=100):
+    def fake_list_roles(max_results=100, page_token=None):
         captured["max_results"] = max_results
         return []
 
@@ -574,7 +1012,10 @@ def test_workspace_roles_list_uses_default(monkeypatch):
 
     result = server.workspace_roles_list()
 
-    assert result == []
+    assert result == {
+        "roles": [],
+        "next_page_token": None,
+    }
     assert captured["max_results"] == 100
 
 
@@ -606,28 +1047,31 @@ def test_workspace_role_assignments_list(monkeypatch):
     monkeypatch.setattr(
         server,
         "list_role_assignments",
-        lambda max_results=100: fake_assignments,
+        lambda max_results=100, page_token=None: fake_assignments,
     )
 
     result = server.workspace_role_assignments_list(
         max_results=50,
     )
 
-    assert result == [
-        {
-            "role_assignment_id": "assignment-123",
-            "role_id": "role-123",
-            "assigned_to": "100056319502616315227",
-            "scope_type": "CUSTOMER",
-            "org_unit_id": None,
-        }
-    ]
+    assert result == {
+        "role_assignments": [
+            {
+                "role_assignment_id": "assignment-123",
+                "role_id": "role-123",
+                "assigned_to": "100056319502616315227",
+                "scope_type": "CUSTOMER",
+                "org_unit_id": None,
+            }
+        ],
+        "next_page_token": None,
+    }
 
 
 def test_workspace_role_assignments_list_uses_default(monkeypatch):
     captured = {}
 
-    def fake_list_role_assignments(max_results=100):
+    def fake_list_role_assignments(max_results=100, page_token=None):
         captured["max_results"] = max_results
         return []
 
@@ -639,7 +1083,10 @@ def test_workspace_role_assignments_list_uses_default(monkeypatch):
 
     result = server.workspace_role_assignments_list()
 
-    assert result == []
+    assert result == {
+        "role_assignments": [],
+        "next_page_token": None,
+    }
     assert captured["max_results"] == 100
 
 
@@ -692,16 +1139,56 @@ def test_workspace_domains_list(monkeypatch):
             "creation_time": "1586464166558",
             "domain_aliases": [
                 {
-                    "kind": "admin#directory#domainAlias",
-                    "etag": "alias-etag",
-                    "domainAliasName": "cevalente.com.br.test-google-a.com",
-                    "parentDomainName": "cevalente.com.br",
+                    "domain_alias_name": "cevalente.com.br.test-google-a.com",
+                    "parent_domain_name": "cevalente.com.br",
                     "verified": True,
-                    "creationTime": "1586464166558",
+                    "creation_time": "1586464166558",
                 }
             ],
         }
     ]
+
+
+def test_workspace_domains_list_allowlists_nested_domain_aliases(monkeypatch):
+    monkeypatch.setattr(
+        server,
+        "list_domains",
+        lambda: [
+            {
+                "domainName": "example.com",
+                "domainAliases": [
+                    {
+                        "domainAliasName": "alias.example.com",
+                        "parentDomainName": "example.com",
+                        "verified": True,
+                        "creationTime": "1",
+                        "kind": "omit-kind",
+                        "etag": "omit-etag",
+                        "unknownField": "omit-unknown",
+                    }
+                ],
+                "unknownDomainField": "omit-unknown",
+            }
+        ],
+    )
+
+    result = server.workspace_domains_list()
+
+    assert result[0]["domain_aliases"] == [
+        {
+            "domain_alias_name": "alias.example.com",
+            "parent_domain_name": "example.com",
+            "verified": True,
+            "creation_time": "1",
+        }
+    ]
+    assert "unknownDomainField" not in result[0]
+    assert "unknownField" not in str(result)
+
+
+def test_workspace_domain_aliases_list_rejects_blank_parent_domain_name():
+    with pytest.raises(ValueError, match="parent_domain_name não pode estar vazio"):
+        server.workspace_domain_aliases_list(parent_domain_name="  ")
 
 def test_workspace_domain_aliases_list(monkeypatch):
     domain_aliases = [
