@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from mcp import Client
@@ -67,7 +68,8 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_login_audit_list" in tool_names
     assert "workspace_drive_audit_list" in tool_names
     assert "workspace_user_usage_get" in tool_names
-    assert len(tool_names) == 19
+    assert "workspace_customer_usage_get" in tool_names
+    assert len(tool_names) == 20
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
@@ -87,6 +89,101 @@ async def test_tools_are_registered(client: Client):
     assert "_serialize_user_usage_report" not in tool_names
     assert "_serialize_user_usage_parameter" not in tool_names
     assert "_serialize_user_usage_page" not in tool_names
+    assert "_serialize_customer_usage_report" not in tool_names
+    assert "_serialize_customer_usage_parameter" not in tool_names
+    assert "_serialize_customer_usage_page" not in tool_names
+
+
+@pytest.mark.anyio
+async def test_workspace_customer_usage_get_through_mcp(
+    client: Client,
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_get_customer_usage_report(**kwargs):
+        captured.update(kwargs)
+        return {
+            "usage_reports": [
+                {
+                    "kind": "usageReport",
+                    "etag": "omit-etag",
+                    "date": "2026-09-10",
+                    "entity": {
+                        "customerId": "omit-customer",
+                        "type": "customer",
+                    },
+                    "parameters": [
+                        {
+                            "name": "accounts:num_users",
+                            "intValue": 10,
+                        },
+                        {
+                            "name": "accounts:used_quota_in_mb",
+                            "intValue": 20,
+                        },
+                        {
+                            "name": "accounts:num_suspended_users",
+                            "stringValue": "omit",
+                        },
+                    ],
+                }
+            ],
+            "next_page_token": "next-page",
+            "warnings_present": True,
+            "warnings_count": 1,
+        }
+
+    monkeypatch.setattr(
+        server,
+        "get_customer_usage_report",
+        fake_get_customer_usage_report,
+    )
+
+    result = await client.call_tool(
+        "workspace_customer_usage_get",
+        {
+            "date": "2026-09-10",
+            "parameters": " accounts:num_users , accounts:used_quota_in_mb ",
+            "page_token": "previous-page",
+        },
+    )
+
+    assert result.is_error is False
+    assert captured == {
+        "date": "2026-09-10",
+        "parameters": "accounts:num_users,accounts:used_quota_in_mb",
+        "page_token": "previous-page",
+    }
+
+    payload = _json_result(result)
+    assert payload == {
+        "usage_reports": [
+            {
+                "date": "2026-09-10",
+                "parameters": [
+                    {
+                        "parameter_name": "accounts:num_users",
+                        "integer_value": 10,
+                    },
+                    {
+                        "parameter_name": "accounts:used_quota_in_mb",
+                        "integer_value": 20,
+                    },
+                ],
+            }
+        ],
+        "next_page_token": "next-page",
+        "warnings_present": True,
+        "warnings_count": 1,
+    }
+
+
+def test_server_keeps_mcp_run_as_final_operation():
+    source = Path(server.__file__).read_text(encoding="utf-8")
+
+    assert source.count("mcp.run()") == 1
+    assert source.rstrip().endswith("mcp.run()")
 
 
 @pytest.mark.anyio

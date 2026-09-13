@@ -23,6 +23,8 @@
 | 11/09/2026 | implementação pendente de checkpoint | Drive Audit: PLAN e IMPLEMENT concluídos com módulo independente `reports/drive_audit.py`, serializer allowlist específico, 18ª tool MCP e **230/230 testes locais aprovados** pelo Python direto da `.venv`; REAL VALIDATION concluída exclusivamente pelo MCP original com exatamente uma chamada `max_results=1`, sucesso, 1 Activity e próxima página presente; nenhum conteúdo real de Activity persistido |
 | 12/09/2026 | implementação pendente de REAL VALIDATION | User Usage: IMPLEMENT local de `reports/user_usage.py` com `userUsageReport.get`, 19ª tool MCP, scope `admin.reports.usage.readonly`, validação estrita de data, uma página por chamada, timeout de 30 segundos e nenhum retry; serializer allowlistado com `profile_id`, `timestamp_last_login` como nome atual, timestamps condicionais e warnings sanitizados; REAL VALIDATION não executada por instrução explícita |
 | 12/09/2026 | documentação pós-REAL VALIDATION; checkpoint pendente | User Usage: validação final de `UserUsageReport.get` executada com sucesso em `2026-09-12` com a tool `workspace_user_usage_get`; catálogo 18 → 19; serializer e allowlists confirmados; warnings sanitizados; uma página por chamada e sem retry; **264 testes finais aprovados**; data do relatório solicitado: `date=2026-09-10`, `max_results=1`, `parameters=accounts:used_quota_in_percentage`, `user_key=all`, `usageReports=1`, próxima página presente e warnings presentes (1) |
+| 12/09/2026 | IMPLEMENT concluído; REAL VALIDATION pendente | Customer Usage: `CustomerUsageReports.get` no módulo `reports/customer_usage.py`, tool `workspace_customer_usage_get`, catálogo 19 → 20, `parameters` obrigatório, allowlist inicial de dez métricas integer de Accounts, serializer allowlist-first, warnings sanitizados, `pageToken`/`nextPageToken` normalizados, uma página por chamada, sem retry e timeout de 30 segundos; **307 testes locais aprovados**; nenhuma chamada Google realizada |
+| 12/09/2026 | checkpoint / commit concluído | Customer Usage: REAL VALIDATION V9 e FINAL REVIEW concluídas com sucesso; uma chamada real, sem retry ou paginação, `usageReports=1`, `next_page_token` ausente e warnings presentes (1); **307 testes aprovados**; commit concluído com a mensagem `feat: add workspace customer usage reports`, sem hash neste documento |
 
 ## Lições registradas
 
@@ -107,6 +109,12 @@
   sem alteração de código funcional, DWD, scopes ou Admin Console. Toda a
   instrumentação temporária foi removida antes do checkpoint, e campos
   diagnósticos temporários não fazem parte do contrato final.
+- Customer Usage mantém contrato separado de User Usage: não expõe
+  `maxResults`, `userKey`, `filters`, `orgUnitID` ou `customerId`; exige métricas
+  explicitamente allowlisted, preserva paginação manual e não busca payload
+  amplo por padrão. A primeira allowlist é deliberadamente limitada a dez
+  métricas integer agregadas de Accounts; as demais aplicações ficam omitidas
+  até uma revisão específica.
 
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do

@@ -85,6 +85,7 @@ Client ID são:
 | Admin Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — DWD confirmada manualmente; sujeito Superadministrador; REAL VALIDATION MCP concluída em 11/09/2026 com launcher Python da `.venv`, 1 Activity e próxima página presente; checkpoint Git pendente |
 | Login Audit (Reports API) | `https://www.googleapis.com/auth/admin.reports.audit.readonly` — reutiliza o scope já presente e confirmado manualmente para Reports; REAL VALIDATION MCP concluída em 11/09/2026 com uma chamada limitada, 1 Activity e próxima página presente; nenhuma alteração administrativa nova |
 | User Usage (Reports API) | `https://www.googleapis.com/auth/admin.reports.usage.readonly` — método `UserUsageReport.get`; DWD e scopes não foram alterados; REAL VALIDATION executada com sucesso em `2026-09-12`; data do relatório solicitado: `date=2026-09-10`, `max_results=1`, `parameters=accounts:used_quota_in_percentage`, `user_key=all`, `usageReports=1`, próxima página presente, warnings presentes (1), sem retry ou paginação adicional |
+| Customer Usage (Reports API) | `https://www.googleapis.com/auth/admin.reports.usage.readonly` — método `CustomerUsageReports.get`; reutiliza DWD e scope já autorizado; IMPLEMENT concluído após testes locais; REAL VALIDATION pendente; nenhuma alteração administrativa nova |
 
 Os registros enviados pelo usuário confirmam que o scope ChromeOS foi incluído
 em 10/09/2026 depois de constatar que não estava presente, e que o scope de
@@ -187,6 +188,21 @@ data do relatório solicitado `date=2026-09-10`, `max_results=1`,
 `usageReports=1`, `next_page_token` presente, `warnings_present=true` e
 `warnings_count=1`, sem retry ou paginação adicional. Nenhum conteúdo de uso,
 credencial ou token foi registrado.
+
+`workspace_customer_usage_get` usa exclusivamente
+`https://www.googleapis.com/auth/admin.reports.usage.readonly` para o método
+`CustomerUsageReports.get`, no endpoint
+`/admin/reports/v1/usage/dates/{date}`. O contrato expõe somente `date`,
+`parameters` obrigatório e `page_token` opcional; não envia `customerId`,
+`maxResults`, `userKey`, `filters` ou `orgUnitID`.
+
+`parameters` aceita somente o CSV explícito das dez métricas integer
+allowlisted de Accounts. O `page_token` é encaminhado como `pageToken`, uma
+única página é processada por chamada, `nextPageToken` é normalizado como
+`next_page_token`, não há retry automático e o timeout é de 30 segundos.
+`date` representa exclusivamente a data solicitada do relatório, nunca a data
+de execução ou validação. A REAL VALIDATION de Customer Usage ainda está
+pendente; nenhum resultado real foi registrado.
 
 Ao alterar scopes, um Super Admin deve revisar toda a lista, aplicar apenas a
 diferença necessária, aguardar a propagação e validar uma operação de leitura.

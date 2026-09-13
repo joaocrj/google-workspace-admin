@@ -32,6 +32,11 @@ from google_workspace_admin.reports.admin_audit import (
     _validate_admin_audit_arguments,
     list_admin_audit_activities,
 )
+from google_workspace_admin.reports.customer_usage import (
+    CUSTOMER_USAGE_ALLOWED_PARAMETERS,
+    _validate_customer_usage_arguments,
+    get_customer_usage_report,
+)
 from google_workspace_admin.reports.drive_audit import (
     _validate_drive_audit_arguments,
     list_drive_audit_activities,
@@ -1299,6 +1304,127 @@ def workspace_user_usage_get(
     )
 
     return _serialize_user_usage_page(page, parameters)
+
+
+def _serialize_customer_usage_parameter(
+    parameter: dict,
+    requested_parameters: set[str],
+) -> dict | None:
+    if not isinstance(parameter, dict):
+        return None
+
+    parameter_name = parameter.get("name")
+    if (
+        not isinstance(parameter_name, str)
+        or parameter_name not in requested_parameters
+        or parameter_name not in CUSTOMER_USAGE_ALLOWED_PARAMETERS
+    ):
+        return None
+
+    value = parameter.get("intValue")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+
+    return {
+        "parameter_name": parameter_name,
+        "integer_value": value,
+    }
+
+
+def _serialize_customer_usage_report(
+    usage_report: dict,
+    requested_parameters: set[str],
+) -> dict | None:
+    if not isinstance(usage_report, dict):
+        return None
+
+    report_date = usage_report.get("date")
+    if not isinstance(report_date, str) or not report_date:
+        return None
+
+    raw_parameters = usage_report.get("parameters", [])
+    if not isinstance(raw_parameters, list):
+        raw_parameters = []
+
+    return {
+        "date": report_date,
+        "parameters": [
+            serialized_parameter
+            for parameter in raw_parameters
+            if (
+                serialized_parameter := _serialize_customer_usage_parameter(
+                    parameter,
+                    requested_parameters,
+                )
+            ) is not None
+        ],
+    }
+
+
+def _serialize_customer_usage_page(
+    page: dict,
+    parameters: str,
+) -> dict:
+    requested_parameters = set(parameters.split(","))
+    raw_usage_reports = page.get("usage_reports", [])
+    if not isinstance(raw_usage_reports, list):
+        raw_usage_reports = []
+
+    serialized_usage_reports = [
+        serialized_report
+        for usage_report in raw_usage_reports
+        if (
+            serialized_report := _serialize_customer_usage_report(
+                usage_report,
+                requested_parameters,
+            )
+        ) is not None
+    ]
+
+    next_page_token = page.get("next_page_token")
+    if not isinstance(next_page_token, str) or not next_page_token:
+        next_page_token = None
+
+    warnings_present = page.get("warnings_present")
+    if not isinstance(warnings_present, bool):
+        warnings_present = False
+
+    warnings_count = page.get("warnings_count")
+    if (
+        isinstance(warnings_count, bool)
+        or not isinstance(warnings_count, int)
+        or warnings_count < 0
+    ):
+        warnings_count = 0
+
+    return {
+        "usage_reports": serialized_usage_reports,
+        "next_page_token": next_page_token,
+        "warnings_present": warnings_present,
+        "warnings_count": warnings_count,
+    }
+
+
+@mcp.tool()
+def workspace_customer_usage_get(
+    date: str,
+    parameters: str,
+    page_token: str | None = None,
+) -> dict:
+    """Obtém uma página sanitizada de Customer Usage Report."""
+    normalized_parameters = _validate_customer_usage_arguments(
+        date=date,
+        parameters=parameters,
+        page_token=page_token,
+    )
+
+    page = get_customer_usage_report(
+        date=date,
+        parameters=normalized_parameters,
+        page_token=page_token,
+    )
+
+    return _serialize_customer_usage_page(page, normalized_parameters)
 
 
 if __name__ == "__main__":

@@ -280,6 +280,34 @@ A instrumentação diagnóstica temporária usada nesta investigação foi remov
 completamente e não é procedimento operacional normal. Campos diagnósticos
 temporários também não fazem parte do contrato final da ferramenta.
 
+## Operação de Customer Usage
+
+`workspace_customer_usage_get` consulta
+`/admin/reports/v1/usage/dates/{date}` pelo método
+`CustomerUsageReports.get`, usando o scope
+`https://www.googleapis.com/auth/admin.reports.usage.readonly`. `date` é
+obrigatório, estritamente `YYYY-MM-DD` e representa somente a data solicitada
+do relatório.
+
+`parameters` é obrigatório e deve conter um CSV de métricas totalmente
+qualificadas da allowlist inicial de Accounts. A validação rejeita valores
+ausentes/vazios, tokens vazios, wildcard, aplicação inteira, nomes
+desconhecidos, deprecated e duplicatas; normaliza apenas espaços externos e
+preserva a ordem. Não existe modo implícito de solicitar todas as métricas.
+
+`page_token` é opcional e é encaminhado como `pageToken`. A tool executa uma
+única requisição por invocation, devolve `nextPageToken` como
+`next_page_token`, não percorre páginas automaticamente, não cria retries e usa
+timeout de 30 segundos. Não envia `customerId`, `maxResults`, `userKey`,
+`filters` ou `orgUnitID`.
+
+O serializer preserva apenas `date` e métricas integer solicitadas e
+allowlisted. Omite integralmente entity, identificadores, `kind`, `etag`,
+`stringValue`, `datetimeValue`, `msgValue`, `boolValue`, warnings brutos e o
+payload bruto. Warnings são reduzidos a `warnings_present` e
+`warnings_count`. O catálogo tem 20 tools após o IMPLEMENT; a REAL VALIDATION
+de Customer Usage ainda está pendente.
+
 ## Testes de integração Google
 
 Faça-os apenas quando a tarefa requerer validação real e houver autorização

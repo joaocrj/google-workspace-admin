@@ -2297,3 +2297,81 @@ def test_workspace_user_usage_get_rejects_invalid_arguments(
 
     with pytest.raises((TypeError, ValueError)):
         server.workspace_user_usage_get(**arguments)
+
+
+def test_workspace_customer_usage_get_sanitizes_page(monkeypatch):
+    captured = {}
+
+    def fake_get_customer_usage_report(**kwargs):
+        captured.update(kwargs)
+        return {
+            "usage_reports": [
+                {
+                    "kind": "usageReport",
+                    "etag": "omit-etag",
+                    "date": "2026-09-10",
+                    "entity": {
+                        "customerId": "omit-customer",
+                        "type": "customer",
+                    },
+                    "parameters": [
+                        {
+                            "name": "accounts:num_users",
+                            "intValue": 10,
+                        },
+                        {
+                            "name": "accounts:used_quota_in_mb",
+                            "intValue": 20,
+                        },
+                        {
+                            "name": "accounts:num_archived_users",
+                            "datetimeValue": "omit",
+                        },
+                    ],
+                }
+            ],
+            "next_page_token": "next-page",
+            "warnings_present": True,
+            "warnings_count": 1,
+        }
+
+    monkeypatch.setattr(
+        server,
+        "get_customer_usage_report",
+        fake_get_customer_usage_report,
+    )
+
+    result = server.workspace_customer_usage_get(
+        date="2026-09-10",
+        parameters=" accounts:num_users , accounts:used_quota_in_mb ",
+        page_token="previous-page",
+    )
+
+    assert captured == {
+        "date": "2026-09-10",
+        "parameters": "accounts:num_users,accounts:used_quota_in_mb",
+        "page_token": "previous-page",
+    }
+    assert result == {
+        "usage_reports": [
+            {
+                "date": "2026-09-10",
+                "parameters": [
+                    {
+                        "parameter_name": "accounts:num_users",
+                        "integer_value": 10,
+                    },
+                    {
+                        "parameter_name": "accounts:used_quota_in_mb",
+                        "integer_value": 20,
+                    },
+                ],
+            }
+        ],
+        "next_page_token": "next-page",
+        "warnings_present": True,
+        "warnings_count": 1,
+    }
+    assert "customerId" not in str(result)
+    assert "kind" not in str(result)
+    assert "etag" not in str(result)
