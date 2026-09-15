@@ -171,3 +171,220 @@ Workspace ou MCP funcional foi realizada e nenhuma próxima fase foi iniciada.
 Este histórico resume fatos registrados no Git e no inventário do usuário; não
 substitui o `git log`, os testes ou a validação de uma configuração atual do
 Google Cloud/Admin Console.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION IMPLEMENT V1 — COMPLETE / SEM COMMIT
+
+Implementada exclusivamente a fundação transversal local da Fase 1.5. Foram
+adicionados profiles imutáveis de Content Research, `WorkspaceSubject`,
+interface de resolução futura sem Directory lookup, registry fechado dos sete
+profiles read-only oficialmente verificados, cache-key contratual separado por
+profile/customer/Service Account/subject/scope profile, policy de domínio e
+customer, guard positivo de operações, contratos bounded para Shared Drives,
+`ContentReadTransport` mockável, retry opt-in para reads idempotentes, limites
+de paginação/contexto, evidência determinística e audit events
+pseudonimizados. O safe-error contract recebeu somente códigos justificados
+pela Foundation.
+
+Não foram criadas tools MCP Content: `workspace_drives_list`,
+`workspace_drive_get` e `workspace_drive_files_list` continuam não
+implementadas e não registradas. `server.py`, `config.py`, a autenticação Read
+existente, DWD, ADC e o catálogo público com 20 tools permaneceram intactos.
+
+Foram adicionados **28 testes** transversais; a regressão completa passou em
+**487 testes** (**459 baseline + 28 Foundation**). Não houve chamada Google,
+Drive, Gmail, Docs, Sheets, Slides, MCP funcional, DWD, IAM `signJwt` ou
+geração de token. Não houve alteração de Service Account, scopes, APIs,
+Admin Console, staging, commit ou push.
+
+O estado canônico passou a ser: FASE 1.5 corrente, Architecture PLAN V1
+complete, Official Google Verification V1 pass, Foundation Implement V1
+complete; Write Layer PLAN preservado e implementação pausada. Shared Drive
+RV1 e todas as validações reais de Content permanecem pendentes.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REMEDIATION IMPLEMENT V1 — COMPLETE / SEM COMMIT
+
+Remediados localmente FR-P0-01/02, FR-P1-01/02/03/04,
+FR-P2-01/02/03/04 e FR-P3-01/02. A entrega adicionou `ContentAuthBroker`,
+registry de profiles provisionados, filtros Drive estruturados, field masks
+internas, caps explícitos de paginação, retry hard-capped, transport com
+client de produção controlado e envelope JSON sem `httpx.Response` público.
+Subjects passaram a ter validação por capability; `trashed=false` é invariável
+no inventário; evidence IDs são gerados internamente; pseudônimos usam
+HMAC-SHA256 com provider abstrato; `scope_summary` é fechado e estruturado.
+
+Foram adicionados testes negativos para substituição de identidade/scopes,
+bypass DWD, campos/q/lixeira, limites, redirects, JSON malformado, classes
+sem retry, cancelamento, PII e HMAC. A execução direcionada passou em 59 testes
+e a regressão completa passou em 518 testes, preservando os 487 testes
+anteriores. O warning de cache pytest por permissão local permaneceu sem
+impacto.
+
+Não foram criadas tools Content ou Write; o catálogo público permanece com 20
+tools e `mcp.run()` continua a operação final de `server.py`. Não houve
+chamada Google/Drive/Gmail/Docs/Sheets/Slides/MCP funcional, token, DWD,
+IAM `signJwt`, mudança de scopes, Service Account, Cloud, Admin Console,
+staging, commit ou push. Próximo passo: FOUNDATION REVIEW V2.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REMEDIATION IMPLEMENT V2 — COMPLETE / SEM COMMIT
+
+Implementada exclusivamente a Remediation V2 local da Foundation. A cadeia
+de autorização passou a exigir `RegisteredProfileHandle`,
+`AuthorizedSubjectHandle` e `AuthorizedOperationContext` emitidos e
+verificados por seus respectivos issuers; `ContentAuthProfile` e
+`WorkspaceSubject` não são authorities. O broker é obrigatório tanto para a
+normalização quanto para o `ContentReadTransport`.
+
+Foram adicionadas a matriz fechada de capability/scope/subject/admin, os
+resultados tipados `DriveSummary`/páginas Drive, enforcement de `max_items`,
+rejeição segura de respostas excessivas, retry interno que nunca repete
+400/401/403/404, ceilings absolutos de bytes/caracteres/chunks e client de
+produção sem injeção pelo construtor público. Field masks, endpoints, método
+GET, `trashed=false`, `corpora=drive` e parâmetros Shared Drive permanecem
+internos e allowlistados.
+
+A suíte direcionada passou em **84 testes** e a regressão completa em
+**543 testes** (518 preexistentes preservados + 25 novos). Não foram criadas
+tools Content ou Write; o catálogo permanece com 20 tools e `mcp.run()` segue
+como operação final de `server.py`. Não houve chamadas Google/Drive/Gmail/
+Docs/Sheets/Slides/MCP funcional, geração de token, DWD, IAM `signJwt`, ADC,
+mudança de Cloud/Admin Console/IAM/DWD/scopes/Service Account, staging,
+commit ou push.
+
+Próximo passo: **FOUNDATION REVIEW V3**, mediante autorização explícita. O
+Write Architecture/Safety Plan permanece preservado e a implementação Write
+continua pausada.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REVIEW V3 — BLOCKED
+
+A revisão adversarial V3 preservada no roadmap encontrou sete pontos antes do
+checkpoint: **FV3-P0-01** authority de issuer mutável/spoofable,
+**FV3-P0-02** bypass de broker por subclass/duck typing, **FV3-P1-01** caminhos
+de response/JSON genéricos, **FV3-P1-02** superfície de injeção de client de
+teste, **FV3-P2-01** aceitação de `trashed=true` no resultado,
+**FV3-P2-02** operação textual livre no safe error e **FV3-P3-01** cobertura
+adversarial insuficiente. A Review não alterou arquivos nem executou atividade
+Google.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REMEDIATION PLAN V3 — COMPLETE
+
+O plano V3 definiu um kernel de authority in-process lexicalmente encapsulado,
+handles opacos sem dados, runtime selado, bootstrap separado, adapter HTTP por
+operação, isolamento do client de testes, invariantes de resultado e enum
+fechado para operações de erro. O threat model exclui comprometimento do
+processo, monkeypatch irrestrito, debugger e alteração de closure cells; nenhuma
+funcionalidade Google, MCP Content ou Write foi incluída.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REMEDIATION IMPLEMENT V3 — COMPLETE / SEM COMMIT
+
+Implementada exclusivamente a Remediation V3 local. O kernel closure-owned
+emite e verifica, por identidade e por runtime, `RegisteredProfileHandle`,
+`AuthorizedSubjectHandle` e `AuthorizedOperationContext` sem metadados de
+authority nas instâncias. Fabricação por `object.__new__`, cópia, cópia profunda
+e reutilização entre runtimes não concedem autoridade. Provisioning, resolução,
+broker, normalização e adapter ficam capturados internamente pela fachada
+`ContentRuntime.execute()`; o bootstrap de produção aceita zero parâmetros e
+falha fechado enquanto não existir provisioning autorizado.
+
+O transporte genérico anterior foi removido. O adapter realiza apenas os três
+contratos Drive Foundation conhecidos, com GET/host/endpoint/query fixos,
+tratamento seguro de status e parse direto para resultados tipados. Não há API
+Content que devolva `httpx.Response`, headers, body ou JSON genérico, nem API
+para anexar ou substituir client após a montagem. O parser de inventário aceita
+somente `trashed is False`, e `ContentSafeError` usa `ContentErrorOperation`
+fechado sem refletir identificador textual arbitrário.
+
+Os testes direcionados passaram em **99 testes** e a regressão completa em
+**558 testes**, preservando os 543 anteriores. O warning local conhecido do
+cache pytest permaneceu sem impacto. O catálogo público continua com 20 tools,
+Content com 0 e Write com 0; `mcp.run()` permanece a operação final de
+`server.py`. Não houve chamadas Google/Drive/Gmail/Docs/Sheets/Slides/Directory
+ou MCP funcional, token, DWD, IAM `signJwt`, ADC, mudança Cloud/Admin Console/
+IAM/DWD/scopes/Service Account, staging, commit ou push.
+
+Próximo passo: **FOUNDATION REVIEW V4**, mediante autorização explícita. O
+Write Architecture/Safety Plan permanece preservado e a implementação Write
+continua pausada.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REVIEW V4 — BLOCKED
+
+A revisão adversarial V4 encontrou seis pontos antes do checkpoint:
+**FV4-P0-01** trust root/broker bypass, **FV4-P0-02** fabricação e
+subclassificação de `ContentRuntime`, **FV4-P1-01** execução por adapter,
+client e request normalizado arbitrários, **FV4-P2-01** bypass de subclasses em
+limits/retry, **FV4-P2-02** canal textual em auditoria e **FV4-P3-01** cobertura
+adversarial insuficiente. A Review não alterou arquivos nem executou atividade
+Google.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REMEDIATION PLAN V4 — COMPLETE
+
+O plano definiu o threat model suportado — inputs MCP/runtime não confiáveis e
+API Content suportada — e deixou execução Python arbitrária após comprometimento
+do processo fora do escopo. A remediação selecionou startup composition root,
+runtime concreto sem callable arbitrário, operações HTTP fechadas, normalized
+data-only, validação de limites no consumo e enums de auditoria.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REMEDIATION IMPLEMENT V4 — COMPLETE / SEM COMMIT
+
+Implementada exclusivamente a Remediation V4 local. Foram removidos o
+`_RUNTIME_SUBCLASS_TOKEN`, `_bind_content_runtime` e as fábricas module-level de
+authority. O bootstrap passou a montar a cadeia completa em escopo lexical; o
+runtime aceita somente requests tipados exatos e não expõe componentes,
+executor, client ou setter.
+
+O normalized request deixou de transportar endpoint, método ou query arbitrária.
+O adapter usa host, path, GET, fields, invariantes e parsers derivados das
+operações Drive fechadas. Policies de paginação, contexto e retry são
+revalidadas no consumo; campos de operação de auditoria passaram a exigir
+identificadores fechados; a boundary de resultados tipados e o invariant
+`trashed is False` foram preservados.
+
+A regressão local passou em **558 testes**. Não foram criadas tools Content ou
+Write; o catálogo permanece com 20 tools e `mcp.run()` continua a operação
+final de `server.py`. Não houve chamadas Google/Drive/Gmail/Docs/Sheets/Slides/
+Directory/MCP funcional, token, DWD, IAM `signJwt`, ADC, alteração Cloud/Admin
+Console/IAM/DWD/scopes/Service Account, staging, commit ou push.
+
+Próximo passo: **FOUNDATION REVIEW V5**, mediante autorização explícita. O
+Write Architecture/Safety Plan permanece preservado e a implementação Write
+continua pausada.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION REVIEW V5 — PASS
+
+A revisão independente e adversarial V5 confirmou que os findings relevantes
+V1–V4 estão fechados sob o threat model aprovado: inputs MCP/runtime não
+confiáveis e a API Content suportada. Não foram encontrados P0, P1 ou P2
+bloqueante de checkpoint. A Foundation foi considerada **READY FOR CHECKPOINT**.
+
+Foram confirmados: fachada `ContentRuntime` fechada, bootstrap sem parâmetros
+de provisioning, operações Drive fechadas, request normalizado somente como
+dados, adapter/client não injetável pela API suportada, limites e retry
+revalidados no consumo, resultados tipados, invariant `trashed is False`,
+categorias de auditoria fechadas, barreira somente leitura e isolamento da
+camada Read histórica. A suíte direcionada passou em **99 testes** e a
+regressão completa em **558 testes**. A Review não modificou arquivos e não
+executou atividade Google.
+
+## 14/09/2026 — WORKSPACE CONTENT FOUNDATION CHECKPOINT V1 — COMPLETE / CHECKPOINTED
+
+Este commit registra exclusivamente o checkpoint da Fase 1.5.0 — Architecture
+& Safety. O estado canônico passa a ser:
+
+```text
+Foundation Review V5       = PASS
+open P0                    = 0
+open P1                    = 0
+checkpoint-blocking P2     = 0
+1.5.0 Architecture & Safety = COMPLETE / CHECKPOINTED
+1.5.1 Shared Drive Discovery = PENDING
+```
+
+O checkpoint não implementa tools Content MCP, autenticação Google real,
+Shared Drive Discovery, Gmail ou Write. Content Research Service Account,
+Content DWD, validação funcional Google e alterações de Cloud/Admin Console
+continuam não executados. O threat model V4 permanece preservado: inputs MCP/
+runtime não confiáveis e API Content suportada estão no escopo; execução Python
+arbitrária pós-comprometimento, monkeypatch/introspecção pós-comprometimento,
+debugger/memória e mutação deliberada de closures privadas estão fora do escopo.
+
+O Write Architecture/Safety Plan permanece preservado e a implementação Write
+continua pausada. O próximo estágio 1.5.1 exige autorização explícita separada.

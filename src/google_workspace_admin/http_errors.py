@@ -18,6 +18,17 @@ SAFE_ERROR_CODES = frozenset(
         "RESPONSE_VALIDATION",
         "LOCAL_VALIDATION",
         "UNEXPECTED_LOCAL",
+        "TARGET_SUBJECT_INVALID",
+        "MAILBOX_NOT_ALLOWED",
+        "READ_ONLY_OPERATION_FORBIDDEN",
+        "CONTEXT_LIMIT_EXCEEDED",
+        "QUOTA_EXCEEDED",
+        "CONTENT_NOT_SUPPORTED",
+        "CONTENT_TOO_LARGE",
+        "CONTENT_PARSE_FAILED",
+        "ATTACHMENT_NOT_SUPPORTED",
+        "AMBIGUOUS_RESOURCE",
+        "CONFIRMATION_REQUIRED",
     }
 )
 
@@ -30,6 +41,7 @@ _SAFE_LAYERS = frozenset(
         "response",
         "validation",
         "local",
+        "content",
     }
 )
 

@@ -430,3 +430,138 @@ específica para normalização do repositório.
 Operações de escrita pertencem à FASE 2 e exigem validação adicional,
 confirmação explícita do alvo e salvaguardas contra ação destrutiva. Não
 implemente uma ferramenta de escrita como extensão implícita de uma consulta.
+
+## Fase 1.5 — Foundation Content Implement V1
+
+A Foundation Content é uma camada transversal local, sem chamadas Google e
+sem registro MCP. Ela mantém profiles de autenticação imutáveis, subjects
+canônicos, registry fechado de scopes read-only, guard positivo de operações,
+transport mockável, paginação bounded, limites de contexto, evidência e erros
+seguros.
+
+As operações futuras de Shared Drive (`drive.list`, `drive.get` e
+`drive.files.list`) existem somente como contratos internos. O modo
+`useDomainAdminAccess` permanece explicitamente opt-in, `files.list` usa o
+contrato de um único drive e nenhuma operação aceita método mutável ou
+paginação ilimitada. A Foundation não executa Directory lookup, DWD, IAM
+`signJwt`, troca de token ou HTTP real.
+
+Para testar a Foundation sem alterar a Read Layer atual:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests\test_content_foundation.py
+```
+
+O teste de transporte usa `httpx.MockTransport`; nenhuma rede é necessária.
+
+## Fase 1.5 — Foundation Remediation Implement V1
+
+A remediação deve ser verificada localmente com:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests\test_content_foundation.py tests\test_content_auth_boundary.py tests\test_content_transport_security.py
+.venv\Scripts\python.exe -m pytest -q
+git diff --check
+```
+
+Os testes da Foundation não devem executar rede, Google APIs, DWD, IAM
+`signJwt`, ADC ou MCP funcional. O client de produção não aceita injeção de
+`httpx.Client`; naquele contrato V1 os testes usavam a construção interna
+`_for_test`, removida e superada pela Remediation V3. Não registrar ou exibir
+tokens, JWTs, headers, payloads brutos, corpos de documentos ou queries livres.
+
+O próximo passo da Fase 1.5 é `FOUNDATION REVIEW V2`. Nenhuma tool Shared
+Drive, Gmail ou Write deve ser registrada antes de revisão e autorização
+separadas.
+
+## Fase 1.5 — Foundation Remediation Implement V2
+
+A cadeia local obrigatória para os contratos Content internos é:
+
+```text
+trusted startup provisioning
+  -> ContentProfileRegistry
+  -> RegisteredProfileHandle
+  -> SubjectResolver
+  -> AuthorizedSubjectHandle
+  -> ContentAuthBroker
+  -> AuthorizedOperationContext
+  -> normalized operation
+  -> ContentReadTransport
+  -> typed Drive result
+```
+
+`ContentAuthProfile` e `WorkspaceSubject` são somente dados imutáveis; não
+devem ser passados como autoridade. O runtime seleciona um profile já
+provisionado, o resolver emite a authority do subject e o broker emite o
+contexto da operação. Qualquer contexto fabricado, operação sem broker,
+scope/capability incompatível ou modo administrativo não autorizado deve
+falhar antes de HTTP.
+
+Os contratos `drive.list`, `drive.get` e `drive.files.list` continuam internos
+e não registrados no MCP. `max_items` reduz efetivamente o `pageSize`; uma
+resposta acima do contrato é rejeitada, sem slicing silencioso ou token de
+continuação local. O resultado público da camada Content é tipado e
+allowlistado, sem `dict` Google genérico, headers, corpo de erro ou
+`httpx.Response`.
+
+Os testes devem ser executados localmente com a `.venv`, usando
+`httpx.MockTransport`, sem rede, Google API, DWD, IAM `signJwt`, ADC ou chamada
+MCP funcional. O warning conhecido de criação do cache pytest por permissão
+local não altera o resultado dos testes.
+
+## Fase 1.5 — Foundation Remediation Implement V3
+
+O contrato canônico local passa a ser:
+
+```text
+startup providers internos
+  -> authority kernel em closure
+  -> profile handle sem dados
+  -> subject handle sem dados
+  -> broker context sem dados
+  -> request tipado exato
+  -> operação GET normalizada internamente
+  -> HTTP adapter específico da operação
+  -> DTO tipado allowlistado
+```
+
+O runtime de produção é criado somente por `create_content_runtime()` sem
+argumentos. Como Content Research ainda não foi provisionado, esse bootstrap
+falha de modo seguro antes de HTTP. Nos testes, o harness
+`tests/content_runtime_harness.py` substitui providers/factories antes da
+montagem e usa `httpx.MockTransport`; não existe attach ou substituição do
+client depois que o runtime foi criado.
+
+Validação local desta remediação:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests\test_content_foundation.py tests\test_content_auth_boundary.py tests\test_content_transport_security.py
+.venv\Scripts\python.exe -m pytest -q
+git diff --check
+```
+
+Esses comandos não devem fazer chamadas Google, MCP funcionais, token, DWD,
+IAM `signJwt` ou ADC. O próximo passo é uma Review V4 independente; não
+registre tools Drive antes dessa autorização e revisão.
+
+## Fase 1.5 — Foundation Remediation Implement V4
+
+A Remediation V4 mantém o composition root como único wiring suportado. O
+runtime não possui setters, attach de client, executor substituível ou
+componentes caller-supplied. O harness de testes substitui providers somente
+antes da montagem e continua usando `httpx.MockTransport`.
+
+Os testes V4 devem cobrir runtime fabricado, subclassificação, requests
+normalizados sem destino HTTP, client injection, subclasses de limites/retry,
+ceilings no consumo, campos categóricos de auditoria, resposta tipada e
+invariante estrita de `trashed`. A execução continua exclusivamente local,
+sem Google, Directory, MCP funcional, tokens, DWD, IAM ou ADC.
+
+Boundary documentada:
+
+```text
+IN SCOPE:  untrusted MCP/runtime inputs; supported Content API
+OUT:       arbitrary Python execution/monkeypatch após comprometimento,
+           debugger, memory manipulation e closure mutation deliberada
+```

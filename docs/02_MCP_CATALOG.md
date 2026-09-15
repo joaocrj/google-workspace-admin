@@ -5,6 +5,33 @@ catálogo atual possui 20 ferramentas, todas de leitura. Cada camada de API obt�
 um token para o scope mínimo que ela declara e o servidor serializa uma seleção
 de campos antes de devolver a resposta ao Codex.
 
+## Fase 1.5 — Foundation Content
+
+A Foundation Content Implement V1 é interna e não altera este catálogo. As
+tools `workspace_drives_list`, `workspace_drive_get` e
+`workspace_drive_files_list` permanecem **NOT IMPLEMENTED / NOT REGISTERED**.
+O catálogo público continua com exatamente 20 tools; os contratos de
+operação, transporte, scopes read-only, subjects e limites não são helpers MCP.
+
+A remediação da Foundation adiciona um broker de autorização local, registry
+fechado de profiles provisionados, máscaras internas de campos, filtros
+estruturados com `trashed=false` invariável, caps de paginação por operação e
+transport sem exposição pública de `httpx.Response`. A Remediation V2 exige
+handles emitidos por registry/resolver, contexto emitido pelo broker e
+resultados tipados por operação; nenhum desses componentes é ferramenta MCP.
+O catálogo permanece com 20 ferramentas; Content tools e Write tools
+permanecem em zero.
+
+A Remediation V3 supera o wiring V2: a única superfície operacional futura é
+`ContentRuntime.execute(request tipado)`. Authorities são handles sem dados,
+issuer-bound por membership em closure; registry, resolver, broker, contexto,
+normalização e HTTP adapter ficam capturados pelo runtime. Não existe API
+Content para request/JSON genérico, `httpx.Response`, client attach, método,
+host, endpoint, fields, scope ou capability fornecidos pelo caller. Os três
+contratos Drive permanecem apenas internos e retornam DTOs allowlistados; o
+inventário rejeita também respostas com `trashed` ausente ou diferente de
+`false`.
+
 | Ferramenta | Módulo | Parâmetros e limites | Resultado resumido |
 | --- | --- | --- | --- |
 | `workspace_status` | `server.py` | nenhum | estado e arquitetura de autenticação |
@@ -296,3 +323,20 @@ Warnings, quando presentes, são reduzidos a `warnings_present` e
 `warnings_count`. A REAL VALIDATION V9 foi concluída anteriormente com uma
 única chamada autorizada; os testes desta IMPLEMENT usam mocks e não executam
 nova chamada Google.
+
+## Fase 1.5 — Foundation Remediation Implement V4
+
+A Foundation V4 continua sem tools públicas Content. A única fachada local
+suportada é `ContentRuntime.execute(request tipado)` e `ContentRuntime.close()`;
+nenhum request pode fornecer executor, client, adapter, broker, resolver,
+authority, host, endpoint, método, scope ou fields.
+
+Os contratos internos `drive.list`, `drive.get` e `drive.files.list` derivam
+host, path, método GET, fields, filtros, invariantes e parser de uma identidade
+fechada de operação. Resultados continuam DTOs allowlistados e
+`drive.files.list` exige `trashed is False` estrito. Policies de paginação,
+contexto e retry são verificadas novamente no ponto de consumo; subclasses e
+objetos duck-typed de segurança falham fechado.
+
+O catálogo permanece com exatamente 20 tools, Content tools = 0 e Write tools
+= 0. Nenhuma tool Drive, Gmail ou outra Content foi registrada.

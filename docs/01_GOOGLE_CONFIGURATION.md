@@ -268,3 +268,89 @@ ferramentas dependentes e exige autorização explícita do usuário.
   manualmente para esta validação. Qualquer alteração futura na DWD continua
   sujeita a solicitação prévia e execução manual do usuário.
 - Não permitir que a chamada MCP escolha livremente quem será impersonado.
+
+## Fase 1.5 — Foundation local
+
+A Foundation Content Implement V1 adiciona somente contratos locais e
+allowlists internas para uma futura Content Layer. Ela **não** adiciona
+scopes ao inventário DWD operacional, não cria Service Account, não habilita
+APIs e não altera IAM, ADC ou Admin Console.
+
+Os profiles read-only verificados para uso futuro são mantidos no código como
+contratos fechados: Drive discovery, Drive metadata, Docs, Sheets, Slides,
+Gmail metadata e Gmail content. A presença desses valores no registry local
+não significa que estejam autorizados no Google Cloud/DWD.
+
+## Fase 1.5 — Foundation Remediation Implement V1
+
+A remediação permanece exclusivamente local. O `ContentAuthBroker` aceita
+somente authorities emitidas pelo registry/resolver — profile handle, subject
+handle e capability context — e não objetos de configuração ou argumentos MCP.
+O registry é populado por configuração administrativa de startup e não por
+argumentos MCP. Nenhum token, JWT, chamada DWD, mudança de scope, Service
+Account Content ou alteração de Admin Console foi executado.
+
+Os limites `DEFAULT_PAGE_SIZE`, `CONTENT_HARD_CAP` e
+`MAX_ITEMS_PER_INVOCATION` são políticas internas de segurança. Eles não
+substituem os limites oficiais de API, mantidos separadamente como
+`API_MAX_PAGE_SIZE`. O transport de Content usa endpoints fixos, client de
+produção controlado, redirects desativados e client mockável somente em testes.
+
+O estado externo continua pendente: Content Research Service Account/DWD não
+foi criado, nenhuma API Content foi habilitada ou validada funcionalmente e a
+validação real RV1 de Shared Drive não foi executada.
+
+## Fase 1.5 — Foundation Remediation Implement V2
+
+A remediação V2 tornou obrigatória a cadeia local
+`registered profile handle → authorized subject handle → broker-issued
+operation context → typed result`. `ContentAuthProfile` e `WorkspaceSubject`
+continuam sendo objetos de dados, não authorities; provenance é verificada por
+membership/issuer em runtime. O transport não aceita client arbitrário pelo
+construtor público, não expõe JSON genérico e mantém redirects desativados.
+
+Foram adicionados ceilings absolutos de contexto, enforcement operacional de
+`max_items`, retry conservador (400/401/403/404 nunca repetidos) e resultados
+allowlistados para os três contratos Drive internos. Isso continua sendo
+somente infraestrutura local: Content SA/DWD, scopes no Google Cloud, APIs e
+validação funcional permanecem não executados.
+
+## Fase 1.5 — Foundation Remediation Implement V3
+
+A remediação V3 substitui a provenance baseada em atributos e coleções de
+issuer por handles sem dados e membership fraca por identidade, mantida em
+closures exclusivas de cada runtime. Profiles, subjects e contextos fabricados,
+copiados ou emitidos por outro runtime não adquirem autoridade. Registry,
+resolver, broker, normalização e HTTP adapter são montados no composition root
+e não são parâmetros de uma operação Content.
+
+`create_content_runtime()` não aceita configuração, Service Account, customer,
+auditor, scopes, resolver, broker, transport ou client. Enquanto a futura
+configuração Content Research não existir, o bootstrap de produção falha
+localmente como não provisionado, antes de criar client ou executar HTTP. Os
+testes substituem providers internos somente antes da montagem e usam
+`httpx.MockTransport`; o runtime pronto não oferece setter/attach de client ou
+de componentes.
+
+Nada nesta arquitetura configura ou valida Google: Content Research Service
+Account, DWD, scopes, APIs, privilégios, tokens e Drive RV1 continuam ausentes
+e dependem de entrega manual futura expressamente autorizada. A arquitetura
+histórica Read `ADC -> IAM signJwt -> DWD -> OAuth` não foi modificada.
+
+## Fase 1.5 — Foundation Remediation Implement V4
+
+A Remediation V4 reduziu a superfície local de composição: o único caminho
+suportado para montar o runtime é o startup composition root. `ContentRuntime`
+não aceita executor, broker, resolver, registry, adapter, client, profile ou
+scope fornecido pelo caller. As operações Drive continuam fechadas, GET-only,
+com host, path, fields e invariantes derivados internamente.
+
+O threat model suportado cobre inputs MCP/runtime não confiáveis e a API
+Content suportada. Execução arbitrária de Python dentro do processo,
+monkeypatch/introspecção após comprometimento, debugger, manipulação de memória
+e alteração deliberada de closures permanecem fora da boundary e não são
+tratados como isolamento de processo.
+
+Nenhum Content Service Account, DWD, scope, API, token ou validação Google foi
+criado ou executado. A autenticação histórica Read `ADC -> IAM signJwt -> DWD
+-> OAuth` permanece inalterada.

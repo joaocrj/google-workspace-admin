@@ -1,6 +1,6 @@
 # Andamento das fases
 
-Última consolidação documental: **13/09/2026 — READ LAYER CONSOLIDATION CHECKPOINT / COMMIT V1 / COMPLETE**. Esta árvore é a fonte
+Última consolidação documental: **14/09/2026 — WORKSPACE CONTENT FOUNDATION CHECKPOINT V1 / COMPLETE**. Esta árvore é a fonte
 persistente do roadmap/status e combina o estado do código em `master`, os
 commits e o inventário de validações fornecido pelo usuário. Atualize-a no
 mesmo change set de qualquer avanço. Evidência de produção deve registrar
@@ -24,12 +24,16 @@ REVIEW/CHECKPOINT → COMMIT`.
 Nenhuma feature será considerada documentalmente concluída enquanto sua
 posição/status correspondente não estiver refletida nesta árvore.
 
-**Ponteiro atual: STOP — READ LAYER CONSOLIDATION COMPLETE; próxima fase não iniciada.** O FINAL REVIEW V1 ficou
+**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0 ARCHITECTURE & SAFETY COMPLETE / CHECKPOINTED; FOUNDATION REVIEW V5 PASS; Drive RV1 não iniciada.** O FINAL REVIEW V1 ficou
 preservado como histórico bloqueado pelos achados FR-01 a FR-04, apesar de
 **411 testes aprovados** naquele momento. O FINAL REVIEW V2 confirmou os quatro
 achados corrigidos/verificados, **459 testes aprovados**, catálogo com 20 tools,
 diff limpo e ausência de chamadas Google. O CHECKPOINT / COMMIT V1 é registrado
 neste commit; nenhuma próxima fase foi iniciada.
+Esse parágrafo preserva o histórico da consolidação anterior da camada Read;
+o estado canônico corrente da Foundation Content está na árvore detalhada
+abaixo, que preserva Reviews V1–V4 bloqueadas, Remediations V1–V4 e Review V5
+aprovada.
 Source Discovery DIAG V1,
 Host Remediation FINAL PLAN V2, R2 Manual Lifecycle e a REAL GOOGLE CALL V9
 histórica foram concluídos. O PLAN V1 e o IMPLEMENT V1 da Consolidação da
@@ -661,3 +665,297 @@ HEAD permaneceu no baseline; staging, commit e push: **0**.
 
 Ao executar a suíte novamente, acrescente uma evidência com data e contagem
 atuais; não apague o contexto histórico sem uma razão.
+
+## FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS — ROADMAP CURRENT
+
+```text
+FASE 1 — READ ADMIN                                        ✅ CONCLUÍDO
+│
+├── Directory / Calendar Resources / Reports                ✅ CONCLUÍDO
+└── READ LAYER CONSOLIDATION                                ✅ CONCLUÍDO — 459 testes
+
+FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS                ← EM ANDAMENTO
+│
+├── Architecture PLAN V1                                    ✅ CONCLUÍDO
+├── Official Google Verification V1                          ✅ CONCLUÍDO / PASS
+├── Foundation Implement V1                                  ✅ CONCLUÍDO — 487 testes
+├── Foundation Review V1                                     ⚠️ BLOQUEADO — FR-P0 a FR-P3 preservados
+├── Foundation Remediation Plan V1                           ✅ CONCLUÍDO
+├── Foundation Remediation Implement V1                      ✅ CONCLUÍDO — 518 testes
+├── Foundation Review V2                                     ⚠️ BLOQUEADO — FV2-P0 a FV2-P3 preservados
+├── Foundation Remediation Plan V2                           ✅ CONCLUÍDO
+├── Foundation Remediation Implement V2                       ✅ CONCLUÍDO / SEM COMMIT — 543 testes
+├── Foundation Review V3                                     ⚠️ BLOQUEADO — FV3-P0 a FV3-P3 preservados
+├── Foundation Remediation Plan V3                           ✅ CONCLUÍDO
+├── Foundation Remediation Implement V3                      ✅ CONCLUÍDO / SEM COMMIT — 558 testes
+├── Foundation Review V4                                     ⚠️ BLOQUEADO — FV4-P0 a FV4-P3 preservados
+├── Foundation Remediation Plan V4                           ✅ CONCLUÍDO
+├── Foundation Remediation Implement V4                      ✅ CONCLUÍDO / SEM COMMIT — 558 testes
+├── Foundation Review V5                                     ✅ CONCLUÍDO — PASS / P0=0, P1=0, P2 bloqueante=0
+├── Foundation Checkpoint V1                                ✅ CONCLUÍDO / CHECKPOINTED — commit deste change set
+├── 1.5.1 Shared Drive Discovery                             ⬜ PENDENTE — autorização explícita necessária
+├── Shared Drive Discovery / bounded Inventory               ⬜ PENDENTE — Drive RV1
+├── Google-native Content                                   ⬜ PENDENTE
+├── Downloaded-file Extraction                              ⬜ PENDENTE
+├── Gmail mailbox validation / Search                        ⬜ PENDENTE
+├── Gmail message / Thread / Attachment Content              ⬜ PENDENTE
+├── Cross-Workspace Research / Evidence                      ⬜ PENDENTE
+├── Retrieval optimization / indexing                        ⬜ PENDENTE
+└── Content Read Consolidation                              ⬜ PENDENTE
+
+FASE 2 — WRITE / ADMINISTRATION                             ⬜ FUTURO
+├── WRITE-LAYER-ARCHITECTURE-SAFETY-PLAN-V1                  ✅ PRESERVED
+└── IMPLEMENTATION                                          ⚠️ PAUSED
+```
+
+### Foundation Implement V1
+
+Implementação local concluída sem alterar o Read Layer existente:
+
+- `content/auth/`: `ContentAuthProfile`, `WorkspaceSubject`, subject resolver
+  protocol, closed scope registry e Content cache-key contract;
+- `content/policy.py`: validação de customer, domínio, status e identidade;
+- `content/operations.py`: allowlist positiva para `drive.list`, `drive.get` e
+  `drive.files.list`, sem funções MCP;
+- `content/transport.py`: `ContentReadTransport` mockável, GET-only, timeout,
+  validação segura e retry bounded opt-in;
+- `content/limits.py`: paginação e limites de bytes/caracteres/chunks;
+- `content/evidence.py` e `content/audit.py`: referências determinísticas e
+  eventos pseudonimizados, sem persistência;
+- `http_errors.py`: códigos Content seguros integrados ao contrato existente;
+- `tests/test_content_foundation.py`: 28 testes transversais;
+- suíte completa: **487 passed = 459 baseline + 28 Foundation**;
+- catálogo público: **20 tools**, Content tools: **0**;
+- `server.py`, `config.py`, DWD, ADC e registration: preservados.
+
+### Architecture PLAN V1 — decisões C1–C20 preservadas
+
+| Decisão | Recomendação registrada | Consequência de implementação |
+| --- | --- | --- |
+| C1 | Content Layer exclusivamente Read/Audit | GET-only, scopes read-only e guard positivo |
+| C2 | Auditor fixo `suporte.ti@cevalente.com.br` | auditor é política da aplicação; subject é separado |
+| C3 | Subject dinâmico somente após Directory validation | JWT `sub` futuro será primary email canônico |
+| C4 | Fan-out multi-mailbox explícito e bounded | confirmação de abrangência, batching, cancelamento |
+| C5 | `drives_list`, `drive_get`, `drive_files_list` | `driveId` explícito; nenhum dump implícito |
+| C6 | superfície Gmail mínima Read-only | `gmail.readonly` para conteúdo; metadata separado |
+| C7 | APIs nativas antes de exportação/parsing | Docs/Sheets/Slides estruturados |
+| C8 | payload/chunks explícitos | sem unlimited content ou auto-pagination |
+| C9 | evidência mínima e rastreável | IDs, locators e referências, não payload bruto |
+| C10 | minimização de PII/sensitive data | redaction, no raw dump, no local persistence default |
+| C11 | retry somente Content Read idempotente | política separada do Write Layer |
+| C12 | on-demand retrieval primeiro | índices full-text/vector deferred |
+| C13 | audit event sanitizado | timestamp, operação, alvo pseudônimo, contagem, erro seguro |
+| C14 | scopes mínimos read-only | registry fechado; nenhuma lista arbitrária |
+| C15 | Content Research SA/DWD separado | recomendado; sem provisionamento nesta entrega |
+| C16 | primeiro vertical Shared Drive | discovery + bounded inventory |
+| C17 | primeiro delivery D2 | `drives_list` + `drive_get` + `drive_files_list` |
+| C18 | Real Validation incremental | RV1–RV9; nenhuma executada nesta entrega |
+| C19 | sequência por camadas | foundation → Drive → native content → Gmail → research |
+| C20 | deployment remoto deferido | local stdio permanece atual |
+
+### Official Google Verification V1 — fatos e pendências preservados
+
+Fatos verificados oficialmente: Drive API v3; `drives.list` com
+`drive.readonly`; `files.list` bounded com `corpora=drive`, `driveId`,
+`includeItemsFromAllDrives=true`, `supportsAllDrives=true`, `spaces=drive` e
+`trashed=false`; `fullText` é busca indexada do Drive, não semantic/vector
+search; DWD usa email do usuário no `sub`; Docs/Sheets/Slides possuem APIs
+read-only estruturadas; Gmail `gmail.readonly` cobre leitura de mensagens,
+threads e attachments; Gmail não oferece endpoint documentado de pesquisa
+domain-wide; Vault é arquitetura separada.
+
+Permanecem `OFFICIAL DOC VERIFICATION REQUIRED` / `REQUIRES REAL VALIDATION`:
+
+- estado real de APIs, DWD, scopes, privilégios e customer ID;
+- comportamento de subjects suspensos, arquivados, excluídos, aliases e
+  identidades externas;
+- lifecycle definitivo de `driveId`, cobertura completa de `fullText`, limites
+  de download e matriz de export MIME;
+- limites de payload de Docs/Slides, MIME edge cases de Gmail e `Retry-After`;
+- acesso real ao Shared Drive e quotas efetivas do projeto.
+
+### FOUNDATION REVIEW V1 — 14/09/2026
+
+Resultado: **BLOCKED**. Foram preservados os achados FR-P0-01 a FR-P3-02:
+broker Content ausente, provisioning não confiável, field masks e caps de
+paginação/retry incompletos, exposição de `httpx.Response`, `q` livre,
+mailbox readiness sem capability, client HTTP injetável e modelos de
+evidência/auditoria com campos livres. Nenhuma correção foi feita no review.
+
+### FOUNDATION REMEDIATION PLAN V1 — 14/09/2026
+
+**COMPLETE.** O plano selecionou broker separado da DWD histórica, factory +
+registry fechado, field masks internas, caps por operação, filtros
+estruturados, client controlado e HMAC para pseudonimização. Shared Drive,
+Gmail, Directory resolver real e aquisição de token permaneceram fora do
+escopo.
+
+### FOUNDATION REMEDIATION IMPLEMENT V1 — 14/09/2026
+
+**COMPLETE / SEM COMMIT.** FR-P0-01, FR-P0-02, FR-P1-01 a FR-P1-04,
+FR-P2-01 a FR-P2-04 e FR-P3-01/FR-P3-02 foram remediados localmente. O
+resultado foi verificado com testes direcionados e regressão completa. O
+broker não gera token; o registry não pressupõe Content SA/DWD; o transport
+não executa requests nos testes; nenhuma tool MCP foi adicionada.
+
+Próximo passo obrigatório: **FOUNDATION REVIEW V2**. O checkpoint/commit está
+pendente de autorização e de Review V2 aprovado.
+
+### FOUNDATION REVIEW V2 — 14/09/2026
+
+Resultado preservado: **BLOCKED**. A revisão independente encontrou resíduos
+de provenance de profile/subject, bypass operation→transport, `max_items`
+meramente declarativo, mailbox readiness não aplicada pelo broker, payload JSON
+genérico, retry classificável pelo caller, ausência de ceiling absoluto de
+contexto e cobertura adversarial insuficiente. Nenhuma correção foi executada
+na Review V2.
+IDs preservados: **FV2-P0-01**, **FV2-P0-02**, **FV2-P1-01**,
+**FV2-P1-02**, **FV2-P1-03**, **FV2-P2-01**, **FV2-P2-02** e
+**FV2-P3-01**; os resíduos relacionados **FR-P0-01**, **FR-P0-02**,
+**FR-P1-02**, **FR-P1-03**, **FR-P2-02** e **FR-P3-01** também permanecem
+registrados no histórico da remediação.
+
+### FOUNDATION REMEDIATION PLAN V2 — 14/09/2026
+
+**COMPLETE.** O plano selecionou authorities opacas vinculadas ao issuer,
+provenance verificada por membership, broker obrigatório, matriz fechada de
+capabilities, resultados Drive tipados, enforcement de `max_items`, retry
+conservador e ceilings absolutos. Directory lookup real, token broker Google,
+Shared Drive MCP tools, Gmail e Write permanecem fora do escopo.
+
+### FOUNDATION REMEDIATION IMPLEMENT V2 — 14/09/2026
+
+**COMPLETE / SEM COMMIT.** A cadeia `profile handle → subject handle → broker
+context → transport → typed result` foi aplicada localmente. Os contratos
+internos de `drive.list`, `drive.get` e `drive.files.list` continuam GET-only,
+com field masks fechadas, `trashed=false`, paginação de uma página e sem
+continuação inventada. `max_items` participa do `pageSize`; respostas acima
+do limite são rejeitadas. O transport mantém client de produção controlado,
+redirects desativados e MockTransport somente no wiring de testes.
+
+Os testes direcionados da Foundation passaram em **84 testes** e a regressão
+completa passou em **543 testes** (518 preexistentes preservados + 25 testes
+adicionais desta remediação). `server.py`, `config.py`, DWD histórico e
+registro MCP permaneceram intactos; catálogo público: 20 tools, Content: 0,
+Write: 0. Nenhuma chamada Google, token, DWD, IAM `signJwt`, alteração Cloud,
+Admin Console, scope, Service Account, staging, commit ou push foi executada.
+
+Próximo passo obrigatório: **FOUNDATION REVIEW V3**. O checkpoint/commit não
+é permitido antes da revisão independente e de autorização explícita.
+
+### FOUNDATION REVIEW V3 — 14/09/2026
+
+Resultado preservado: **BLOCKED**. A revisão adversarial identificou authority
+baseada em estado de issuer mutável, possibilidade de bypass por
+subclass/duck typing, caminhos internos que ainda devolviam
+`httpx.Response`/JSON genérico, injeção de client fora de harness isolado,
+aceitação de `trashed=true` no resultado tipado, identificador textual livre
+em erros Content e cobertura adversarial incompleta. Nenhuma correção foi
+executada na Review V3.
+
+IDs preservados: **FV3-P0-01**, **FV3-P0-02**, **FV3-P1-01**,
+**FV3-P1-02**, **FV3-P2-01**, **FV3-P2-02** e **FV3-P3-01**; os resíduos
+relacionados **FR-P0-01**, **FR-P0-02**, **FR-P1-04**, **FR-P2-01**,
+**FR-P2-03** e **FR-P3-01** também permanecem registrados no histórico.
+
+### FOUNDATION REMEDIATION PLAN V3 — 14/09/2026
+
+**COMPLETE.** O plano selecionou kernel de authority lexicalmente encapsulado,
+handles opacos sem dados, membership fraco por identidade e sentinel oculto;
+bootstrap sem parâmetros, runtime selado, adapter HTTP específico por operação,
+resultados tipados e identificadores fechados de erro. Processo isolado,
+autenticação Google real, Directory lookup e tools MCP permaneceram fora do
+escopo.
+
+### FOUNDATION REMEDIATION IMPLEMENT V3 — 14/09/2026
+
+**COMPLETE / SEM COMMIT.** A autoridade local passou a ser emitida e verificada
+por um kernel closure-owned capturado pelo runtime. Handles fabricados,
+copiados ou oriundos de outro runtime não autorizam. `ContentRuntime.execute()`
+é a única fachada operacional; profile, resolver, broker, contexto e adapter
+HTTP permanecem internos e não substituíveis pela API suportada. O bootstrap
+de produção não aceita parâmetros e falha fechado enquanto o provisioning real
+não existe.
+
+Os antigos caminhos `_request()`, `_request_json()`, `_for_test()` e
+`_attach_internal_client()` foram removidos. Cada contrato Drive Foundation
+executa GET fixo, parseia a resposta diretamente para DTO específico e não
+expõe response, headers, body ou JSON genérico. `drive.files.list` exige
+`trashed is False` também na resposta. Erros Content usam operação fechada e
+não refletem texto fornecido pelo caller.
+
+Os testes direcionados passaram em **99 testes** e a regressão completa passou
+em **558 testes**, preservando os 543 testes anteriores. O catálogo público
+permanece com 20 tools; Content: 0; Write: 0. Nenhuma chamada Google, Drive,
+Gmail, Docs, Sheets, Slides, Directory ou MCP funcional; nenhum token, DWD,
+IAM `signJwt`, ADC, alteração Cloud/Admin Console/IAM/scope/Service Account,
+staging, commit ou push foi executado.
+
+Próximo passo obrigatório: **FOUNDATION REVIEW V4**. O checkpoint/commit
+continua pendente de revisão independente aprovada e autorização explícita.
+
+### FOUNDATION REVIEW V4 — 14/09/2026
+
+Resultado: **BLOCKED**. A revisão independente identificou trust root e broker
+alternativos, fabricação/subclassificação de `ContentRuntime`, execução por
+adapter/client/request normalizado arbitrário, bypass de subclasses em limites
+e retry, canal textual em auditoria e cobertura adversarial insuficiente.
+
+IDs preservados: **FV4-P0-01**, **FV4-P0-02**, **FV4-P1-01**,
+**FV4-P2-01**, **FV4-P2-02** e **FV4-P3-01**. Nenhuma correção foi executada
+na Review V4.
+
+### FOUNDATION REMEDIATION PLAN V4 — 14/09/2026
+
+**COMPLETE.** O plano delimitou a boundary suportada a inputs MCP/runtime e à
+API Content, reconheceu execução Python arbitrária como fora do threat model,
+removeu o binder de callable, fechou a operação HTTP, moveu a composição para o
+startup root, revalidou limites no consumo e fechou categorias de auditoria.
+
+### FOUNDATION REMEDIATION IMPLEMENT V4 — 14/09/2026
+
+**COMPLETE / SEM COMMIT.** A implementação removeu o runtime subclass token e o
+`_bind_content_runtime`, eliminou fábricas module-level de authority, tornou o
+normalized request data-only e fez o adapter reconstruir host/path/método/query
+a partir de operações Drive fechadas. `ContentRuntime` agora é uma façade
+concreta montada por services internos, sem setters, attach de client ou
+executor caller-supplied.
+
+Policies de paginação, contexto e retry passaram a rejeitar subclasses e a
+revalidar hard caps no consumo. `AuditScopeSummary.operation` e
+`AuditEvent.operation` usam identificadores fechados. Resultados continuam
+tipados, `trashed is False` continua obrigatório e não há caminho operacional
+para response/JSON genérico.
+
+O threat model registrado é:
+
+```text
+IN SCOPE:  untrusted MCP/runtime inputs; supported Content API
+OUT:       arbitrary Python execution inside the MCP process,
+           post-compromise monkeypatch/introspection, debugger/memory
+           manipulation e deliberate closure mutation
+```
+
+A suíte local passou em **558 testes** após a implementação. O catálogo
+permanece com 20 tools, Content = 0 e Write = 0. Nenhuma chamada Google,
+Directory, Drive, Gmail, Docs, Sheets, Slides ou MCP funcional foi realizada;
+nenhum token, DWD, IAM `signJwt`, ADC, alteração administrativa, staging,
+commit ou push foi executado.
+
+Próximo passo obrigatório: **FOUNDATION REVIEW V5**. O checkpoint/commit
+continua pendente de revisão independente aprovada e autorização explícita.
+
+### P0 resolution matrix
+
+| Finding | Estado após verificação/foundation | Bloqueio restante |
+| --- | --- | --- |
+| F-P0-01 APIs/scopes/DWD | contratos oficiais verificados; estado externo não alterado | bloqueia primeiro Drive/Gmail até setup manual e RV |
+| F-P0-02 subject/scopes arbitrários | boundary, profile, validator e registry implementados | Directory-backed resolver e token broker ainda pendentes |
+| F-P0-03 mutation barrier | guard positivo, GET-only transport e registry implementados | deve ser preservado em cada futura tool |
+
+### Manual Google changes and validation
+
+Nenhuma mudança manual foi executada nesta entrega. Content SA/DWD não foi
+criado, scopes não foram adicionados, APIs não foram habilitadas e Drive RV1
+não foi executada. A próxima implementação autorizada deverá sincronizar o
+setup manual e o resultado de RV1 antes de registrar qualquer tool Content.
