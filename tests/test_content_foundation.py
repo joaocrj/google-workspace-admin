@@ -280,7 +280,7 @@ def test_audit_event_is_sanitized_and_hmac_pseudonymous():
         target_pseudonym=first,
         scope_summary=AuditScopeSummary(
             operation=ContentAuditOperation.DRIVE_FILES_LIST,
-            scope_profile=ApprovedScopeProfile.DRIVE_METADATA,
+            scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
             target_kind=AuditTargetKind.DRIVE,
             extent=AuditExtent.SINGLE_PAGE,
         ),
@@ -335,10 +335,13 @@ def test_content_safe_error_operation_is_closed_and_does_not_reflect_free_text()
 
 
 @pytest.mark.anyio
-async def test_mcp_boundary_has_twenty_read_tools_and_two_content_tools():
+async def test_mcp_boundary_has_twenty_read_tools_and_three_content_tools():
     async with Client(server.mcp, raise_exceptions=True) as client:
         tools = await client.list_tools()
     names = {tool.name for tool in tools.tools}
-    assert len(names) == len(tools.tools) == 22
-    assert {"workspace_drives_list", "workspace_drive_get"} <= names
-    assert "workspace_drive_files_list" not in names
+    assert len(names) == len(tools.tools) == 23
+    assert {
+        "workspace_drives_list",
+        "workspace_drive_get",
+        "workspace_drive_files_list",
+    } <= names

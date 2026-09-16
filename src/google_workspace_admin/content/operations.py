@@ -9,7 +9,6 @@ from types import MappingProxyType
 from google_workspace_admin.content.auth.handles import _OperationAuthority
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
-from google_workspace_admin.content.filters import DriveFilesFilter
 from google_workspace_admin.content.limits import PaginationBounds, PaginationRequest
 
 
@@ -45,13 +44,12 @@ class DriveFilesListRequest:
     page_size: object | None = None
     page_token: object | None = None
     max_items: object | None = None
-    filters: DriveFilesFilter | None = None
 
 
 DRIVE_LIST_FIELDS = "nextPageToken,drives(id,name)"
 DRIVE_GET_FIELDS = "id,name"
 DRIVE_FILES_LIST_FIELDS = (
-    "nextPageToken,files(id,name,mimeType,parents,modifiedTime,trashed,driveId)"
+    "nextPageToken,files(id,name,mimeType,modifiedTime,size,parents,trashed)"
 )
 
 DRIVE_LIST_PAGINATION = PaginationBounds(
@@ -89,7 +87,6 @@ class _NormalizedOperationRequest:
     drive_id: str | None
     page_size: int | None
     page_token: str | None
-    filters: DriveFilesFilter | None
     response_item_limit: int | None
     admin_mode: bool
 
@@ -124,7 +121,7 @@ _CONTRACTS = MappingProxyType(
             ContentOperation.DRIVE_FILES_LIST,
             "GET",
             f"{_DRIVE_API_ROOT}/files",
-            ApprovedScopeProfile.DRIVE_METADATA,
+            ApprovedScopeProfile.DRIVE_DISCOVERY,
             "drive.files.list",
             False,
             DRIVE_FILES_LIST_PAGINATION,
@@ -196,11 +193,48 @@ def _require_nonempty_string(
     return normalized
 
 
+def _require_drive_id(value: object) -> str:
+    normalized = _require_nonempty_string(value, max_length=256)
+    folded = normalized.casefold()
+    if (
+        "://" in normalized
+        or folded.startswith(
+            ("http:", "https:", "drive.google.com/", "www.googleapis.com/")
+        )
+    ):
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.OPERATION_NORMALIZATION,
+        )
+    return normalized
+
+
 def _require_bool(value: object) -> bool:
     if type(value) is not bool:
         raise ContentSafeError(
             code="LOCAL_VALIDATION",
             operation=ContentErrorOperation.OPERATION_NORMALIZATION,
+        )
+    return value
+
+
+def _require_opaque_page_token(value: object) -> str | None:
+    if value is None:
+        return None
+    if type(value) is not str or not value:
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.PAGINATION,
+        )
+    if any(
+        character.isspace()
+        or ord(character) < 32
+        or 0x7F <= ord(character) <= 0x9F
+        for character in value
+    ):
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.PAGINATION,
         )
     return value
 
@@ -251,7 +285,6 @@ def _normalize_verified_operation_request(
     drive_id: str | None = None
     page_size: int | None = None
     page_token: str | None = None
-    filters: DriveFilesFilter | None = None
 
     if operation is ContentOperation.DRIVE_LIST:
         pagination = _pagination(
@@ -266,21 +299,16 @@ def _normalize_verified_operation_request(
     elif operation is ContentOperation.DRIVE_GET:
         drive_id = _require_nonempty_string(request.drive_id, max_length=256)
     elif operation is ContentOperation.DRIVE_FILES_LIST:
-        drive_id = _require_nonempty_string(request.drive_id)
-        if request.filters is not None and type(request.filters) is not DriveFilesFilter:
-            raise ContentSafeError(
-                code="LOCAL_VALIDATION",
-                operation=ContentErrorOperation.DRIVE_FILTER,
-            )
+        drive_id = _require_drive_id(request.drive_id)
+        page_token = _require_opaque_page_token(request.page_token)
         pagination = _pagination(
             contract,
             page_size=request.page_size,
-            page_token=request.page_token,
+            page_token=page_token,
             max_items=request.max_items,
         )
         page_size = pagination.effective_page_size
         page_token = pagination.page_token
-        filters = request.filters or DriveFilesFilter()
         response_item_limit = pagination.effective_page_size
 
     return _NormalizedOperationRequest(
@@ -288,7 +316,6 @@ def _normalize_verified_operation_request(
         drive_id=drive_id,
         page_size=page_size,
         page_token=page_token,
-        filters=filters,
         response_item_limit=response_item_limit,
         admin_mode=use_admin,
     )

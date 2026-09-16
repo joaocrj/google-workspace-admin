@@ -54,8 +54,8 @@ _RULES = MappingProxyType(
         ),
         "drive.files.list": OperationCapabilityRule(
             operation="drive.files.list",
-            capability=ContentCapability.DRIVE_METADATA,
-            scope_profile=ApprovedScopeProfile.DRIVE_METADATA,
+            capability=ContentCapability.DRIVE_DISCOVERY,
+            scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
             subject_capability=SubjectCapability.DRIVE,
             admin_capability=AdminCapability.NONE,
         ),

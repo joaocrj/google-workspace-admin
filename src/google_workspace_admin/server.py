@@ -63,8 +63,18 @@ from google_workspace_admin.http_errors import (
 from google_workspace_admin.content import config as content_config
 from google_workspace_admin.content.bootstrap import create_content_runtime
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
-from google_workspace_admin.content.operations import DriveGetRequest, DriveListRequest
-from google_workspace_admin.content.results import DriveGetResult, DriveListPage
+from google_workspace_admin.content.operations import (
+    DriveFilesListRequest,
+    DriveGetRequest,
+    DriveListRequest,
+)
+from google_workspace_admin.content.results import (
+    DriveFileInventoryItem,
+    DriveFileInventoryPage,
+    DriveFileListPage,
+    DriveGetResult,
+    DriveListPage,
+)
 
 mcp = MCPServer(
     name="Google Workspace Admin",
@@ -119,6 +129,28 @@ def _serialize_content_drive_get(result: object) -> dict:
             "name": result.drive.name,
         }
     }
+
+
+def _serialize_content_drive_files_list(page: object) -> DriveFileInventoryPage:
+    if type(page) is not DriveFileListPage:
+        raise ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.RESPONSE_DRIVE_FILES_LIST,
+        )
+    return DriveFileInventoryPage(
+        files=[
+            DriveFileInventoryItem(
+                file_id=file.file_id,
+                name=file.name,
+                mime_type=file.mime_type,
+                modified_time=file.modified_time,
+                size=file.size,
+                parents=list(file.parents),
+            )
+            for file in page.items
+        ],
+        next_page_token=page.next_page_token,
+    )
 
 
 def _extract_page(
@@ -1801,6 +1833,40 @@ def workspace_drive_get(
             code="UNEXPECTED_LOCAL",
             layer="local",
             operation="drive.get",
+        ) from None
+
+
+@mcp.tool()
+def workspace_drive_files_list(
+    drive_id: StrictStr,
+    page_size: StrictInt = 100,
+    page_token: StrictStr | None = None,
+    max_items: StrictInt = 500,
+) -> DriveFileInventoryPage:
+    """Lista uma página bounded de metadados de arquivos de um Shared Drive."""
+
+    try:
+        profile_id, delegated_subject = _content_identity()
+        result = _execute_content(
+            DriveFilesListRequest(
+                profile_id=profile_id,
+                user_key=delegated_subject,
+                drive_id=drive_id,
+                page_size=page_size,
+                page_token=page_token,
+                max_items=max_items,
+            )
+        )
+        return _serialize_content_drive_files_list(result)
+    except ContentSafeError:
+        raise
+    except SafeOperationError:
+        raise
+    except Exception:
+        raise SafeOperationError(
+            code="UNEXPECTED_LOCAL",
+            layer="local",
+            operation="drive.files.list",
         ) from None
 
 

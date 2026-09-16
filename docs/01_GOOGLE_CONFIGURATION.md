@@ -478,3 +478,26 @@ OAuth → Drive API` passou, retornou um Shared Drive e indicou token de próxim
 página, sem retry, paginação adicional, mutação ou exposição de valor sensível.
 Esta evidência valida a configuração operacional sem registrar IDs, nomes,
 tokens, JWTs, cabeçalhos ou resposta bruta.
+
+## Fase 1.5.2 — Drive File Inventory — IMPLEMENT V1 local
+
+`workspace_drive_files_list` reutiliza integralmente o profile operacional
+Content `DRIVE_DISCOVERY`, que resolve somente para
+`https://www.googleapis.com/auth/drive.readonly`. A regra interna anterior de
+`drive.files.list`, que apontava para `DRIVE_METADATA` /
+`drive.metadata.readonly`, foi alinhada ao profile já provisionado; nenhum
+scope, DWD, Service Account, IAM grant, API ou variável de ambiente foi criado
+ou alterado.
+
+O caminho permanece `ADC -> IAM signJwt -> Content Research SA -> DWD -> OAuth
+-> Drive API`. As mesmas cinco variáveis process-only de 1.5.1 continuam sendo
+o contrato completo de configuração. O inventário não expõe subject, profile,
+scope ou admin mode. `useDomainAdminAccess` não é parâmetro de `files.list` e
+permanece ausente da tool.
+
+Esta entrega executou os testes locais com fakes e `httpx.MockTransport` e,
+posteriormente, a RV2 autorizada pelo MCP hospedado: Google activity adicional
+= 0 e ADC activity = 0. `REAL VALIDATION = PASS`; a execução limitou-se a obter um
+`drive_id` pela tool existente e executar uma única página bounded do
+inventário, sem registrar o ID. Essa RV2 foi concluída pelo MCP hospedado com
+uma descoberta e uma página de inventário; não houve mudança externa de Google.

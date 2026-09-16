@@ -20,7 +20,6 @@ from google_workspace_admin.content.auth.handles import (
 )
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
-from google_workspace_admin.content.filters import DriveFilesFilter
 from google_workspace_admin.content.operations import (
     ContentOperation,
     _NormalizedOperationRequest,
@@ -184,7 +183,7 @@ def _build_http_adapter(
                     "includeItemsFromAllDrives": True,
                     "supportsAllDrives": True,
                     "spaces": "drive",
-                    "q": (request.filters or DriveFilesFilter()).to_query(),
+                    "q": "trashed = false",
                 }
             )
             if request.page_token is not None:

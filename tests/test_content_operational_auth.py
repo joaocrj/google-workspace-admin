@@ -418,3 +418,98 @@ def test_configured_content_request_uses_only_mock_auth_and_drive(monkeypatch):
         assert "useDomainAdminAccess" not in drive_requests[0].url.params
     finally:
         runtime.close()
+
+
+def test_configured_file_inventory_reuses_mock_drive_readonly_auth(monkeypatch):
+    config = _config()
+    for name, value in _environment().items():
+        monkeypatch.setenv(name, value)
+
+    signed_scopes: list[str] = []
+    drive_requests: list[httpx.Request] = []
+
+    def auth_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "iamcredentials.googleapis.com":
+            claims = json.loads(json.loads(request.content)["payload"])
+            signed_scopes.append(claims["scope"])
+            return httpx.Response(
+                200,
+                request=request,
+                json={"signedJwt": "synthetic-signed-jwt"},
+            )
+        return httpx.Response(
+            200,
+            request=request,
+            json={"access_token": "synthetic-access-token", "expires_in": 3600},
+        )
+
+    def drive_handler(request: httpx.Request) -> httpx.Response:
+        drive_requests.append(request)
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "files": [
+                    {
+                        "id": "file-1",
+                        "name": "Report",
+                        "mimeType": "application/pdf",
+                        "trashed": False,
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(
+        production,
+        "_load_adc_credentials",
+        lambda: (_Credentials(), config.project_id),
+    )
+    monkeypatch.setattr(
+        production,
+        "_build_auth_http_client",
+        lambda: httpx.Client(
+            transport=httpx.MockTransport(auth_handler),
+            follow_redirects=False,
+            timeout=30.0,
+        ),
+    )
+    monkeypatch.setattr(
+        bootstrap,
+        "_build_http_client",
+        lambda: httpx.Client(
+            transport=httpx.MockTransport(drive_handler),
+            follow_redirects=False,
+            timeout=30.0,
+        ),
+    )
+    monkeypatch.setattr(server, "_CONTENT_RUNTIME", None)
+
+    result = server.workspace_drive_files_list(
+        "drive-1",
+        page_size=1,
+        max_items=1,
+    )
+
+    runtime = server._CONTENT_RUNTIME
+    assert runtime is not None
+    try:
+        assert result.model_dump() == {
+            "files": [
+                {
+                    "file_id": "file-1",
+                    "name": "Report",
+                    "mime_type": "application/pdf",
+                    "modified_time": None,
+                    "size": None,
+                    "parents": [],
+                }
+            ],
+            "next_page_token": None,
+        }
+        assert signed_scopes == ["https://www.googleapis.com/auth/drive.readonly"]
+        assert len(drive_requests) == 1
+        assert drive_requests[0].url.path == "/drive/v3/files"
+        assert "useDomainAdminAccess" not in drive_requests[0].url.params
+    finally:
+        runtime.close()

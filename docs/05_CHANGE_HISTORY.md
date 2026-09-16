@@ -474,3 +474,51 @@ O gate final confirmou 20 arquivos autorizados e zero unrelated, catálogo com
 RV2 permanece preservada como uma única chamada MCP hospedada; este checkpoint
 não executou Google, Drive, ADC, IAM `signJwt` ou OAuth. Não houve push e 1.5.2
 não foi iniciada.
+
+## 15/09/2026 — WORKSPACE CONTENT 1.5.2 DRIVE FILE INVENTORY IMPLEMENT V1 — COMPLETE / SEM CHECKPOINT
+
+Implementado exclusivamente o PLAN V1 aprovado de Drive File Inventory. Foi
+adicionada uma única tool MCP, `workspace_drive_files_list`, com contrato
+fechado de `drive_id`, `page_size`, `page_token` e `max_items`. O catálogo
+passou a 23 tools únicas: 20 Read, 3 Content e 0 Write; as 20 tools Read
+permaneceram semanticamente inalteradas.
+
+O adapter emite no máximo um `GET` para o endpoint fixo Drive `files.list`, com
+corpus, drive, space, Shared Drive flags, fields e `trashed = false` fixos. O
+hard cap Content é 500. O parser fail-closed exige `trashed is False`, valida
+size int64 não negativa, preserva folders e MIME types e produz somente o DTO
+allowlisted; nenhum conteúdo, link, permission, owner ou resposta bruta é
+exposto.
+
+A regra interna histórica `DRIVE_METADATA / drive.metadata.readonly` foi
+alinhada ao profile produtivo já validado `DRIVE_DISCOVERY / drive.readonly`.
+Não houve novo scope, DWD, variável, Service Account, IAM ou configuração
+Google. A suíte dedicada passou em 94 casos e a regressão completa em **747
+passed**, somente com mocks/fakes. Google activity = 0, ADC activity = 0,
+staging = empty, commit = 0 e push = 0. PLAN V1 e IMPLEMENT V1 estão completos;
+REAL VALIDATION permanece **NOT STARTED** e depende de autorização explícita.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.2 DRIVE FILE INVENTORY — REAL VALIDATION RV1 / RV2
+
+RV1 foi encerrada sem chamadas funcionais porque a instância hospedada ainda
+apresentava catálogo stale: 22 tools, `workspace_drive_files_list` ausente,
+classificação `MCP_TRANSPORT_OR_CATALOG`.
+
+Após nova instância MCP, RV2 confirmou catálogo fresco com 23 tools únicas (20
+Read, 3 Content, 0 Write). Foram executadas exatamente duas chamadas MCP:
+`workspace_drives_list` retornou um Drive e token de continuação presente;
+`workspace_drive_files_list` retornou um arquivo e token presente. O invariant
+`trashed=false` passou pelo parser. Não houve retry, continuação, mutação ou
+exposição de valores sensíveis. Google activity adicional, ADC, IAM e OAuth = 0.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.2 DRIVE FILE INVENTORY — FINAL REVIEW V1 — COMPLETE / SEM CHECKPOINT
+
+O diff integral do IMPLEMENT V1 foi revisado: somente source, testes e
+documentação autorizados. O contrato público, DTO, request fixo, cap 500,
+validações, profile `DRIVE_DISCOVERY` / `drive.readonly`, segurança keyless,
+ausência de admin mode, auditoria, isolamento Read e boundary MCP passaram.
+
+A suíte dedicada passou em 94 casos e a regressão completa em **747 passed**.
+O catálogo permanece 23/20/3/0 sem duplicatas. FINAL REVIEW V1 = **COMPLETE**;
+CHECKPOINT V1 = **COMPLETE / THIS COMMIT**. Não houve nova chamada externa nesta
+revisão; o SHA do commit é registrado somente pelo Git após a consolidação.

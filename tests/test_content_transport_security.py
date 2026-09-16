@@ -9,7 +9,6 @@ from content_runtime_harness import (
 )
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentSafeError
-from google_workspace_admin.content.filters import DriveFilesFilter
 from google_workspace_admin.content.operations import (
     DRIVE_FILES_LIST_FIELDS,
     DRIVE_LIST_FIELDS,
@@ -86,6 +85,7 @@ def test_files_list_enforces_fixed_query_and_typed_result(monkeypatch):
                         "mimeType": "application/vnd.test",
                         "parents": ["folder-1"],
                         "modifiedTime": "2026-09-01T00:00:00Z",
+                        "size": "42",
                         "trashed": False,
                         "driveId": "drive-1",
                         "capabilities": {"canEdit": True},
@@ -95,10 +95,9 @@ def test_files_list_enforces_fixed_query_and_typed_result(monkeypatch):
         )
 
     request = DriveFilesListRequest(
-        "drive-metadata",
+        "drive-discovery",
         "analyst@cevalente.com.br",
         "drive-1",
-        filters=DriveFilesFilter(name_contains="budget"),
     )
     with content_runtime_harness(monkeypatch, handler) as (runtime, captured):
         result = runtime.execute(request)
@@ -111,7 +110,9 @@ def test_files_list_enforces_fixed_query_and_typed_result(monkeypatch):
     assert params["includeItemsFromAllDrives"] == "true"
     assert params["supportsAllDrives"] == "true"
     assert params["fields"] == DRIVE_FILES_LIST_FIELDS
-    assert "trashed = false" in params["q"]
+    assert params["q"] == "trashed = false"
+    assert result.items[0].size == 42
+    assert not hasattr(result.items[0], "drive_id")
     assert not hasattr(result.items[0], "capabilities")
 
 
@@ -167,7 +168,7 @@ def test_files_max_items_reduces_outbound_page_size(monkeypatch):
     with content_runtime_harness(monkeypatch, lambda request: _json(request, {"files": []})) as (runtime, captured):
         runtime.execute(
             DriveFilesListRequest(
-                "drive-metadata", "analyst@cevalente.com.br", "drive-1", page_size=500, max_items=7
+                "drive-discovery", "analyst@cevalente.com.br", "drive-1", page_size=500, max_items=7
             )
         )
     assert captured[0].url.params["pageSize"] == "7"
@@ -205,7 +206,7 @@ def test_non_false_trashed_response_is_rejected(monkeypatch, trashed):
 
     with content_runtime_harness(monkeypatch, handler) as (runtime, _):
         with pytest.raises(ContentSafeError) as error:
-            runtime.execute(DriveFilesListRequest("drive-metadata", "analyst@cevalente.com.br", "drive-1"))
+            runtime.execute(DriveFilesListRequest("drive-discovery", "analyst@cevalente.com.br", "drive-1"))
     assert error.value.code == "RESPONSE_VALIDATION"
 
 
@@ -215,7 +216,7 @@ def test_missing_trashed_response_is_rejected(monkeypatch):
 
     with content_runtime_harness(monkeypatch, handler) as (runtime, _):
         with pytest.raises(ContentSafeError):
-            runtime.execute(DriveFilesListRequest("drive-metadata", "analyst@cevalente.com.br", "drive-1"))
+            runtime.execute(DriveFilesListRequest("drive-discovery", "analyst@cevalente.com.br", "drive-1"))
 
 
 def test_false_trashed_response_is_accepted(monkeypatch):
@@ -226,7 +227,7 @@ def test_false_trashed_response_is_accepted(monkeypatch):
         )
 
     with content_runtime_harness(monkeypatch, handler) as (runtime, _):
-        result = runtime.execute(DriveFilesListRequest("drive-metadata", "analyst@cevalente.com.br", "drive-1"))
+        result = runtime.execute(DriveFilesListRequest("drive-discovery", "analyst@cevalente.com.br", "drive-1"))
     assert result.items[0].trashed is False
 
 

@@ -1,6 +1,6 @@
 # Andamento das fases
 
-Última consolidação documental: **15/09/2026 — WORKSPACE CONTENT 1.5.1 CHECKPOINT V1 / COMPLETE / THIS COMMIT**. Esta árvore é a fonte
+Última consolidação documental: **16/09/2026 — WORKSPACE CONTENT 1.5.2 DRIVE FILE INVENTORY FINAL REVIEW V1 / COMPLETE / SEM CHECKPOINT**. Esta árvore é a fonte
 persistente do roadmap/status e combina o estado do código em `master`, os
 commits e o inventário de validações fornecido pelo usuário. Atualize-a no
 mesmo change set de qualquer avanço. Evidência de produção deve registrar
@@ -24,7 +24,7 @@ REVIEW/CHECKPOINT → COMMIT`.
 Nenhuma feature será considerada documentalmente concluída enquanto sua
 posição/status correspondente não estiver refletida nesta árvore.
 
-**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0 ARCHITECTURE & SAFETY COMPLETE / CHECKPOINTED; 1.5.1 Shared Drive Discovery REAL VALIDATION RV2, FINAL REVIEW V1 e CHECKPOINT V1 completos neste commit; 1.5.2 aguarda autorização explícita e não foi iniciada.** O FINAL REVIEW V1 ficou
+**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0 ARCHITECTURE & SAFETY COMPLETE / CHECKPOINTED; 1.5.1 Shared Drive Discovery completo; 1.5.2 Drive File Inventory PLAN V1, IMPLEMENT V1, REAL VALIDATION RV2 e FINAL REVIEW V1 completos, sem checkpoint.** O FINAL REVIEW V1 ficou
 preservado como histórico bloqueado pelos achados FR-01 a FR-04, apesar de
 **411 testes aprovados** naquele momento. O FINAL REVIEW V2 confirmou os quatro
 achados corrigidos/verificados, **459 testes aprovados**, catálogo com 20 tools,
@@ -711,7 +711,20 @@ FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS                ← EM ANDAMENTO
 │   │   ├── FINAL REVIEW V1                                  ✅ CONCLUÍDO — 652 testes / scan seguro / docs sincronizados
 │   │   └── CHECKPOINT V1                                    ✅ CONCLUÍDO — THIS COMMIT
 │   └── próximo passo                                        ⬜ 1.5.2 — autorização explícita separada
-├── Shared Drive Discovery / bounded Inventory               ⬜ PENDENTE — Drive RV1
+├── 1.5.2 Drive File Inventory                               ✅ CONCLUÍDO — FINAL REVIEW V1
+│   ├── PLAN V1                                             ✅ CONCLUÍDO
+│   ├── IMPLEMENT V1                                       ✅ CONCLUÍDO — 1 tool / 747 testes / sem Google
+│   ├── workspace_drive_files_list                          ✅ CONCLUÍDO
+│   ├── catálogo MCP                                        ✅ CONCLUÍDO — 23 tools
+│   ├── Content tools / Read / Write                         ✅ 3 / 20 / 0
+│   ├── auth profile / scope                                 ✅ DRIVE_DISCOVERY / drive.readonly
+│   ├── RV1                                                  ✅ HISTÓRICO — MCP_TRANSPORT_OR_CATALOG / 0 calls
+│   ├── RV2                                                  ✅ PASS — 2 MCP calls / sem exposição sensível
+│   ├── REAL VALIDATION                                     ✅ PASS
+│   ├── FINAL REVIEW V1                                    ✅ CONCLUÍDO — 747 testes
+│   ├── CHECKPOINT                                         ✅ CONCLUÍDO — THIS COMMIT
+│   └── próximo gate                                         ⬜ WAIT FOR EXPLICIT AUTHORIZATION FOR NEXT CONTENT STAGE
+├── Shared Drive Discovery / bounded Inventory               ← EM ANDAMENTO — implementação concluída / RV pendente
 ├── Google-native Content                                   ⬜ PENDENTE
 ├── Downloaded-file Extraction                              ⬜ PENDENTE
 ├── Gmail mailbox validation / Search                        ⬜ PENDENTE
@@ -1089,3 +1102,32 @@ FINAL REVIEW V1
 ├── checkpoint V1                                         ✅ CONCLUÍDO — THIS COMMIT
 └── próximo gate                                          ⬜ 1.5.2 — autorização explícita separada
 ```
+
+### 1.5.2 DRIVE FILE INVENTORY — PLAN V1 / IMPLEMENT V1 — 15/09/2026
+
+PLAN V1 = **COMPLETE** e IMPLEMENT V1 = **COMPLETE / LOCAL ONLY**. Foi
+registrada exatamente uma nova tool, `workspace_drive_files_list`, elevando o
+catálogo para 23 tools únicas: 20 Read históricas, 3 Content e 0 Write. A Read
+Layer permaneceu semanticamente inalterada, `mcp.run()` continuou como operação
+final absoluta e não há rota Content de mutação nem scope de escrita.
+
+A tool usa contrato fechado de quatro parâmetros, página única, hard cap 500,
+request fixo para `Drive files.list`, `q=trashed = false`, fields allowlisted e
+DTO mínimo. `trashed` deve ser `false` em cada item, `size` aceita apenas string
+int64 não negativa e folders permanecem itens identificados por MIME. A regra
+interna anterior `DRIVE_METADATA / drive.metadata.readonly` foi alinhada ao
+profile operacional existente `DRIVE_DISCOVERY / drive.readonly`, sem mudança
+externa de Google, DWD, IAM, Service Account ou das cinco variáveis.
+
+Testes dedicados: **94 passed**. Regressão completa: **747 passed**, apenas com
+mocks/fakes. RV1 permanece registrada como `MCP_TRANSPORT_OR_CATALOG` com zero
+chamadas por catálogo stale. RV2 passou com exatamente duas chamadas MCP:
+discovery retornou um Drive e token presente; inventory retornou um arquivo e
+token presente; invariant de resposta passou. Google activity adicional = 0,
+ADC activity = 0, retries = 0, continuação = 0 e valores sensíveis expostos = 0.
+
+REAL VALIDATION = **PASS**. FINAL REVIEW V1 = **COMPLETE**. CHECKPOINT V1 =
+**COMPLETE / THIS COMMIT**; o SHA não é antecipado neste registro. PHASE STATUS
+= SYNCHRONIZED.
+
+Próximo gate: **WAIT FOR EXPLICIT AUTHORIZATION FOR NEXT CONTENT STAGE**.

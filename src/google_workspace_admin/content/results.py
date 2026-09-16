@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ConfigDict
+
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
 from google_workspace_admin.content.limits import GLOBAL_CONTENT_CEILING, validate_positive_int
 
@@ -24,6 +26,22 @@ def _next_page_token(
 ) -> str | None:
     value = payload.get("nextPageToken")
     return None if value is None else _text(value, operation)
+
+
+def _opaque_next_page_token(
+    payload: Mapping[str, object], operation: ContentErrorOperation
+) -> str | None:
+    value = payload.get("nextPageToken")
+    if value is None:
+        return None
+    if type(value) is not str or not value or any(
+        character.isspace()
+        or ord(character) < 32
+        or 0x7F <= ord(character) <= 0x9F
+        for character in value
+    ):
+        raise ContentSafeError(code="RESPONSE_VALIDATION", operation=operation)
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,8 +69,8 @@ class DriveFileSummary:
     mime_type: str
     parents: tuple[str, ...]
     modified_time: str | None
+    size: int | None
     trashed: bool
-    drive_id: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +78,24 @@ class DriveFileListPage:
     items: tuple[DriveFileSummary, ...]
     next_page_token: str | None
     truncated: bool
+
+
+class DriveFileInventoryItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    file_id: str
+    name: str
+    mime_type: str
+    modified_time: str | None
+    size: int | None
+    parents: list[str]
+
+
+class DriveFileInventoryPage(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    files: list[DriveFileInventoryItem]
+    next_page_token: str | None
 
 
 def _mapping(value: object, operation: ContentErrorOperation) -> Mapping[str, object]:
@@ -116,19 +152,40 @@ def _drive_file(value: object) -> DriveFileSummary:
     item = _mapping(value, operation)
     raw_parents = item.get("parents", [])
     if not isinstance(raw_parents, list) or any(
-        not isinstance(parent, str) or not parent.strip() for parent in raw_parents
+        not isinstance(parent, str)
+        or not parent
+        or any(
+            character.isspace()
+            or ord(character) < 32
+            or 0x7F <= ord(character) <= 0x9F
+            for character in parent
+        )
+        for parent in raw_parents
     ):
         raise ContentSafeError(code="RESPONSE_VALIDATION", operation=operation)
     if "trashed" not in item or item["trashed"] is not False:
         raise ContentSafeError(code="RESPONSE_VALIDATION", operation=operation)
+    raw_size = item.get("size")
+    size: int | None = None
+    if raw_size is not None:
+        if (
+            not isinstance(raw_size, str)
+            or not raw_size
+            or not raw_size.isascii()
+            or not raw_size.isdigit()
+        ):
+            raise ContentSafeError(code="RESPONSE_VALIDATION", operation=operation)
+        size = int(raw_size)
+        if size > 9_223_372_036_854_775_807:
+            raise ContentSafeError(code="RESPONSE_VALIDATION", operation=operation)
     return DriveFileSummary(
         file_id=_text(item.get("id"), operation),
         name=_text(item.get("name"), operation),
         mime_type=_text(item.get("mimeType"), operation),
-        parents=tuple(parent.strip() for parent in raw_parents),
+        parents=tuple(raw_parents),
         modified_time=_optional_text(item.get("modifiedTime"), operation),
+        size=size,
         trashed=False,
-        drive_id=_optional_text(item.get("driveId"), operation),
     )
 
 
@@ -141,5 +198,5 @@ def parse_drive_files_list(
         _drive_file(item)
         for item in _bounded_items(body, "files", operation, max_items)
     )
-    token = _next_page_token(body, operation)
+    token = _opaque_next_page_token(body, operation)
     return DriveFileListPage(items=items, next_page_token=token, truncated=token is not None)

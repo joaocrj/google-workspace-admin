@@ -1,17 +1,18 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 22 ferramentas, todas de leitura: 20 Read históricas e 2
-tools Content da vertical 1.5.1. Cada camada de API obtém um token para o scope
+catálogo atual possui 23 ferramentas, todas de leitura: 20 Read históricas e 3
+tools Content das verticais 1.5.1–1.5.2. Cada camada de API obtém um token para o scope
 mínimo que ela declara e o servidor serializa uma seleção de campos antes de
 devolver a resposta ao Codex.
 
 ## Fase 1.5 — Foundation Content e Shared Drive Discovery
 
 A Foundation Content permanece interna como infraestrutura. A entrega 1.5.1
-registra somente `workspace_drives_list` e `workspace_drive_get`; a ferramenta
-`workspace_drive_files_list` continua **NOT IMPLEMENTED / NOT REGISTERED**.
-O catálogo público agora possui exatamente 22 tools: Content = 2 e Write = 0.
+registra `workspace_drives_list` e `workspace_drive_get`; a entrega 1.5.2
+registra exatamente mais uma ferramenta, `workspace_drive_files_list`.
+O catálogo público agora possui exatamente 23 tools: Read = 20, Content = 3 e
+Write = 0.
 Os contratos de operação, transporte, scopes read-only, subjects e limites
 continuam não sendo helpers MCP.
 
@@ -58,6 +59,7 @@ inventário rejeita também respostas com `trashed` ausente ou diferente de
 | `workspace_customer_usage_get` | `reports/customer_usage.py` | `date` obrigatório YYYY-MM-DD válido; `parameters` obrigatório com CSV de métricas allowlisted; `page_token` opcional | Customer Usage Reports implementados, serializer integer allowlisted, warnings sanitizados e `next_page_token` da página |
 | `workspace_drives_list` | `content` / `server.py` | `page_size` StrictInt 1–100, padrão 25; `page_token` StrictStr opcional não vazio; `max_items` StrictInt 1–100, padrão 100; `use_domain_admin_access` StrictBool, padrão `false`; uma página, sem auto-pagination | Shared Drives allowlisted como `{drive_id, name}` e token Google validado |
 | `workspace_drive_get` | `content` / `server.py` | `drive_id` StrictStr, trim boundary, 1–256 caracteres, sem whitespace/control; `use_domain_admin_access` StrictBool, padrão `false` | um Shared Drive allowlisted como `{drive_id, name}` |
+| `workspace_drive_files_list` | `content` / `server.py` | `drive_id` StrictStr; `page_size` StrictInt 1–500, padrão 100; `page_token` StrictStr opaco opcional; `max_items` StrictInt 1–500, padrão 500; uma página, sem auto-pagination | `{files: [{file_id, name, mime_type, modified_time, size, parents}], next_page_token}` |
 
 ## Endpoints Directory em uso
 
@@ -403,3 +405,33 @@ entra no request MCP, DTO, audit, erro ou representação pública.
 
 `workspace_drive_files_list` continua ausente: os contratos internos da
 Foundation são preservados para 1.5.2, mas não são ferramenta desta entrega.
+
+## Fase 1.5.2 — Drive File Inventory — IMPLEMENT V1
+
+`workspace_drive_files_list(drive_id, page_size=100, page_token=None,
+max_items=500)` é a única nova tool pública. Os quatro parâmetros são estritos;
+o tamanho enviado é `min(page_size, max_items, 500)` e uma invocation faz no
+máximo um `GET`, sem recursão ou paginação automática.
+
+O adapter monta exclusivamente `GET https://www.googleapis.com/drive/v3/files`
+com `corpora=drive`, `driveId` validado como dado de query,
+`includeItemsFromAllDrives=true`, `supportsAllDrives=true`, `spaces=drive`,
+`q=trashed = false`, `pageSize` bounded e `pageToken` somente quando fornecido.
+O fields mask é exatamente
+`nextPageToken,files(id,name,mimeType,modifiedTime,size,parents,trashed)`.
+Host, método, endpoint, query, corpora, fields, scope, subject, profile,
+admin-mode e retry não são parâmetros públicos.
+
+O parser exige `trashed is False` em todo item e converte `size` somente de uma
+string int64 não negativa; campos ausentes permitidos tornam-se `null`/listas
+vazias. Fields desconhecidos são descartados e `trashed` não atravessa a
+boundary MCP. Folders permanecem itens e são identificados por
+`application/vnd.google-apps.folder`; nenhum arquivo é aberto, exportado ou
+baixado.
+
+A operação usa o profile `DRIVE_DISCOVERY` já validado, cujo único scope é
+`drive.readonly`. Catálogo corrente: 23 tools únicas, Read = 20, Content = 3,
+Write = 0 e duplicatas = 0. A RV1 foi preservada como catálogo stale com zero
+chamadas; a RV2 confirmou catálogo fresco e passou com duas chamadas MCP,
+sem expor valores sensíveis. `REAL VALIDATION = PASS` e `FINAL REVIEW V1 =
+COMPLETE`; `CHECKPOINT V1 = COMPLETE` neste change set, sem novo escopo.

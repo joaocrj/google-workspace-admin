@@ -126,8 +126,8 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_customer_usage_get" in tool_names
     assert "workspace_drives_list" in tool_names
     assert "workspace_drive_get" in tool_names
-    assert "workspace_drive_files_list" not in tool_names
-    assert len(tool_names) == 22
+    assert "workspace_drive_files_list" in tool_names
+    assert len(tool_names) == 23
     assert len(tools.tools) == len(tool_names)
     users_tool = next(
         tool for tool in tools.tools if tool.name == "workspace_users_list"

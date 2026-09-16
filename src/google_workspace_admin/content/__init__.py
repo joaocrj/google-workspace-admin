@@ -11,6 +11,8 @@ from google_workspace_admin.content.operations import (
     DriveListRequest,
 )
 from google_workspace_admin.content.results import (
+    DriveFileInventoryItem,
+    DriveFileInventoryPage,
     DriveFileListPage,
     DriveFileSummary,
     DriveGetResult,
@@ -23,6 +25,8 @@ __all__ = [
     "ContentErrorOperation",
     "ContentRuntime",
     "DriveFileListPage",
+    "DriveFileInventoryItem",
+    "DriveFileInventoryPage",
     "DriveFileSummary",
     "DriveFilesListRequest",
     "DriveGetRequest",

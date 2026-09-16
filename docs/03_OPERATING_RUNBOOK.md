@@ -705,3 +705,33 @@ STOP AND ASK OPERATOR FOR EXPLICIT AUTHORIZATION.
 Se a ADC estiver expirada, informar `ADC reauthentication required`, fornecer
 o comando exato e aguardar o operador. Não executar login, `signJwt`, OAuth ou
 Drive automaticamente.
+
+## Fase 1.5.2 — Drive File Inventory — operação local
+
+O IMPLEMENT V1 registra `workspace_drive_files_list` com somente `drive_id`,
+`page_size`, `page_token` e `max_items`. Cada chamada representa no máximo uma
+página de `files.list`; não há recursão, export, download, leitura de conteúdo
+ou paginação automática. O hard cap Content é 500 e o adapter sempre envia o
+menor entre `page_size`, `max_items` e 500.
+
+O request é fixo em HTTPS, host Google, GET e `/drive/v3/files`, restringido ao
+Shared Drive por `corpora=drive`, `driveId`, `spaces=drive`,
+`includeItemsFromAllDrives=true`, `supportsAllDrives=true` e
+`q=trashed = false`. O resultado expõe somente ID, nome, MIME type, modified
+time opcional, size opcional, parents e next-page token. Folders permanecem no
+inventário; MIME não é inferido por extensão.
+
+Para validar localmente sem Google:
+
+```powershell
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_drive_file_inventory.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_shared_drive_discovery.py tests\test_content_operational_auth.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_content_foundation.py tests\test_content_transport_security.py tests\test_mcp_protocol.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+```
+
+O resultado desta implementação foi **747 passed**, usando apenas mocks/fakes.
+A REAL VALIDATION RV2 autorizada ocorreu exclusivamente pelo MCP hospedado:
+uma descoberta bounded e uma página bounded de inventário, sem retry,
+continuação ou exposição de IDs/metadados. `REAL VALIDATION = PASS`; não
+repita chamadas reais sem autorização explícita para uma etapa posterior.

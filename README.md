@@ -24,14 +24,19 @@ e a próxima entrega.
 ## Estado atual
 
 A Fase 1.5.1 — Shared Drive Discovery está implementada e validada com
-`workspace_drives_list` e `workspace_drive_get`. O catálogo possui 22 tools
-read-only; `workspace_drive_files_list` continua reservado para 1.5.2. O
+`workspace_drives_list` e `workspace_drive_get`. A Fase 1.5.2 — Drive File
+Inventory está implementada localmente e validada em RV2 pelo MCP hospedado,
+com
+`workspace_drive_files_list`. O catálogo possui 23 tools read-only: 20 Read,
+3 Content e 0 Write. O
 binding operacional Content usa as cinco variáveis process-only configuradas
 na tabela MCP e o bootstrap é lazy/fail-closed. A REAL VALIDATION RV2 foi
 executada uma única vez pelo MCP hospedado: a cadeia keyless alcançou a Drive
 API, retornou uma página limitada e não expôs valores sensíveis. O FINAL REVIEW
-V1 passou e o CHECKPOINT V1 é registrado neste commit. A etapa 1.5.2 não foi
-iniciada e depende de autorização explícita separada.
+V1 de 1.5.1 passou e o CHECKPOINT V1 está preservado. Para 1.5.2, PLAN V1,
+IMPLEMENT V1, REAL VALIDATION RV2, FINAL REVIEW V1 e CHECKPOINT V1 estão
+completos; a etapa 1.5.2 está encerrada e o próximo gate exige autorização
+explícita para o próximo estágio de Content.
 
 ## Comandos de rotina
 
