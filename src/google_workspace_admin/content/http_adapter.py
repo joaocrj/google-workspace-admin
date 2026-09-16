@@ -18,6 +18,7 @@ from google_workspace_admin.content.auth.handles import (
     AuthorizedOperationContext,
     _OperationAuthority,
 )
+from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
 from google_workspace_admin.content.filters import DriveFilesFilter
 from google_workspace_admin.content.operations import (
@@ -54,6 +55,7 @@ def _build_http_adapter(
     *,
     client: httpx.Client,
     require_context: Callable[[object], object],
+    token_provider: Callable[[object, ApprovedScopeProfile], str],
     timeout: float = 30.0,
     retry_policy: RetryPolicy | None = None,
     sleeper: Callable[[float], None] = time.sleep,
@@ -61,6 +63,8 @@ def _build_http_adapter(
     if type(client) is not httpx.Client:
         raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
     if not callable(require_context):
+        raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
+    if not callable(token_provider):
         raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
@@ -107,6 +111,30 @@ def _build_http_adapter(
             )
         safe_operation = error_operations[expected_operation]
         contract = get_operation_contract(expected_operation)
+        try:
+            access_token = token_provider(context, contract.scope_profile)
+        except ContentSafeError:
+            raise
+        except Exception:
+            raise ContentSafeError(
+                code="UNEXPECTED_LOCAL",
+                operation=ContentErrorOperation.AUTH_BROKER,
+            ) from None
+        if (
+            not isinstance(access_token, str)
+            or not access_token
+            or len(access_token) > 8192
+            or any(
+                character.isspace()
+                or ord(character) < 32
+                or 0x7F <= ord(character) <= 0x9F
+                for character in access_token
+            )
+        ):
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.AUTH_BROKER,
+            )
         endpoint = contract.endpoint_template
         query: dict[str, str | int | bool] = {
             "fields": contract.default_fields,
@@ -130,8 +158,11 @@ def _build_http_adapter(
                 )
             from urllib.parse import quote
 
+            encoded_drive_id = quote(request.drive_id, safe="")
+            if request.drive_id in {".", ".."}:
+                encoded_drive_id = request.drive_id.replace(".", "%2E")
             endpoint = contract.endpoint_template.format(
-                drive_id=quote(request.drive_id, safe="")
+                drive_id=encoded_drive_id
             )
             if request.admin_mode:
                 query["useDomainAdminAccess"] = True
@@ -169,6 +200,7 @@ def _build_http_adapter(
                     "get",
                     endpoint,
                     expected_operation.value,
+                    headers={"Authorization": f"Bearer {access_token}"},
                     params=query,
                     timeout=float(timeout),
                 )

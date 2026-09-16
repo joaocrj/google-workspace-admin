@@ -1,5 +1,5 @@
 from mcp.server import MCPServer
-from pydantic import StrictInt
+from pydantic import StrictBool, StrictInt, StrictStr
 
 from google_workspace_admin.directory.chromeos_devices import (
     list_chromeos_devices,
@@ -60,10 +60,65 @@ from google_workspace_admin.http_errors import (
     validate_optional_string,
     validate_page_token,
 )
+from google_workspace_admin.content import config as content_config
+from google_workspace_admin.content.bootstrap import create_content_runtime
+from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.operations import DriveGetRequest, DriveListRequest
+from google_workspace_admin.content.results import DriveGetResult, DriveListPage
 
 mcp = MCPServer(
     name="Google Workspace Admin",
 )
+
+
+_CONTENT_RUNTIME = None
+
+
+def _get_content_runtime():
+    """Create Content only on first functional invocation."""
+
+    global _CONTENT_RUNTIME
+    if _CONTENT_RUNTIME is None:
+        _CONTENT_RUNTIME = create_content_runtime()
+    return _CONTENT_RUNTIME
+
+
+def _content_identity() -> tuple[str, str]:
+    return content_config.discovery_request_identity()
+
+
+def _execute_content(request: object):
+    runtime = _get_content_runtime()
+    return runtime.execute(request)
+
+
+def _serialize_content_drive_list(page: object) -> dict:
+    if type(page) is not DriveListPage:
+        raise ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.RESPONSE_DRIVE_LIST,
+        )
+    return {
+        "drives": [
+            {"drive_id": drive.drive_id, "name": drive.name}
+            for drive in page.items
+        ],
+        "next_page_token": page.next_page_token,
+    }
+
+
+def _serialize_content_drive_get(result: object) -> dict:
+    if type(result) is not DriveGetResult:
+        raise ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.RESPONSE_DRIVE_GET,
+        )
+    return {
+        "drive": {
+            "drive_id": result.drive.drive_id,
+            "name": result.drive.name,
+        }
+    }
 
 
 def _extract_page(
@@ -1683,6 +1738,70 @@ def workspace_customer_usage_get(
         normalized_page,
         normalized_parameters,
     )
+
+
+@mcp.tool()
+def workspace_drives_list(
+    page_size: StrictInt = 25,
+    page_token: StrictStr | None = None,
+    max_items: StrictInt = 100,
+    use_domain_admin_access: StrictBool = False,
+) -> dict:
+    """Lista uma página bounded de Shared Drives autorizados."""
+
+    try:
+        profile_id, delegated_subject = _content_identity()
+        result = _execute_content(
+            DriveListRequest(
+                profile_id=profile_id,
+                user_key=delegated_subject,
+                page_size=page_size,
+                page_token=page_token,
+                max_items=max_items,
+                use_domain_admin_access=use_domain_admin_access,
+            )
+        )
+        return _serialize_content_drive_list(result)
+    except ContentSafeError:
+        raise
+    except SafeOperationError:
+        raise
+    except Exception:
+        raise SafeOperationError(
+            code="UNEXPECTED_LOCAL",
+            layer="local",
+            operation="drive.list",
+        ) from None
+
+
+@mcp.tool()
+def workspace_drive_get(
+    drive_id: StrictStr,
+    use_domain_admin_access: StrictBool = False,
+) -> dict:
+    """Obtém um Shared Drive por seu identificador operacional estável."""
+
+    try:
+        profile_id, delegated_subject = _content_identity()
+        result = _execute_content(
+            DriveGetRequest(
+                profile_id=profile_id,
+                user_key=delegated_subject,
+                drive_id=drive_id,
+                use_domain_admin_access=use_domain_admin_access,
+            )
+        )
+        return _serialize_content_drive_get(result)
+    except ContentSafeError:
+        raise
+    except SafeOperationError:
+        raise
+    except Exception:
+        raise SafeOperationError(
+            code="UNEXPECTED_LOCAL",
+            layer="local",
+            operation="drive.get",
+        ) from None
 
 
 if __name__ == "__main__":

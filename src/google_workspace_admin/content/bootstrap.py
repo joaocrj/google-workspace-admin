@@ -1,9 +1,4 @@
-"""Trusted startup composition root for the local Content Foundation.
-
-The production bootstrap accepts no provisioning or component arguments. Real
-Content provisioning intentionally remains unavailable until a separately
-authorized delivery supplies the startup providers.
-"""
+"""Trusted startup composition root for the local Content Foundation."""
 
 from __future__ import annotations
 
@@ -31,6 +26,8 @@ from google_workspace_admin.content.auth.profile import ContentAuthProfile
 from google_workspace_admin.content.auth.registry import ProvisionedContentProfile
 from google_workspace_admin.content.auth.resolver import SubjectLookup
 from google_workspace_admin.content.auth.subject import WorkspaceSubject
+from google_workspace_admin.content.auth.production import build_content_token_provider
+from google_workspace_admin.content.config import load_content_config
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
 from google_workspace_admin.content.http_adapter import _build_http_adapter
 from google_workspace_admin.content.operations import (
@@ -47,17 +44,21 @@ from google_workspace_admin.content.transport import RetryPolicy
 
 
 def _load_provisioned_profiles() -> tuple[ProvisionedContentProfile, ...]:
-    raise ContentSafeError(
-        code="LOCAL_VALIDATION",
-        operation=ContentErrorOperation.BOOTSTRAP,
-    )
+    config = load_content_config()
+    return (config.to_provisioned_profile(),)
 
 
 def _build_subject_lookup() -> SubjectLookup:
-    raise ContentSafeError(
-        code="LOCAL_VALIDATION",
-        operation=ContentErrorOperation.BOOTSTRAP,
-    )
+    config = load_content_config()
+    subject = config.fixed_subject()
+    canonical_subject = subject.primary_email.casefold()
+
+    def lookup(user_key: str) -> WorkspaceSubject | None:
+        if not isinstance(user_key, str) or user_key.strip().casefold() != canonical_subject:
+            return None
+        return subject
+
+    return lookup
 
 
 def _build_http_client() -> httpx.Client:
@@ -73,6 +74,11 @@ def _build_retry_policy() -> RetryPolicy:
 
 def _build_sleeper() -> Callable[[float], None]:
     return time.sleep
+
+
+def _build_token_provider() -> object:
+    config = load_content_config()
+    return build_content_token_provider(config)
 
 
 def create_content_runtime() -> ContentRuntime:
@@ -323,9 +329,43 @@ def create_content_runtime() -> ContentRuntime:
             authority = kernel.require_context(context)
             return _normalize_verified_operation_request(request, authority)
 
+        token_provider = _build_token_provider()
+        if not callable(getattr(token_provider, "get_access_token", None)):
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.AUTH_BROKER,
+            )
+
+        def provide_token(
+            context: AuthorizedOperationContext,
+            scope_profile: object,
+        ) -> str:
+            authority = kernel.require_context(context)
+            profile = kernel.require_profile(authority.profile_handle).profile
+            subject = kernel.require_subject(authority.subject_handle).subject
+            if scope_profile is not profile.approved_scope_profile:
+                raise ContentSafeError(
+                    code="READ_ONLY_OPERATION_FORBIDDEN",
+                    operation=ContentErrorOperation.CAPABILITY_MATRIX,
+                )
+            try:
+                return token_provider.get_access_token(
+                    profile=profile,
+                    subject=subject,
+                    scope_profile=scope_profile,
+                )
+            except ContentSafeError:
+                raise
+            except Exception:
+                raise ContentSafeError(
+                    code="UNEXPECTED_LOCAL",
+                    operation=ContentErrorOperation.AUTH_BROKER,
+                ) from None
+
         adapter = _build_http_adapter(
             client=client,
             require_context=kernel.require_context,
+            token_provider=provide_token,
             retry_policy=_build_retry_policy(),
             sleeper=_build_sleeper(),
         )

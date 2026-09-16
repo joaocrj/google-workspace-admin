@@ -565,3 +565,143 @@ IN SCOPE:  untrusted MCP/runtime inputs; supported Content API
 OUT:       arbitrary Python execution/monkeypatch após comprometimento,
            debugger, memory manipulation e closure mutation deliberada
 ```
+
+## Fase 1.5.1 — Shared Drive Discovery — operação local
+
+O IMPLEMENT V1 registra duas tools Content read-only:
+`workspace_drives_list` e `workspace_drive_get`. O catálogo esperado é de 22
+tools: 20 Read históricas, Content = 2 e Write = 0. Não existe
+`workspace_drive_files_list`; seus contratos internos permanecem reservados
+para 1.5.2.
+
+O bootstrap Content continua lazy. `tools/list`, import do servidor e testes de
+schema não criam runtime, não consultam ADC e não fazem rede. O runtime só é
+criado na primeira invocação funcional e falha fechado enquanto o Content
+Research provisioning não estiver disponível.
+
+### Contratos e limites
+
+`workspace_drives_list` aceita `page_size` e `max_items` estritos entre 1 e
+100, com defaults 25 e 100; o adapter envia o mínimo dos dois. `page_token` é
+`None` ou string opaca não vazia. Uma invocation faz no máximo um GET e só
+repassa `nextPageToken` validado pelo Google. O retorno contém apenas
+`drive_id`, `name` e `next_page_token`, preservando nomes duplicados.
+
+`workspace_drive_get` aceita `drive_id` estrito, com trim boundary, 1–256
+caracteres, sem whitespace ou controles. O ID é operacional e é codificado
+como um único path segment; nome nunca é usado para lookup ou desambiguação.
+O retorno contém somente `drive: {drive_id, name}`.
+
+O modo `use_domain_admin_access` permanece `false` por padrão e somente pode
+ser encaminhado quando o profile, subject, capability `DRIVE`, capability
+administrativa `SHARED_DRIVE_DISCOVERY` e compatibilidade da operação forem
+validados. A flag não concede acesso universal ao conteúdo.
+
+### Testes locais sem Google
+
+Use a `.venv` e mantenha todas as dependências externas mockadas:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests\test_shared_drive_discovery.py tests\test_content_keyless.py
+.venv\Scripts\python.exe -m pytest -q tests\test_content_foundation.py tests\test_content_auth_boundary.py tests\test_content_transport_security.py tests\test_mcp_protocol.py
+.venv\Scripts\python.exe -m pytest -q
+git diff --check
+```
+
+Os testes usam `httpx.MockTransport` e ports/fakes locais para ADC, `signJwt`,
+OAuth e token. É proibido que a suíte routine chame `google.auth.default`,
+metadata server, `gcloud`, IAM Credentials, endpoint OAuth ou Drive API.
+Valide também catálogo único, schemas estritos, duplicate names, stable IDs,
+admin default, mismatch administrativo antes do HTTP, fields/host/método
+fixos, parser allowlisted, erros sem body e ausência de rotas de mutação.
+
+### Gate de autenticação e provisioning manual
+
+O estado esperado desta implementação é `Google activity = 0` e `ADC activity
+= 0`. Antes da primeira REAL VALIDATION, o operador deverá executar
+manualmente o provisioning documentado em `docs/01_GOOGLE_CONFIGURATION.md`:
+Drive API habilitada, Content Research Service Account separada, permissão
+IAM restrita para `signJwt`, DWD separada com exatamente
+`https://www.googleapis.com/auth/drive.readonly`, sujeito delegado e policy
+fixos. Codex/MCP não executa nenhuma alteração em Cloud, IAM, Service Account,
+Admin Console, DWD, scopes ou APIs.
+
+O fluxo de identidade é:
+
+```text
+ADC local -> IAM Credentials signJwt -> Content Research SA -> DWD -> OAuth -> Drive API
+```
+
+ADC válida sozinha não prova existência da Content SA, permissão IAM,
+autorização DWD, sujeito delegado ou scope Drive. Se uma etapa REAL VALIDATION
+exigir `gcloud auth application-default login`, aplique o stop obrigatório:
+
+```text
+BEFORE ANY COMMAND REQUIRING: gcloud auth application-default login
+STOP AND ASK OPERATOR FOR EXPLICIT AUTHORIZATION.
+```
+
+Se a ADC estiver expirada, reporte `ADC reauthentication required`, forneça o
+comando exato ao operador, pare e aguarde. Nunca execute login automaticamente.
+
+### Histórico de REAL VALIDATION
+
+RV1 não fez operação Google: o precheck de configuração falhou no caminho
+direto Python/PowerShell, que não herdava o ambiente próprio do MCP. Diagnostic
+V1 confirmou que a configuração e o provisioning locais estavam corretos e
+isolou a causa na boundary de execução.
+
+RV2 usou exclusivamente a instância MCP hospedada e fez uma única chamada
+bounded de `workspace_drives_list` em modo administrativo `false`. A cadeia
+keyless passou até a Drive API; o resultado seguro registrou somente uma
+contagem de Shared Drives e a presença de próxima página. Não houve retry,
+paginação adicional, mutação ou exposição de payload, token, JWT, Authorization
+ou ADC. Não repita essa validação sem nova autorização explícita.
+
+## Fase 1.5.1 — Operational Auth Binding — operação local
+
+O runtime Content usa configuração process-only. Antes de qualquer operação
+funcional, o operador deverá fornecer as cinco variáveis abaixo; o
+`customer_id` é obrigatório e não pode ser substituído por `my_customer`:
+
+```powershell
+$env:GOOGLE_WORKSPACE_CONTENT_PROJECT_ID = "codex-workspace-admin"
+$env:GOOGLE_WORKSPACE_CONTENT_SERVICE_ACCOUNT = "codex-workspace-content@codex-workspace-admin.iam.gserviceaccount.com"
+$env:GOOGLE_WORKSPACE_CONTENT_SUBJECT = "suporte.ti@cevalente.com.br"
+$env:GOOGLE_WORKSPACE_CONTENT_CUSTOMER_ID = "<CUSTOMER_ID_A_FORNECER>"
+$env:GOOGLE_WORKSPACE_CONTENT_DOMAIN = "cevalente.com.br"
+```
+
+O bloco é uma instrução futura e não foi aplicado automaticamente. Não use
+`.env`, ambiente persistente do Windows ou `C:\Users\joaoc\.codex\config.toml`
+para armazenar essa configuração sem uma decisão operacional separada. Não
+adicione variável de scope ou Client ID DWD.
+
+O binding segue `ADC -> IAM signJwt -> DWD -> OAuth`, mas ADC só é acessada
+quando uma operação Content precisar de token. Import, startup, `tools/list`,
+parsing de configuração e testes locais não acessam ADC. Os testes usam
+fakes/`httpx.MockTransport` para ADC, IAM, OAuth e Drive.
+
+O operador confirmou manualmente Content SA, IAM Token Creator e DWD com
+`drive.readonly`. Para a RV2 autorizada, as cinco variáveis obrigatórias,
+incluindo `customer_id`, foram fornecidas na tabela de ambiente do MCP. A
+validação real passou uma única vez pelo host MCP; não consulte o ambiente do
+host por subprocesso para inferir essa configuração.
+
+### Gate obrigatório antes da RV1
+
+Antes de qualquer comando que requeira:
+
+```text
+gcloud auth application-default login
+```
+
+aplicar:
+
+```text
+STOP AND ASK OPERATOR FOR EXPLICIT AUTHORIZATION.
+```
+
+Se a ADC estiver expirada, informar `ADC reauthentication required`, fornecer
+o comando exato e aguardar o operador. Não executar login, `signJwt`, OAuth ou
+Drive automaticamente.

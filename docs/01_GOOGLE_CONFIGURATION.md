@@ -354,3 +354,127 @@ tratados como isolamento de processo.
 Nenhum Content Service Account, DWD, scope, API, token ou validação Google foi
 criado ou executado. A autenticação histórica Read `ADC -> IAM signJwt -> DWD
 -> OAuth` permanece inalterada.
+
+## Fase 1.5.1 — Shared Drive Discovery — IMPLEMENT V1 local
+
+A implementação local adiciona somente as tools MCP
+`workspace_drives_list` e `workspace_drive_get`. Elas permanecem lazy e
+fail-closed: importar o servidor, enumerar o catálogo ou executar testes locais
+não constrói ADC, não gera token e não faz chamada Google. Sem provisioning de
+Content, uma invocação funcional falha localmente antes do HTTP.
+
+O mapeamento fechado para a futura execução é:
+
+| Tool | Método e endpoint fixos | Fields | Scope mínimo |
+| --- | --- | --- | --- |
+| `workspace_drives_list` | `GET https://www.googleapis.com/drive/v3/drives` | `nextPageToken,drives(id,name)` | `https://www.googleapis.com/auth/drive.readonly` |
+| `workspace_drive_get` | `GET https://www.googleapis.com/drive/v3/drives/{driveId}` | `id,name` | `https://www.googleapis.com/auth/drive.readonly` |
+
+O MCP aceita uma página por invocation, com `page_size` e `max_items` de 1 a
+100, padrão 25 e 100 respectivamente; o tamanho efetivo é o mínimo dos dois.
+`page_token` é opcional e opaco. Não há `q`, fields, endpoint, subject,
+profile, scope ou paginação automática controlável pelo caller. O único
+`next_page_token` devolvido é o token validado da resposta Google. O retorno é
+allowlistado para IDs e nomes de Shared Drives; respostas, permissões,
+capabilities, restrictions e headers brutos não são expostos.
+
+`driveId` é o identificador operacional estável. Nome é somente atributo de
+descoberta/display: nomes duplicados permanecem distintos no resultado, e não
+há conversão ou seleção silenciosa por nome.
+
+### Identidade Content Research — provisioning manual futuro
+
+A identidade desta vertical deverá ser separada da Service Account usada pela
+camada Read histórica. O estado abaixo é requisito futuro, não afirmação de
+que a configuração exista:
+
+- criar manualmente uma Content Research Service Account dedicada, sem chave
+  JSON privada e sem registrar seu e-mail real no código;
+- conceder manualmente à identidade ADC local, restrita àquela Service Account,
+  `roles/iam.serviceAccountTokenCreator`/`iam.serviceAccounts.signJwt`;
+- usar a mesma arquitetura keyless `ADC -> IAM signJwt -> DWD -> OAuth`, com
+  DWD separada e somente o scope Drive readonly;
+- definir por configuração administrativa fixa o customer, domínio, auditor e
+  sujeito delegado; o sujeito não é parâmetro MCP nem entrada arbitrária;
+- autorizar no Admin Console o Client ID numérico da Content Research Service
+  Account com exatamente
+  `https://www.googleapis.com/auth/drive.readonly`, aguardando a propagação;
+- manter o token somente em RAM, com renovação bounded e sem persistir ADC,
+  JWT, access token ou credencial.
+
+`useDomainAdminAccess` é `false` por padrão. No modo ordinary, o profile
+Content aprovado, o sujeito validado, a capability `DRIVE` e a capability
+`SHARED_DRIVE_DISCOVERY` da operação devem estar satisfeitos. No modo
+administrative, `true` é opt-in explícito e ainda exige todas essas políticas,
+além de compatibilidade da operação; não concede autorização universal para
+ler conteúdo.
+
+### Gate manual anterior à REAL VALIDATION
+
+| Console | Recurso/configuração exata | Por que | Quando | Verificação manual |
+| --- | --- | --- | --- | --- |
+| Google Cloud Console — APIs & Services | habilitar **Google Drive API** (`drive.googleapis.com`) no projeto autorizado | permitir `drives.list`/`drives.get` | antes de RV1 | conferir API como Enabled, sem executar uma tool ainda |
+| Google Cloud Console — IAM & Admin > Service Accounts | criar/selecionar uma **Content Research Service Account** separada, sem JSON key | identidade dedicada e isolamento da Read SA | antes de configurar DWD | conferir conta e ausência de chaves privadas |
+| Google Cloud Console — IAM | conceder `roles/iam.serviceAccountTokenCreator` somente ao principal ADC na Content SA | permitir `signJwt` keyless | antes de RV1 | revisar IAM policy e permissão `iam.serviceAccounts.signJwt` |
+| Google Admin Console — Security > Access and data control > API controls > Manage Domain Wide Delegation | registrar o Client ID numérico da Content SA com somente `https://www.googleapis.com/auth/drive.readonly` | autorizar DWD separada para Drive | antes de RV1 e após propagação | confirmar Client ID, scope exato e estado propagado |
+| Google Workspace Admin Console / política do domínio | confirmar sujeito delegado, customer/domain fixos e auditor configurado | resolver subject controlado e policy | antes de RV1 | validação administrativa do sujeito, status e domínio, sem aceitar input MCP |
+| máquina local do operador | ADC válida para o principal que pode usar `signJwt` | autenticar somente a validação real | imediatamente antes de RV1, se necessário | operador pode executar `gcloud auth application-default print-access-token > $null`, sem imprimir o token |
+
+Todas essas alterações são manuais do operador. Codex/MCP não cria Service
+Account, não configura DWD, IAM, scopes, APIs ou Admin Console. A REAL
+VALIDATION desta entrega não foi iniciada.
+
+## Fase 1.5.1 — Operational Auth Binding — IMPLEMENT V1
+
+O binding local agora lê somente estes identificadores não secretos, sob um
+prefixo fechado, no momento da primeira operação Content:
+
+| Variável | Obrigatória | Consumidor |
+| --- | --- | --- |
+| `GOOGLE_WORKSPACE_CONTENT_PROJECT_ID` | sim | validação do ADC e configuração Content |
+| `GOOGLE_WORKSPACE_CONTENT_SERVICE_ACCOUNT` | sim | `ContentAuthProfile` e recurso fixo de `signJwt` |
+| `GOOGLE_WORKSPACE_CONTENT_SUBJECT` | sim | `WorkspaceSubject` fixo e claims DWD |
+| `GOOGLE_WORKSPACE_CONTENT_CUSTOMER_ID` | sim | profile e validação do subject |
+| `GOOGLE_WORKSPACE_CONTENT_DOMAIN` | sim | política fixa de domínio |
+
+O scope não é variável de ambiente. `DRIVE_DISCOVERY` resolve exclusivamente
+para `https://www.googleapis.com/auth/drive.readonly`; Client ID DWD é uma
+configuração administrativa e não é lido pelo runtime.
+
+O bloco abaixo é somente a configuração process-only planejada para o operador
+aplicar depois de obter o customer ID. Não o persista em `.env`, ambiente de
+usuário ou `config.toml`, e substitua o placeholder antes de usar:
+
+```powershell
+$env:GOOGLE_WORKSPACE_CONTENT_PROJECT_ID = "codex-workspace-admin"
+$env:GOOGLE_WORKSPACE_CONTENT_SERVICE_ACCOUNT = "codex-workspace-content@codex-workspace-admin.iam.gserviceaccount.com"
+$env:GOOGLE_WORKSPACE_CONTENT_SUBJECT = "suporte.ti@cevalente.com.br"
+$env:GOOGLE_WORKSPACE_CONTENT_CUSTOMER_ID = "<CUSTOMER_ID_A_FORNECER>"
+$env:GOOGLE_WORKSPACE_CONTENT_DOMAIN = "cevalente.com.br"
+```
+
+O Content Research Service Account, a permissão IAM Token Creator e o DWD
+`drive.readonly` foram **MANUALLY CONFIGURED**, conforme confirmação do
+operador; esta implementação não os verifica. A ausência de qualquer variável,
+inclusive `customer_id`, falha fechado antes de ADC, autenticação ou HTTP.
+
+### Evidência operacional 1.5.1 — RV1, Diagnostic V1 e RV2
+
+As cinco variáveis obrigatórias, incluindo `customer_id`, estão configuradas
+na tabela `env` da instância MCP. Elas permanecem identificadores process-only
+não secretos: não há variável de scope, Client ID DWD, token, JWT, chave privada
+ou fallback `my_customer`.
+
+O histórico de execução deve ser preservado: RV1 falhou no precheck de
+configuração antes de qualquer operação Google (`functional operations = 0`)
+porque o caminho direto Python/PowerShell não herdou o ambiente da instância
+MCP. Diagnostic V1 confirmou o parse de `ContentConfig`, o provisioning do
+profile e a construção do subject; a causa foi exclusivamente a boundary de
+execução, não uma mudança de configuração Google.
+
+RV2 executou exatamente uma chamada `workspace_drives_list` pelo MCP hospedado
+com modo administrativo `false`. A cadeia `CONFIG → ADC → IAM signJwt → DWD
+OAuth → Drive API` passou, retornou um Shared Drive e indicou token de próxima
+página, sem retry, paginação adicional, mutação ou exposição de valor sensível.
+Esta evidência valida a configuração operacional sem registrar IDs, nomes,
+tokens, JWTs, cabeçalhos ou resposta bruta.

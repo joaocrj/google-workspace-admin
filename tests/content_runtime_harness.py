@@ -49,6 +49,18 @@ def workspace_subject(*, mailbox_ready: bool = True) -> WorkspaceSubject:
     )
 
 
+class _SyntheticTokenProvider:
+    """A strictly local auth-port fake; none of its methods reach Google."""
+
+    def get_access_token(self, **kwargs: object) -> str:
+        del kwargs
+        return "synthetic-access-token"
+
+
+def synthetic_token_provider() -> _SyntheticTokenProvider:
+    return _SyntheticTokenProvider()
+
+
 @contextmanager
 def content_runtime_harness(
     monkeypatch,
@@ -92,6 +104,11 @@ def content_runtime_harness(
         bootstrap,
         "_build_retry_policy",
         lambda: retry_policy or RetryPolicy(),
+    )
+    monkeypatch.setattr(
+        bootstrap,
+        "_build_token_provider",
+        synthetic_token_provider,
     )
     if sleeper is not None:
         monkeypatch.setattr(bootstrap, "_build_sleeper", lambda: sleeper)

@@ -21,6 +21,18 @@ cookies nem credenciais ADC. O código e os testes são a fonte de verdade para 
 comportamento em execução; o documento de fases registra a evidência histórica
 e a próxima entrega.
 
+## Estado atual
+
+A Fase 1.5.1 — Shared Drive Discovery está implementada e validada com
+`workspace_drives_list` e `workspace_drive_get`. O catálogo possui 22 tools
+read-only; `workspace_drive_files_list` continua reservado para 1.5.2. O
+binding operacional Content usa as cinco variáveis process-only configuradas
+na tabela MCP e o bootstrap é lazy/fail-closed. A REAL VALIDATION RV2 foi
+executada uma única vez pelo MCP hospedado: a cadeia keyless alcançou a Drive
+API, retornou uma página limitada e não expôs valores sensíveis. O FINAL REVIEW
+V1 passou e o CHECKPOINT V1 é registrado neste commit. A etapa 1.5.2 não foi
+iniciada e depende de autorização explícita separada.
+
 ## Comandos de rotina
 
 ```powershell

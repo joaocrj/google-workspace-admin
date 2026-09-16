@@ -335,13 +335,10 @@ def test_content_safe_error_operation_is_closed_and_does_not_reflect_free_text()
 
 
 @pytest.mark.anyio
-async def test_mcp_boundary_remains_exactly_twenty_tools_without_content_tools():
+async def test_mcp_boundary_has_twenty_read_tools_and_two_content_tools():
     async with Client(server.mcp, raise_exceptions=True) as client:
         tools = await client.list_tools()
     names = {tool.name for tool in tools.tools}
-    assert len(names) == len(tools.tools) == 20
-    assert not {
-        "workspace_drives_list",
-        "workspace_drive_get",
-        "workspace_drive_files_list",
-    } & names
+    assert len(names) == len(tools.tools) == 22
+    assert {"workspace_drives_list", "workspace_drive_get"} <= names
+    assert "workspace_drive_files_list" not in names

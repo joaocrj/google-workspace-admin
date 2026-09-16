@@ -167,14 +167,28 @@ def _request_user_key(request: object) -> object:
     return request.user_key  # type: ignore[attr-defined]
 
 
-def _require_nonempty_string(value: object) -> str:
+def _require_nonempty_string(
+    value: object,
+    *,
+    max_length: int | None = None,
+) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ContentSafeError(
             code="LOCAL_VALIDATION",
             operation=ContentErrorOperation.OPERATION_NORMALIZATION,
         )
     normalized = value.strip()
-    if any(character.isspace() or ord(character) < 32 for character in normalized):
+    if any(
+        character.isspace()
+        or ord(character) < 32
+        or 0x7F <= ord(character) <= 0x9F
+        for character in normalized
+    ):
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.OPERATION_NORMALIZATION,
+        )
+    if max_length is not None and len(normalized) > max_length:
         raise ContentSafeError(
             code="LOCAL_VALIDATION",
             operation=ContentErrorOperation.OPERATION_NORMALIZATION,
@@ -250,7 +264,7 @@ def _normalize_verified_operation_request(
         page_token = pagination.page_token
         response_item_limit = pagination.effective_page_size
     elif operation is ContentOperation.DRIVE_GET:
-        drive_id = _require_nonempty_string(request.drive_id)
+        drive_id = _require_nonempty_string(request.drive_id, max_length=256)
     elif operation is ContentOperation.DRIVE_FILES_LIST:
         drive_id = _require_nonempty_string(request.drive_id)
         if request.filters is not None and type(request.filters) is not DriveFilesFilter:

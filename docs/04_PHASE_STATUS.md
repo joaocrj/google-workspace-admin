@@ -1,6 +1,6 @@
 # Andamento das fases
 
-Última consolidação documental: **14/09/2026 — WORKSPACE CONTENT FOUNDATION CHECKPOINT V1 / COMPLETE**. Esta árvore é a fonte
+Última consolidação documental: **15/09/2026 — WORKSPACE CONTENT 1.5.1 CHECKPOINT V1 / COMPLETE / THIS COMMIT**. Esta árvore é a fonte
 persistente do roadmap/status e combina o estado do código em `master`, os
 commits e o inventário de validações fornecido pelo usuário. Atualize-a no
 mesmo change set de qualquer avanço. Evidência de produção deve registrar
@@ -24,7 +24,7 @@ REVIEW/CHECKPOINT → COMMIT`.
 Nenhuma feature será considerada documentalmente concluída enquanto sua
 posição/status correspondente não estiver refletida nesta árvore.
 
-**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0 ARCHITECTURE & SAFETY COMPLETE / CHECKPOINTED; FOUNDATION REVIEW V5 PASS; Drive RV1 não iniciada.** O FINAL REVIEW V1 ficou
+**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0 ARCHITECTURE & SAFETY COMPLETE / CHECKPOINTED; 1.5.1 Shared Drive Discovery REAL VALIDATION RV2, FINAL REVIEW V1 e CHECKPOINT V1 completos neste commit; 1.5.2 aguarda autorização explícita e não foi iniciada.** O FINAL REVIEW V1 ficou
 preservado como histórico bloqueado pelos achados FR-01 a FR-04, apesar de
 **411 testes aprovados** naquele momento. O FINAL REVIEW V2 confirmou os quatro
 achados corrigidos/verificados, **459 testes aprovados**, catálogo com 20 tools,
@@ -693,7 +693,24 @@ FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS                ← EM ANDAMENTO
 ├── Foundation Remediation Implement V4                      ✅ CONCLUÍDO / SEM COMMIT — 558 testes
 ├── Foundation Review V5                                     ✅ CONCLUÍDO — PASS / P0=0, P1=0, P2 bloqueante=0
 ├── Foundation Checkpoint V1                                ✅ CONCLUÍDO / CHECKPOINTED — commit deste change set
-├── 1.5.1 Shared Drive Discovery                             ⬜ PENDENTE — autorização explícita necessária
+├── 1.5.1 Shared Drive Discovery                             ✅ CONCLUÍDO — RV2 / FINAL REVIEW V1 / CHECKPOINT V1
+│   ├── PLAN V1                                             ✅ CONCLUÍDO — aprovado
+│   ├── IMPLEMENT V1                                       ✅ CONCLUÍDO — 2 tools / sem Google
+│   │   ├── workspace_drives_list                           ✅ CONCLUÍDO
+│   │   ├── workspace_drive_get                             ✅ CONCLUÍDO
+│   │   ├── catálogo MCP                                    ✅ CONCLUÍDO — 22 tools
+│   │   ├── Content tools / Read / Write                     ✅ 2 / 20 / 0
+│   │   ├── workspace_drive_files_list                       ⬜ AUSENTE — reservado para 1.5.2
+│   │   ├── testes locais                                    ✅ CONCLUÍDO — sem Google/Auth
+│   │   ├── Operational Auth Binding                         ✅ CONCLUÍDO — MCP TOML env configurado / lazy
+│   │   ├── Content Research SA/IAM/DWD                      ✅ VALIDADO EM RV2 — cadeia keyless
+│   │   ├── customer_id                                      ✅ CONFIGURADO — sem valor registrado
+│   │   ├── RV1                                              ✅ HISTÓRICO — CONFIG precheck / 0 operações Google
+│   │   ├── Diagnostic V1                                    ✅ CONCLUÍDO — boundary direta não herdava env MCP
+│   │   ├── REAL VALIDATION RV2                              ✅ CONCLUÍDO — 1 chamada MCP / Drive API PASS
+│   │   ├── FINAL REVIEW V1                                  ✅ CONCLUÍDO — 652 testes / scan seguro / docs sincronizados
+│   │   └── CHECKPOINT V1                                    ✅ CONCLUÍDO — THIS COMMIT
+│   └── próximo passo                                        ⬜ 1.5.2 — autorização explícita separada
 ├── Shared Drive Discovery / bounded Inventory               ⬜ PENDENTE — Drive RV1
 ├── Google-native Content                                   ⬜ PENDENTE
 ├── Downloaded-file Extraction                              ⬜ PENDENTE
@@ -955,7 +972,120 @@ continua pendente de revisão independente aprovada e autorização explícita.
 
 ### Manual Google changes and validation
 
-Nenhuma mudança manual foi executada nesta entrega. Content SA/DWD não foi
-criado, scopes não foram adicionados, APIs não foram habilitadas e Drive RV1
-não foi executada. A próxima implementação autorizada deverá sincronizar o
-setup manual e o resultado de RV1 antes de registrar qualquer tool Content.
+Nenhuma mudança manual foi executada naquele checkpoint. Content SA/DWD não
+foi criado, scopes não foram adicionados, APIs não foram habilitadas e Drive
+RV1 não foi executada. O requisito então pendente foi superado somente pela
+implementação local 1.5.1 descrita abaixo; setup manual e RV1 continuam
+pendentes.
+
+### 1.5.1 SHARED DRIVE DISCOVERY — IMPLEMENT V1 — 15/09/2026
+
+**COMPLETE / LOCAL ONLY.** O PLAN V1 aprovado foi convertido em duas tools
+MCP públicas: `workspace_drives_list` e `workspace_drive_get`. O catálogo local
+passou a 22 tools únicas — 20 Read históricas, 2 Content e 0 Write — e
+`workspace_drive_files_list` continua ausente, reservado ao inventário 1.5.2.
+
+Os contratos usam requests e resultados tipados da Foundation, página única,
+limites 1–100, default 25, `max_items` 100, fields fechadas, endpoints HTTPS
+fixos, GET-only, redirects desabilitados e retry conservador. Shared Drive
+names são atributos de display; drive IDs são identificadores operacionais
+estáveis e nomes duplicados são preservados. `useDomainAdminAccess` permanece
+false por default e exige capability administrativa explícita antes do HTTP.
+
+Foi adicionada somente estrutura local de configuração Content sob
+`content/config.py` e um provider keyless com ports/fakes locais, cache RAM-only,
+expiry bounded e erros redacted. Não há Content Research SA, DWD, IAM, ADC,
+token, JWT, chamada Google, configuração Cloud/Admin Console ou validação real
+nesta entrega. A cadeia futura permanece
+`ADC -> IAM signJwt -> DWD -> OAuth -> Drive API`, separada da identidade Read
+histórica e limitada ao scope
+`https://www.googleapis.com/auth/drive.readonly`.
+
+O threat model da Foundation foi preservado exatamente: inputs MCP/runtime não
+confiáveis e API Content suportada estão no escopo; execução arbitrária de
+Python no processo, monkeypatch/introspecção pós-comprometimento,
+debugger/memória e mutação deliberada de closures estão fora do escopo.
+
+Testes locais novos cobrem catálogo/schema MCP, duplicate names, stable IDs,
+paginação e limites, path segment, admin authorization, fields/host/GET,
+respostas desconhecidas/malformadas, raw/token redaction, mutation barrier,
+provider keyless com fakes e regressão da Read Layer. A suíte final confirmou
+**629 testes aprovados**, sem chamada externa.
+
+#### Próximo gate
+
+```text
+PLAN V1                         ✅ CONCLUÍDO
+IMPLEMENT V1                   ✅ CONCLUÍDO
+REAL VALIDATION RV2            ✅ CONCLUÍDO — evidência hospedada pelo MCP preservada abaixo
+```
+
+Antes de qualquer command que requeira `gcloud auth application-default
+login`, o operador deve autorizar explicitamente. O Codex deve parar, fornecer
+o comando exato e aguardar se a ADC estiver expirada. A RV1 futura será uma
+única consulta bounded `workspace_drives_list`, sem retry, paginação adicional,
+conteúdo de arquivo ou mutação.
+
+### 1.5.1 SHARED DRIVE DISCOVERY — OPERATIONAL AUTH BINDING IMPLEMENT V1 — 15/09/2026
+
+**COMPLETE / LOCAL ONLY.** O binding operacional foi implementado sob a camada
+Content sem alterar a arquitetura Read histórica. A configuração é composta
+por cinco variáveis process-only não secretas: project ID, Content Research
+Service Account, subject, customer ID e domínio. O scope continua fechado em
+`https://www.googleapis.com/auth/drive.readonly`; não existe variável de scope
+nem fallback `my_customer`.
+
+O bootstrap permanece lazy: import, startup, catálogo e parsing de
+configuração não executam ADC. A cadeia futura é
+`ADC -> IAM signJwt -> DWD -> OAuth -> Drive API`; os adapters produtivos
+somente são chamados quando uma operação Content precisa de token. ADC, IAM,
+DWD, OAuth e Drive não foram executados nesta entrega.
+
+O operador confirmou manualmente Content SA, IAM Token Creator e DWD
+`drive.readonly`. Esses fatos não foram verificados em runtime. O customer ID
+continua obrigatório e deve ser fornecido antes da RV1. O resultado local foi
+verificado com **652 testes aprovados**, sem falhas, usando somente fakes e
+`httpx.MockTransport` para os caminhos externos.
+
+#### Próximo gate
+
+```text
+OPERATIONAL AUTH BINDING IMPLEMENT V1 = COMPLETE
+CUSTOMER ID                          = CONFIGURED IN MCP ENV
+RV1                                  = CONFIG PRECHECK FAILURE / 0 GOOGLE OPERATIONS
+DIAGNOSTIC V1                        = MCP EXECUTION-BOUNDARY ROOT CAUSE
+RV2                                  = PASS / 1 MCP-HOSTED OPERATION
+FINAL REVIEW V1                      = PASS
+CHECKPOINT V1                        = COMPLETE / THIS COMMIT
+```
+
+Antes de qualquer comando que requeira `gcloud auth application-default login`,
+é obrigatório parar e solicitar autorização explícita do operador.
+
+### 1.5.1 SHARED DRIVE DISCOVERY — RV1 / DIAGNOSTIC V1 / RV2 / FINAL REVIEW V1 — 15/09/2026
+
+```text
+RV1
+├── CONFIG precheck                                      ✅ FALHOU — histórico preservado
+└── operações Google funcionais                           ✅ 0
+
+DIAGNOSTIC V1
+├── config.toml / MCP env / ContentConfig                ✅ CORRETOS
+├── profile provisioning / subject construction           ✅ PASS
+└── causa                                                 ✅ boundary Python/PowerShell não herdava env MCP
+
+RV2
+├── boundary                                               ✅ MCP HOSTED
+├── chamada funcional                                     ✅ EXATAMENTE 1 — workspace_drives_list
+├── CONFIG / ADC / IAM signJwt / DWD OAuth / Drive API    ✅ PASS
+├── drives retornados / próxima página                    ✅ 1 / PRESENTE
+├── admin mode / retries / paginação                      ✅ false / 0 / 0
+└── mutações / exposição sensível                         ✅ 0 / 0
+
+FINAL REVIEW V1
+├── contratos, keyless security e boundary MCP            ✅ PASS
+├── regressão local                                       ✅ 652 passed
+├── documentação                                          ✅ SYNCHRONIZED
+├── checkpoint V1                                         ✅ CONCLUÍDO — THIS COMMIT
+└── próximo gate                                          ⬜ 1.5.2 — autorização explícita separada
+```

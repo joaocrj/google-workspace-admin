@@ -1,17 +1,19 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 20 ferramentas, todas de leitura. Cada camada de API obtém
-um token para o scope mínimo que ela declara e o servidor serializa uma seleção
-de campos antes de devolver a resposta ao Codex.
+catálogo atual possui 22 ferramentas, todas de leitura: 20 Read históricas e 2
+tools Content da vertical 1.5.1. Cada camada de API obtém um token para o scope
+mínimo que ela declara e o servidor serializa uma seleção de campos antes de
+devolver a resposta ao Codex.
 
-## Fase 1.5 — Foundation Content
+## Fase 1.5 — Foundation Content e Shared Drive Discovery
 
-A Foundation Content Implement V1 é interna e não altera este catálogo. As
-tools `workspace_drives_list`, `workspace_drive_get` e
-`workspace_drive_files_list` permanecem **NOT IMPLEMENTED / NOT REGISTERED**.
-O catálogo público continua com exatamente 20 tools; os contratos de
-operação, transporte, scopes read-only, subjects e limites não são helpers MCP.
+A Foundation Content permanece interna como infraestrutura. A entrega 1.5.1
+registra somente `workspace_drives_list` e `workspace_drive_get`; a ferramenta
+`workspace_drive_files_list` continua **NOT IMPLEMENTED / NOT REGISTERED**.
+O catálogo público agora possui exatamente 22 tools: Content = 2 e Write = 0.
+Os contratos de operação, transporte, scopes read-only, subjects e limites
+continuam não sendo helpers MCP.
 
 A remediação da Foundation adiciona um broker de autorização local, registry
 fechado de profiles provisionados, máscaras internas de campos, filtros
@@ -54,6 +56,8 @@ inventário rejeita também respostas com `trashed` ausente ou diferente de
 | `workspace_drive_audit_list` | `reports/drive_audit.py` | `max_results` 1–100, padrão 25; `page_token`, `event_name`, `filters`, `start_time`, `end_time`, `actor_ip_address` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | atividades Drive Audit serializadas conservadoramente e `next_page_token` da página |
 | `workspace_user_usage_get` | `reports/user_usage.py` | `date` obrigatório YYYY-MM-DD válido; `max_results` 1–100, padrão 25; `page_token`, `parameters`, `filters` e `org_unit_id` opcionais não vazios; `user_key` padrão `all` | User Usage Reports implementados e validados, serializer allowlisted, warnings sanitizados e `next_page_token` da página |
 | `workspace_customer_usage_get` | `reports/customer_usage.py` | `date` obrigatório YYYY-MM-DD válido; `parameters` obrigatório com CSV de métricas allowlisted; `page_token` opcional | Customer Usage Reports implementados, serializer integer allowlisted, warnings sanitizados e `next_page_token` da página |
+| `workspace_drives_list` | `content` / `server.py` | `page_size` StrictInt 1–100, padrão 25; `page_token` StrictStr opcional não vazio; `max_items` StrictInt 1–100, padrão 100; `use_domain_admin_access` StrictBool, padrão `false`; uma página, sem auto-pagination | Shared Drives allowlisted como `{drive_id, name}` e token Google validado |
+| `workspace_drive_get` | `content` / `server.py` | `drive_id` StrictStr, trim boundary, 1–256 caracteres, sem whitespace/control; `use_domain_admin_access` StrictBool, padrão `false` | um Shared Drive allowlisted como `{drive_id, name}` |
 
 ## Endpoints Directory em uso
 
@@ -80,6 +84,8 @@ inventário rejeita também respostas com `trashed` ausente ou diferente de
 | Login Audit | `/admin/reports/v1/activity/users/{userKey}/applications/login` |
 | User Usage | `/admin/reports/v1/usage/users/{userKey}/dates/{date}` |
 | Customer Usage | `/admin/reports/v1/usage/dates/{date}` |
+| Shared Drive Discovery — list | `https://www.googleapis.com/drive/v3/drives` |
+| Shared Drive Discovery — get | `https://www.googleapis.com/drive/v3/drives/{driveId}` |
 
 Todos os clientes HTTP têm timeout de 30 segundos, não fazem retry e convertem
 falhas HTTP/transportes dos módulos Directory consolidados em erros seguros,
@@ -338,5 +344,62 @@ fechada de operação. Resultados continuam DTOs allowlistados e
 contexto e retry são verificadas novamente no ponto de consumo; subclasses e
 objetos duck-typed de segurança falham fechado.
 
-O catálogo permanece com exatamente 20 tools, Content tools = 0 e Write tools
-= 0. Nenhuma tool Drive, Gmail ou outra Content foi registrada.
+No snapshot histórico da Foundation V4, o catálogo permanecia com exatamente 20
+tools, Content tools = 0 e Write tools = 0; essa fotografia é preservada para
+o histórico. O estado corrente após a entrega 1.5.1 está definido abaixo.
+
+## Fase 1.5.1 — Shared Drive Discovery — IMPLEMENT V1
+
+As duas tools públicas usam a identidade Content configurada internamente e
+não expõem `profile_id`, subject, credentials, access token, endpoint, método,
+scope, fields ou query livre. O runtime é criado somente na primeira invocação
+funcional; importar o módulo e enumerar `tools/list` não executa autenticação.
+Sem Content provisioning, a invocação retorna um erro seguro antes do HTTP.
+
+`workspace_drives_list` tem a assinatura lógica:
+
+```text
+workspace_drives_list(
+    page_size=25,
+    page_token=None,
+    max_items=100,
+    use_domain_admin_access=False,
+)
+```
+
+`page_size` e `max_items` são inteiros estritos entre 1 e 100. O adapter envia
+`pageSize=min(page_size, max_items)`; não inventa token local e não percorre
+mais de uma página. `page_token` é uma string opaca não vazia ou `None`. O
+request interno é `drive.list`, e o retorno público é somente:
+
+```json
+{"drives": [{"drive_id": "...", "name": "..."}], "next_page_token": null}
+```
+
+`workspace_drive_get` aceita somente `drive_id` como identificador operacional
+opaco, com trim nas bordas, 1–256 caracteres, sem whitespace ou caracteres de
+controle; o case é preservado. O ID inteiro é codificado como um único path
+segment antes de `GET`. O retorno público é somente:
+
+```json
+{"drive": {"drive_id": "...", "name": "..."}}
+```
+
+Nomes duplicados são preservados. Nome não é chave operacional e nenhum lookup,
+fuzzy match ou desambiguação silenciosa por nome existe nesta versão.
+
+O modo administrativo encaminha `useDomainAdminAccess=true` somente depois do
+profile Content aprovado, subject validado, capability `DRIVE`, capability
+administrativa `SHARED_DRIVE_DISCOVERY` e compatibilidade da operação. O
+padrão é `false`; a flag não é bypass de autorização nem universaliza acesso a
+conteúdo.
+
+O adapter fixa HTTPS, host `www.googleapis.com`, método GET e fields
+`nextPageToken,drives(id,name)` / `id,name`. Redirects ficam desabilitados,
+timeout é controlado e a política padrão faz uma tentativa, com máximo interno
+de três para casos explicitamente retryable. 400/401/403/404 nunca são repetidos.
+O header Authorization é produzido internamente pelo provider keyless e nunca
+entra no request MCP, DTO, audit, erro ou representação pública.
+
+`workspace_drive_files_list` continua ausente: os contratos internos da
+Foundation são preservados para 1.5.2, mas não são ferramenta desta entrega.

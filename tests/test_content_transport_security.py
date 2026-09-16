@@ -57,7 +57,7 @@ def test_drive_list_uses_closed_runtime_and_typed_result(monkeypatch):
     assert captured[0].method == "GET"
     assert captured[0].url.params["fields"] == DRIVE_LIST_FIELDS
     assert captured[0].url.params["pageSize"] == "25"
-    assert "Authorization" not in captured[0].headers
+    assert captured[0].headers["Authorization"] == "Bearer synthetic-access-token"
 
 
 def test_drive_get_encodes_id_and_drops_unknown_fields(monkeypatch):

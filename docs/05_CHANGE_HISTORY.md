@@ -388,3 +388,89 @@ debugger/memória e mutação deliberada de closures privadas estão fora do esc
 
 O Write Architecture/Safety Plan permanece preservado e a implementação Write
 continua pausada. O próximo estágio 1.5.1 exige autorização explícita separada.
+
+## 15/09/2026 — WORKSPACE CONTENT 1.5.1 SHARED DRIVE DISCOVERY IMPLEMENT V1 — COMPLETE / SEM CHECKPOINT
+
+O PLAN V1 aprovado foi implementado exclusivamente localmente com as tools
+MCP `workspace_drives_list` e `workspace_drive_get`. O catálogo passou de 20
+para 22 tools únicas: 20 Read históricas, 2 Content e 0 Write. A ferramenta
+`workspace_drive_files_list` não foi implementada nem registrada; os contratos
+internos correspondentes da Foundation foram preservados para 1.5.2.
+
+As tools usam requests/resultados tipados da Foundation, endpoints HTTPS e GET
+fixos da Drive API v3, fields allowlisted, uma página por chamada, caps de 100,
+IDs operacionais estáveis, nomes duplicados preservados e admin mode opt-in
+default false. O header de autorização é aplicado somente dentro do adapter.
+Foi adicionada estrutura local de configuração Content sem e-mail real da
+futura SA e provider keyless com ports injetáveis apenas por fakes, cache RAM,
+expiry bounded e redaction segura.
+
+Testes locais cobrem schemas MCP estritos, catálogo/duplicatas, paginação,
+limites, IDs/path segments, admin authorization, allowlists, erros, token/JWT/
+credential redaction, mutation barrier e regressão da Read Layer. A suíte final
+passou em **629 testes** (558 baseline + 71 novos), sem falhas. A execução
+não fez chamadas Google, Drive, ADC, IAM `signJwt`, DWD, OAuth ou Admin/Cloud;
+nenhuma configuração externa foi alterada. `REAL VALIDATION = NOT STARTED`.
+Não houve staging, commit ou push; o checkpoint da Foundation
+`564a47e092c29424131045a37527350c2d2c9619` foi preservado.
+
+## 15/09/2026 — WORKSPACE CONTENT 1.5.1 OPERATIONAL AUTH BINDING IMPLEMENT V1 — COMPLETE / SEM CHECKPOINT
+
+Implementado exclusivamente localmente o binding configurável da identidade
+Content: variáveis process-only não secretas, `ContentAuthProfile`, subject
+fixo, adapters lazy para ADC/IAM/OAuth e integração com o
+`KeylessContentTokenProvider`. O scope permaneceu fechado em
+`https://www.googleapis.com/auth/drive.readonly`; não foi criada variável de
+scope nem configurado Client ID no runtime. `customer_id` é obrigatório e não
+há fallback para `my_customer`.
+
+O Content Research Service Account, IAM Token Creator e DWD `drive.readonly`
+foram **MANUALLY CONFIGURED**, conforme confirmação do operador, mas não foram
+verificados por chamadas reais. ADC não foi consultada e a REAL VALIDATION não
+foi iniciada. O customer ID ainda deve ser fornecido antes da RV1.
+
+Os testes adicionados usam somente fakes e `httpx.MockTransport` para ADC,
+IAM, OAuth e Drive. A suíte passou em **652 testes**, sem falhas, preservando
+os 629 testes anteriores. Não houve alteração em Cloud/Admin Console, staging,
+commit ou push.
+
+## 15/09/2026 — WORKSPACE CONTENT 1.5.1 SHARED DRIVE DISCOVERY — RV1 / DIAGNOSTIC V1 / RV2 / FINAL REVIEW V1
+
+RV1 preserva o precheck `CONFIG` falho e **zero operações funcionais Google**:
+o caminho direto Python/PowerShell estava fora do ambiente próprio da instância
+MCP. Diagnostic V1 confirmou `config.toml`, a tabela MCP `env`, o parse de
+`ContentConfig`, o provisioning do profile e a construção do subject; nenhuma
+variável, valor sensível ou configuração Google foi exposta ou alterada.
+
+RV2 passou exclusivamente pelo MCP hospedado com exatamente uma chamada
+`workspace_drives_list` limitada e `use_domain_admin_access=false`. A cadeia
+CONFIG → ADC → IAM `signJwt` → DWD OAuth → Drive API passou; o registro seguro
+é: uma página com um Shared Drive, próxima página presente, zero retries, zero
+continuação, zero mutações e zero exposição sensível. IDs, nomes, token de
+próxima página, JWT, Authorization, resposta OAuth, ADC e payload Drive não
+foram registrados.
+
+FINAL REVIEW V1 = **PASS**. Os testes locais confirmaram 71 casos Shared
+Drive/keyless, 23 de binding operacional, 207 de Foundation/protocolo e
+**652 passed** na regressão completa. A revisão confirmou catálogo único de 22
+tools (20 Read, 2 Content, 0 Write), ausência de
+`workspace_drive_files_list`, isolamento semântico da camada Read e ausência
+de credenciais reais no diff/repositório. Documentação sincronizada; staging,
+commit e push permanecem vazios/zero. Próximo gate: **CHECKPOINT somente com
+autorização explícita**.
+
+## 15/09/2026 — WORKSPACE CONTENT 1.5.1 SHARED DRIVE DISCOVERY — CHECKPOINT V1 — COMPLETE / THIS COMMIT
+
+Este commit consolida exclusivamente o diff autorizado de 1.5.1 desde o
+checkpoint baseline `564a47e092c29424131045a37527350c2d2c9619`: Shared Drive
+Discovery, configuração operacional Content, binding keyless de produção,
+registro MCP, testes e documentação. O commit usa a mensagem
+`feat: add shared drive discovery`; o hash canônico é informado no relatório
+pós-commit, sem criar um segundo commit documental.
+
+O gate final confirmou 20 arquivos autorizados e zero unrelated, catálogo com
+22 tools únicas (20 Read, 2 Content, 0 Write), scope Content somente
+`drive.readonly`, ausência de credenciais reais e **652 testes aprovados**. A
+RV2 permanece preservada como uma única chamada MCP hospedada; este checkpoint
+não executou Google, Drive, ADC, IAM `signJwt` ou OAuth. Não houve push e 1.5.2
+não foi iniciada.
