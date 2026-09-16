@@ -435,3 +435,32 @@ Write = 0 e duplicatas = 0. A RV1 foi preservada como catálogo stale com zero
 chamadas; a RV2 confirmou catálogo fresco e passou com duas chamadas MCP,
 sem expor valores sensíveis. `REAL VALIDATION = PASS` e `FINAL REVIEW V1 =
 COMPLETE`; `CHECKPOINT V1 = COMPLETE` neste change set, sem novo escopo.
+
+## Fase 1.5.3 — Content Reading Architecture & Safety — IMPLEMENT V1
+
+PLAN V1 = **COMPLETE**; IMPLEMENT V1 = **COMPLETE**. Esta etapa não registra
+REAL GOOGLE VALIDATION executável.
+
+O substrate de leitura é exclusivamente interno. Foram adicionados contratos
+tipados para `ContentClass`, MIME routing allowlisted, `ContentReadingBudgets`,
+`InventorySnapshot`, `ContentChunk`, variantes de provenance, `ProcessingOutcome`,
+`BoundedReadResult`, `ContentReader`, download preflight e policy
+`NEVER_EXECUTE_FILE_CONTENT`.
+
+Nenhum desses helpers, serializers, protocols ou policies é uma MCP tool. O
+catálogo permanece exatamente com 23 tools (20 Read, 3 Content, 0 Write), sem
+duplicatas; `workspace_drives_list`, `workspace_drive_get` e
+`workspace_drive_files_list` permanecem as únicas Content tools. `mcp.run()`
+continua sendo a operação final absoluta de `server.py`.
+
+Não há reader funcional, parser, endpoint novo, mutation route ou scope de
+escrita. O routing usa somente MIME confiável; extensão não substitui MIME e
+`UNKNOWN` falha fechado. A cobertura futura exige um outcome terminal explícito
+para todo arquivo, inclusive folders, imagens, áudio, vídeo e archives não
+suportados.
+
+FINAL REVIEW V1 confirmou o boundary semântico e estático: 23 tools (20 Read,
+3 Content, 0 Write), zero duplicatas e zero helpers/promises registrados como
+MCP tools. A revisão foi local; REAL GOOGLE VALIDATION = NOT APPLICABLE / NOT
+EXECUTED; CHECKPOINT V1 = **COMPLETE**. Não há reader concreto e nenhuma nova
+MCP tool foi iniciada.

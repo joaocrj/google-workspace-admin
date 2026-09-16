@@ -735,3 +735,40 @@ A REAL VALIDATION RV2 autorizada ocorreu exclusivamente pelo MCP hospedado:
 uma descoberta bounded e uma página bounded de inventário, sem retry,
 continuação ou exposição de IDs/metadados. `REAL VALIDATION = PASS`; não
 repita chamadas reais sem autorização explícita para uma etapa posterior.
+
+## Fase 1.5.3 — Content Reading Architecture & Safety — operação local
+
+PLAN V1 = **COMPLETE**; IMPLEMENT V1 = **COMPLETE** para o substrate comum.
+
+O IMPLEMENT V1 desta etapa é local e não registra nova tool. Os módulos
+internos de substrate validam MIME, snapshots, budgets, chunks, provenance,
+outcomes e preflight sem aceitar host, URL, método, scope, parser executable ou
+export MIME fornecido pelo caller.
+
+Requisito obrigatório de compliance: o projeto deve ser capaz de processar o
+conteúdo de todos os arquivos inventariados relevantes, incluindo Google Docs,
+Google Sheets, Google Slides, PDFs, documentos Microsoft Office e formatos
+textuais, registrando explicitamente todo arquivo que não puder ser processado.
+Isso exige routing e um outcome terminal por arquivo; não exige interpretar
+bytes arbitrários nem autoriza execução de conteúdo.
+
+Os budgets padrão são finitos: download 32 MiB, export 8 MiB, parser input 32
+MiB, conteúdo extraído 2 MiB, chunk textual 256 KiB, chunk estruturado 1 MiB,
+archive descomprimido 64 MiB, 10.000 membros, timeout de parser 15 s por chunk e
+30 s por arquivo. O primeiro limite atingido não encerra automaticamente o
+arquivo: continuação segura produz `PARTIALLY_PROCESSED`; somente limite
+absoluto ou continuação impossível produz `TOO_LARGE`.
+
+Para validação local use apenas a suíte de substrate e as suítes Foundation
+existentes, sempre com mocks/fakes e sem ADC, Google, IAM ou OAuth. Readers
+concretos e REAL VALIDATION exigem autorização própria em etapa posterior.
+
+FINAL REVIEW V1 desta etapa foi concluído localmente com 80 testes targeted,
+207 testes no grupo reconciliado de Foundation/security/protocol e 827 na
+regressão completa. A diferença histórica 207 versus 187 foi somente a
+composição do comando: os 20 testes de `test_content_auth_boundary.py` não
+foram incluídos no relatório de IMPLEMENT; nenhum teste foi perdido.
+Não existe operação Google executável em 1.5.3, portanto REAL GOOGLE VALIDATION
+= NOT APPLICABLE / NOT EXECUTED. FINAL REVIEW V1 = **COMPLETE** e CHECKPOINT
+V1 = **COMPLETE**; readers concretos somente poderão começar após autorização
+explícita da etapa 1.5.4.

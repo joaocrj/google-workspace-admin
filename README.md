@@ -49,3 +49,14 @@ uv run python -m google_workspace_admin.server
 O último comando inicia o servidor por `stdio`; não use sua saída para logs de
 diagnóstico. Consulte o runbook antes de executar testes de integração ou
 alterar permissões no Google Cloud/Admin Console.
+
+A etapa 1.5.3 — Content Reading Architecture & Safety implementa somente o
+substrate interno comum: routing MIME fechado, budgets finitos, snapshots de
+inventário, chunks normalizados, provenance, outcomes explícitos, preflight e
+políticas contra conteúdo ativo. Nenhum reader Google/PDF/Office, nova tool MCP,
+scope ou chamada externa foi adicionada. Todo arquivo inventariado deverá
+futuramente resultar em conteúdo processado ou em estado terminal explícito.
+PLAN V1 e IMPLEMENT V1 estão completos. Como 1.5.3 não adiciona operação
+Google nem tool Content executável, FINAL REVIEW V1 = COMPLETE; REAL GOOGLE
+VALIDATION = NOT APPLICABLE / NOT EXECUTED; CHECKPOINT V1 = COMPLETE. A
+próxima etapa (1.5.4) aguarda autorização explícita e ainda não foi iniciada.

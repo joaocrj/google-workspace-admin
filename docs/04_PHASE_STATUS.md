@@ -1,6 +1,6 @@
 # Andamento das fases
 
-Última consolidação documental: **16/09/2026 — WORKSPACE CONTENT 1.5.2 DRIVE FILE INVENTORY FINAL REVIEW V1 / COMPLETE / SEM CHECKPOINT**. Esta árvore é a fonte
+Última consolidação documental: **16/09/2026 — WORKSPACE CONTENT 1.5.3 CONTENT READING ARCHITECTURE & SAFETY CHECKPOINT V1 / COMPLETE / SEM RV GOOGLE**. Esta árvore é a fonte
 persistente do roadmap/status e combina o estado do código em `master`, os
 commits e o inventário de validações fornecido pelo usuário. Atualize-a no
 mesmo change set de qualquer avanço. Evidência de produção deve registrar
@@ -24,7 +24,7 @@ REVIEW/CHECKPOINT → COMMIT`.
 Nenhuma feature será considerada documentalmente concluída enquanto sua
 posição/status correspondente não estiver refletida nesta árvore.
 
-**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0 ARCHITECTURE & SAFETY COMPLETE / CHECKPOINTED; 1.5.1 Shared Drive Discovery completo; 1.5.2 Drive File Inventory PLAN V1, IMPLEMENT V1, REAL VALIDATION RV2 e FINAL REVIEW V1 completos, sem checkpoint.** O FINAL REVIEW V1 ficou
+**Ponteiro atual: FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS / 1.5.0, 1.5.1, 1.5.2 e 1.5.3 completos e checkpointed; 1.5.3 Content Reading Architecture & Safety não possui REAL VALIDATION Google aplicável.** O CHECKPOINT V1 ficou
 preservado como histórico bloqueado pelos achados FR-01 a FR-04, apesar de
 **411 testes aprovados** naquele momento. O FINAL REVIEW V2 confirmou os quatro
 achados corrigidos/verificados, **459 testes aprovados**, catálogo com 20 tools,
@@ -724,6 +724,17 @@ FASE 1.5 — WORKSPACE CONTENT & DEEP ANALYSIS                ← EM ANDAMENTO
 │   ├── FINAL REVIEW V1                                    ✅ CONCLUÍDO — 747 testes
 │   ├── CHECKPOINT                                         ✅ CONCLUÍDO — THIS COMMIT
 │   └── próximo gate                                         ⬜ WAIT FOR EXPLICIT AUTHORIZATION FOR NEXT CONTENT STAGE
+├── 1.5.3 Content Reading Architecture & Safety              ✅ CONCLUÍDO — CHECKPOINT V1
+│   ├── PLAN V1                                             ✅ CONCLUÍDO — arquitetura aprovada
+│   ├── IMPLEMENT V1                                       ✅ CONCLUÍDO — substrate comum / 80 targeted / 827 regression / sem readers
+│   ├── Content reading MCP tools                           ✅ 0
+│   ├── cobertura por arquivo                               ✅ outcome terminal explícito obrigatório
+│   ├── MIME routing / budgets / chunks / provenance        ✅ contratos internos fechados
+│   ├── no-active-content policy                            ✅ NEVER EXECUTE FILE CONTENT
+│   ├── REAL VALIDATION                                     ⬜ NOT APPLICABLE / NOT EXECUTED
+│   ├── FINAL REVIEW V1                                    ✅ CONCLUÍDO — 80 targeted / 827 regression
+│   ├── CHECKPOINT V1                                      ✅ CONCLUÍDO — substrate / sem SHA antecipado
+│   └── próximo gate                                         ⬜ WAIT FOR EXPLICIT AUTHORIZATION FOR 1.5.4
 ├── Shared Drive Discovery / bounded Inventory               ← EM ANDAMENTO — implementação concluída / RV pendente
 ├── Google-native Content                                   ⬜ PENDENTE
 ├── Downloaded-file Extraction                              ⬜ PENDENTE

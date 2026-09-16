@@ -522,3 +522,58 @@ A suíte dedicada passou em 94 casos e a regressão completa em **747 passed**.
 O catálogo permanece 23/20/3/0 sem duplicatas. FINAL REVIEW V1 = **COMPLETE**;
 CHECKPOINT V1 = **COMPLETE / THIS COMMIT**. Não houve nova chamada externa nesta
 revisão; o SHA do commit é registrado somente pelo Git após a consolidação.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.3 CONTENT READING ARCHITECTURE & SAFETY — IMPLEMENT V1 — COMPLETE / SEM VALIDAÇÃO
+
+Implementado exclusivamente o substrate arquitetural comum aprovado no PLAN
+V1. A entrega adicionou routing MIME fechado, budgets imutáveis e finitos,
+`InventorySnapshot`, preflight interno de download, `ContentChunk` com payloads
+tipados, variantes de provenance, taxonomia fechada de processing outcomes,
+semântica de continuação para limites e o protocolo interno `ContentReader`.
+
+O invariant de cobertura exige exatamente um outcome terminal por arquivo;
+`PARTIALLY_PROCESSED` representa limite recuperável com continuação opaca e
+`TOO_LARGE` representa limite absoluto ou continuação impossível. Conteúdo é
+untrusted data e `NEVER_EXECUTE_FILE_CONTENT` permanece testável. Nenhum reader
+concreto, parser, endpoint, MCP tool, scope, dependência, mutation route ou
+alteração de Read Layer foi introduzido.
+
+Foram adicionados somente testes locais sintéticos para routing, budgets,
+chunks, provenance, outcomes, preflight, safety e boundary (**80 targeted;
+827 regression**). Não houve Google
+API, ADC, IAM, OAuth, instalação de pacote, staging, commit ou push nesta
+entrega; a REAL VALIDATION permanece **NOT STARTED** e aguarda autorização
+explícita.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.3 CONTENT READING ARCHITECTURE & SAFETY — FINAL REVIEW V1 — COMPLETE / SEM RV GOOGLE
+
+A revisão local confirmou os 19 caminhos autorizados, exports intencionais do
+substrate, routing MIME fechado, cobertura exatamente-um-outcome, budgets
+finitos, continuação parcial segura, payloads tipados, provenance, snapshot
+TOCTOU, preflight interno, ausência de conteúdo ativo, erros seguros,
+isolamento de auth/Read/Write e catálogo 23/20/3/0 sem duplicatas.
+
+A reconciliação de testes registrou **207 passed** com o comando explícito
+`test_content_auth_boundary.py` + `test_content_foundation.py` +
+`test_content_transport_security.py` + `test_mcp_protocol.py`. O relatório de
+IMPLEMENT havia executado somente os três últimos arquivos (**187 passed**),
+logo a diferença é exclusivamente os 20 casos de `test_content_auth_boundary.py`;
+nenhum teste foi deletado, renomeado, movido, desabilitado ou perdido. A
+regressão completa permanece em **827 passed**.
+
+FINAL REVIEW V1 = **COMPLETE**. Como não há reader concreto, endpoint ou tool
+Content executável em 1.5.3, REAL VALIDATION Google = **NOT APPLICABLE / NOT
+EXECUTED**. Não houve alteração de código/teste nesta revisão, atividade
+Google/ADC/IAM/OAuth, staging, commit ou push; 1.5.3 CHECKPOINT V1 foi
+autorizado para consolidação neste change set.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.3 CONTENT READING ARCHITECTURE & SAFETY — CHECKPOINT V1 — COMPLETE
+
+O checkpoint consolida exclusivamente os 19 paths autorizados do substrate
+comum de Content Reading, seus testes locais e a documentação sincronizada.
+Routing MIME, budgets finitos, coverage/outcomes, chunks, provenance,
+snapshot/preflight, safety e protocolo interno permanecem sem readers
+concretos, novas MCP tools, scopes, dependências, mutações ou alterações da
+Read Layer. O estado final é PLAN V1 = COMPLETE, IMPLEMENT V1 = COMPLETE,
+REAL GOOGLE VALIDATION = NOT APPLICABLE, FINAL REVIEW V1 = PASS e CHECKPOINT
+V1 = COMPLETE. O SHA é produzido somente pelo Git após a consolidação.

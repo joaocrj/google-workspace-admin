@@ -40,6 +40,15 @@ class ContentErrorOperation(str, Enum):
     AUDIT = "content.audit"
     BOOTSTRAP = "content.bootstrap"
     RUNTIME = "content.runtime"
+    READING_ROUTER = "content.reading.router"
+    READING_BUDGET = "content.reading.budget"
+    READING_CHUNK = "content.reading.chunk"
+    READING_PROVENANCE = "content.reading.provenance"
+    READING_OUTCOME = "content.reading.outcome"
+    READING_READER = "content.reading.reader"
+    READING_SNAPSHOT = "content.reading.snapshot"
+    READING_PREFLIGHT = "content.reading.preflight"
+    READING_SAFETY = "content.reading.safety"
 
 
 class ContentSafeError(SafeOperationError):

@@ -501,3 +501,32 @@ posteriormente, a RV2 autorizada pelo MCP hospedado: Google activity adicional
 `drive_id` pela tool existente e executar uma única página bounded do
 inventário, sem registrar o ID. Essa RV2 foi concluída pelo MCP hospedado com
 uma descoberta e uma página de inventário; não houve mudança externa de Google.
+
+## Fase 1.5.3 — Content Reading Architecture & Safety — IMPLEMENT V1 local
+
+PLAN V1 = **COMPLETE**; IMPLEMENT V1 = **COMPLETE** (substrate somente local).
+
+Esta etapa adiciona somente primitives locais e imutáveis para futuros
+readers: classes MIME fechadas, budgets de bytes/estrutura/tempo, snapshots de
+inventário, chunks normalizados, provenance tipada, outcomes terminais,
+preflight interno de `capabilities.canDownload`, protocolo de reader e policy
+de conteúdo não executável.
+
+Não foram adicionados readers concretos, endpoints Docs/Sheets/Slides/Drive
+media, dependências de parser, variáveis de ambiente ou ferramentas MCP. O
+profile permanece `DRIVE_DISCOVERY`, com o único scope
+`https://www.googleapis.com/auth/drive.readonly`; nenhuma alteração de Google
+Cloud, IAM, DWD, Service Account ou Admin Console ocorreu.
+
+O contrato de cobertura exige exatamente um outcome terminal por arquivo
+inventariado. Limite de primeira operação com continuação segura resulta em
+`PARTIALLY_PROCESSED` mais token opaco; continuação impossível ou limite
+absoluto resulta em `TOO_LARGE`. Conteúdo é tratado como dado não confiável e
+nenhum macro, fórmula, script, hyperlink, entidade externa ou comando é
+executado.
+
+A revisão local V1 confirmou que não há reader concreto, endpoint, dependência,
+scope ou alteração de configuração Google nesta etapa. REAL GOOGLE VALIDATION
+= **NOT APPLICABLE / NOT EXECUTED**; FINAL REVIEW V1 = **COMPLETE**;
+CHECKPOINT V1 = **COMPLETE**. Não há reader concreto nem nova configuração
+Google nesta etapa; 1.5.4 aguarda autorização explícita.
