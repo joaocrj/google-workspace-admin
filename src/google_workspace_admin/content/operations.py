@@ -9,13 +9,16 @@ from types import MappingProxyType
 from google_workspace_admin.content.auth.handles import _OperationAuthority
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.inventory import InventorySnapshot
 from google_workspace_admin.content.limits import PaginationBounds, PaginationRequest
+from google_workspace_admin.content.readers import validate_reader_continuation
 
 
 class ContentOperation(str, Enum):
     DRIVE_LIST = "drive.list"
     DRIVE_GET = "drive.get"
     DRIVE_FILES_LIST = "drive.files.list"
+    FILE_CONTENT_READ = "content.file.read"
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,11 +49,23 @@ class DriveFilesListRequest:
     max_items: object | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class FileContentReadRequest:
+    profile_id: str
+    user_key: str
+    file_id: object
+    expected_mime_type: object
+    modified_time: object
+    continuation_token: object | None = None
+
+
 DRIVE_LIST_FIELDS = "nextPageToken,drives(id,name)"
 DRIVE_GET_FIELDS = "id,name"
 DRIVE_FILES_LIST_FIELDS = (
     "nextPageToken,files(id,name,mimeType,modifiedTime,size,parents,trashed)"
 )
+DOCS_GET_FIELDS = "documentId,revisionId,suggestionsViewMode,tabs"
+DRIVE_FILE_METADATA_FIELDS = "id,mimeType,modifiedTime,trashed"
 
 DRIVE_LIST_PAGINATION = PaginationBounds(
     api_max_page_size=100,
@@ -89,6 +104,10 @@ class _NormalizedOperationRequest:
     page_token: str | None
     response_item_limit: int | None
     admin_mode: bool
+    file_id: str | None = None
+    expected_mime_type: str | None = None
+    modified_time: str | None = None
+    continuation_token: str | None = None
 
 
 _DRIVE_API_ROOT = "https://www.googleapis.com/drive/v3"
@@ -128,6 +147,17 @@ _CONTRACTS = MappingProxyType(
             DRIVE_FILES_LIST_FIELDS,
             True,
         ),
+        ContentOperation.FILE_CONTENT_READ: ContentOperationContract(
+            ContentOperation.FILE_CONTENT_READ,
+            "GET",
+            "https://docs.googleapis.com/v1/documents/{document_id}",
+            ApprovedScopeProfile.DRIVE_DISCOVERY,
+            "docs.documents.get",
+            False,
+            None,
+            DOCS_GET_FIELDS,
+            True,
+        ),
     }
 )
 
@@ -146,6 +176,7 @@ def _operation_for_request(request: object) -> ContentOperation:
         DriveListRequest: ContentOperation.DRIVE_LIST,
         DriveGetRequest: ContentOperation.DRIVE_GET,
         DriveFilesListRequest: ContentOperation.DRIVE_FILES_LIST,
+        FileContentReadRequest: ContentOperation.FILE_CONTENT_READ,
     }
     try:
         return request_types[type(request)]
@@ -285,6 +316,10 @@ def _normalize_verified_operation_request(
     drive_id: str | None = None
     page_size: int | None = None
     page_token: str | None = None
+    file_id: str | None = None
+    expected_mime_type: str | None = None
+    modified_time: str | None = None
+    continuation_token: str | None = None
 
     if operation is ContentOperation.DRIVE_LIST:
         pagination = _pagination(
@@ -310,6 +345,21 @@ def _normalize_verified_operation_request(
         page_size = pagination.effective_page_size
         page_token = pagination.page_token
         response_item_limit = pagination.effective_page_size
+    elif operation is ContentOperation.FILE_CONTENT_READ:
+        snapshot = InventorySnapshot(
+            file_id=request.file_id,
+            expected_mime_type=request.expected_mime_type,
+            modified_time=request.modified_time,
+        )
+        if snapshot.modified_time is None:
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.READING_SNAPSHOT,
+            )
+        file_id = snapshot.file_id
+        expected_mime_type = snapshot.expected_mime_type
+        modified_time = snapshot.modified_time
+        continuation_token = validate_reader_continuation(request.continuation_token)
 
     return _NormalizedOperationRequest(
         operation=operation,
@@ -318,4 +368,8 @@ def _normalize_verified_operation_request(
         page_token=page_token,
         response_item_limit=response_item_limit,
         admin_mode=use_admin,
+        file_id=file_id,
+        expected_mime_type=expected_mime_type,
+        modified_time=modified_time,
+        continuation_token=continuation_token,
     )

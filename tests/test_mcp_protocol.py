@@ -1,10 +1,14 @@
 import json
 from pathlib import Path
+import traceback
 
+import httpx
 import pytest
 from mcp import Client
 
 from google_workspace_admin import server
+from google_workspace_admin.content.transport import RetryPolicy
+from content_runtime_harness import content_runtime_harness
 
 
 @pytest.fixture
@@ -47,6 +51,47 @@ def _json_result(result):
     assert result.content[0].type == "text"
 
     return json.loads(result.content[0].text)
+
+
+_CONTENT_LEAKAGE_SENTINELS = (
+    "FAKE_ACCESS_TOKEN_SENTINEL",
+    "FAKE_JWT_SENTINEL",
+    "FAKE_DOCUMENT_ID_SENTINEL",
+    "FAKE_URL_SENTINEL",
+    "FAKE_DOCUMENT_CONTENT_SENTINEL",
+)
+
+
+class _SyntheticBytesStream(httpx.SyncByteStream):
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __iter__(self):
+        yield self._body
+
+
+def _synthetic_json_response(payload: object) -> httpx.Response:
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return httpx.Response(
+        200,
+        headers={"Content-Length": str(len(body))},
+        stream=_SyntheticBytesStream(body),
+    )
+
+
+def _text_content_result(result):
+    text_blocks = [
+        content.text
+        for content in result.content
+        if content.type == "text"
+    ]
+    assert text_blocks, "o resultado MCP deve conter TextContent"
+    text = "\n".join(text_blocks)
+    payload = json.loads(text_blocks[0])
+    if isinstance(payload, dict) and "result" in payload:
+        payload = payload["result"]
+    assert isinstance(payload, dict)
+    return text, payload
 
 
 _STRICT_MAX_RESULTS_CASES = [
@@ -127,13 +172,32 @@ async def test_tools_are_registered(client: Client):
     assert "workspace_drives_list" in tool_names
     assert "workspace_drive_get" in tool_names
     assert "workspace_drive_files_list" in tool_names
-    assert len(tool_names) == 23
+    assert "workspace_file_content_read" in tool_names
+    assert len(tool_names) == 24
     assert len(tools.tools) == len(tool_names)
     users_tool = next(
         tool for tool in tools.tools if tool.name == "workspace_users_list"
     )
     assert "max_results" in users_tool.input_schema["properties"]
     assert "page_token" in users_tool.input_schema["properties"]
+    content_read_tool = next(
+        tool for tool in tools.tools if tool.name == "workspace_file_content_read"
+    )
+    assert set(content_read_tool.input_schema["properties"]) == {
+        "file_id",
+        "expected_mime_type",
+        "modified_time",
+        "continuation_token",
+    }
+    assert {"file_id", "expected_mime_type", "modified_time"} <= set(
+        content_read_tool.input_schema["required"]
+    )
+    for forbidden in (
+        "host", "url", "path", "method", "fields", "query", "scope",
+        "suggestionsViewMode", "includeTabsContent", "commentsViewMode",
+        "chunk_size", "retry_count", "export_mime",
+    ):
+        assert forbidden not in content_read_tool.input_schema["properties"]
     assert "_serialize_building" not in tool_names
     assert "_serialize_building_address" not in tool_names
     assert "_serialize_calendar_resource" not in tool_names
@@ -156,6 +220,413 @@ async def test_tools_are_registered(client: Client):
     assert "_serialize_customer_usage_report" not in tool_names
     assert "_serialize_customer_usage_parameter" not in tool_names
     assert "_serialize_customer_usage_page" not in tool_names
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("injected_sentinel", _CONTENT_LEAKAGE_SENTINELS)
+async def test_content_public_and_mcp_paths_redact_genuine_failure_material(
+    client: Client,
+    monkeypatch,
+    injected_sentinel,
+):
+    raw_exception_message = (
+        "synthetic upstream failure: "
+        + " | ".join(_CONTENT_LEAKAGE_SENTINELS)
+    )
+    synthetic_exception = RuntimeError(raw_exception_message)
+    try:
+        raise synthetic_exception
+    except RuntimeError as error:
+        exception_repr = repr(error)
+        exception_traceback = "".join(traceback.format_exception(error))
+
+    assert injected_sentinel in str(synthetic_exception)
+    assert injected_sentinel in exception_repr
+    assert injected_sentinel in exception_traceback
+
+    observed_failure_material = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.googleapis.com":
+            return _synthetic_json_response(
+                {
+                    "id": "synthetic-public-doc",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-09-16T10:00:00.000Z",
+                    "trashed": False,
+                }
+            )
+        if request.url.host == "docs.googleapis.com":
+            observed_failure_material.append(synthetic_exception)
+            raise synthetic_exception
+        raise AssertionError(f"unexpected synthetic host: {request.url.host}")
+
+    with content_runtime_harness(
+        monkeypatch,
+        handler,
+        retry_policy=RetryPolicy(
+            max_attempts=1,
+            initial_delay_seconds=0,
+            max_delay_seconds=0,
+        ),
+    ) as (runtime, _captured):
+        monkeypatch.setattr(
+            server,
+            "_content_identity",
+            lambda: ("drive-discovery", "analyst@cevalente.com.br"),
+        )
+        monkeypatch.setattr(server, "_get_content_runtime", lambda: runtime)
+        public_result = server.workspace_file_content_read(
+            "synthetic-public-doc",
+            "application/vnd.google-apps.document",
+            "2026-09-16T10:00:00.000Z",
+        )
+        response = await client.call_tool(
+            "workspace_file_content_read",
+            {
+                "file_id": "synthetic-public-doc",
+                "expected_mime_type": "application/vnd.google-apps.document",
+                "modified_time": "2026-09-16T10:00:00.000Z",
+            },
+        )
+
+    assert len(observed_failure_material) == 2
+    assert response.is_error is False
+    assert isinstance(public_result, dict)
+    public_payload = public_result
+    mcp_text_content_json, mcp_payload = _text_content_result(response)
+    public_serialized_result = json.dumps(public_payload, sort_keys=True)
+
+    assert public_payload["processing_status"] == "TRANSIENT_UPSTREAM"
+    assert public_payload["safe_error_code"] == "TRANSIENT_UPSTREAM"
+    assert public_payload["failure_stage"] == "DOCS_RESPONSE_TRANSPORT"
+    assert mcp_payload["processing_status"] == "TRANSIENT_UPSTREAM"
+    assert mcp_payload["safe_error_code"] == "TRANSIENT_UPSTREAM"
+    assert mcp_payload["failure_stage"] == "DOCS_RESPONSE_TRANSPORT"
+
+    for envelope in (public_serialized_result, mcp_text_content_json):
+        for sentinel in _CONTENT_LEAKAGE_SENTINELS:
+            assert sentinel not in envelope
+        assert raw_exception_message not in envelope
+        assert exception_repr not in envelope
+        assert exception_traceback not in envelope
+
+
+@pytest.mark.anyio
+async def test_structural_fingerprint_crosses_public_and_mcp_serialization(
+    client: Client,
+    monkeypatch,
+):
+    malformed_document = {
+        "documentId": "synthetic-public-doc",
+        "suggestionsViewMode": "SUGGESTIONS_INLINE",
+        "tabs": [
+            {
+                "tabProperties": {
+                    "tabId": "tab-main",
+                    "title": "",
+                    "index": 0,
+                    "nestingLevel": 0,
+                },
+                "documentTab": {
+                    "body": {
+                        "content": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 2,
+                                "paragraph": {},
+                                "table": {},
+                            }
+                        ]
+                    },
+                    "headers": {},
+                    "footers": {},
+                    "footnotes": {},
+                    "lists": {},
+                    "inlineObjects": {},
+                    "positionedObjects": {},
+                },
+                "childTabs": [],
+            }
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.googleapis.com":
+            return _synthetic_json_response(
+                {
+                    "id": "synthetic-public-doc",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-09-16T10:00:00.000Z",
+                    "trashed": False,
+                }
+            )
+        assert request.url.host == "docs.googleapis.com"
+        return _synthetic_json_response(malformed_document)
+
+    with content_runtime_harness(
+        monkeypatch,
+        handler,
+        retry_policy=RetryPolicy(max_attempts=1, initial_delay_seconds=0, max_delay_seconds=0),
+    ) as (runtime, _):
+        monkeypatch.setattr(
+            server,
+            "_content_identity",
+            lambda: ("drive-discovery", "analyst@cevalente.com.br"),
+        )
+        monkeypatch.setattr(server, "_get_content_runtime", lambda: runtime)
+        public_payload = server.workspace_file_content_read(
+            "synthetic-public-doc",
+            "application/vnd.google-apps.document",
+            "2026-09-16T10:00:00.000Z",
+        )
+        response = await client.call_tool(
+            "workspace_file_content_read",
+            {
+                "file_id": "synthetic-public-doc",
+                "expected_mime_type": "application/vnd.google-apps.document",
+                "modified_time": "2026-09-16T10:00:00.000Z",
+            },
+        )
+
+    _, mcp_payload = _text_content_result(response)
+    for payload in (public_payload, mcp_payload):
+        assert payload["processing_status"] == "EXTRACTION_FAILED"
+        assert payload["safe_error_code"] == "RESPONSE_VALIDATION"
+        assert payload["failure_stage"] == "DOCS_STRUCTURAL_EXTRACTION"
+        assert payload["structural_failure_kind"] == "BODY_STRUCTURAL_ELEMENT"
+        assert payload["chunk_count"] == 0
+        assert payload["result_count"] == 0
+        assert payload["continuation_token"] is None
+
+
+@pytest.mark.anyio
+async def test_structural_failure_redacts_document_material_but_preserves_fingerprint(
+    client: Client,
+    monkeypatch,
+):
+    sentinels = (
+        "FAKE_DOCUMENT_CONTENT_SENTINEL",
+        "FAKE_URL_SENTINEL",
+        "FAKE_DOCUMENT_ID_SENTINEL",
+    )
+    unsafe_tab_id = " ".join(sentinels)
+    malformed_document = {
+        "documentId": "synthetic-public-doc",
+        "suggestionsViewMode": "SUGGESTIONS_INLINE",
+        "tabs": [
+            {
+                "tabProperties": {
+                    "tabId": unsafe_tab_id,
+                    "title": "",
+                    "index": 0,
+                    "nestingLevel": 0,
+                },
+                "documentTab": {
+                    "body": {"content": []},
+                    "headers": {},
+                    "footers": {},
+                    "footnotes": {},
+                    "lists": {},
+                    "inlineObjects": {},
+                    "positionedObjects": {},
+                },
+                "childTabs": [],
+            }
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.googleapis.com":
+            return _synthetic_json_response(
+                {
+                    "id": "synthetic-public-doc",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-09-16T10:00:00.000Z",
+                    "trashed": False,
+                }
+            )
+        assert request.url.host == "docs.googleapis.com"
+        return _synthetic_json_response(malformed_document)
+
+    with content_runtime_harness(
+        monkeypatch,
+        handler,
+        retry_policy=RetryPolicy(max_attempts=1, initial_delay_seconds=0, max_delay_seconds=0),
+    ) as (runtime, _):
+        monkeypatch.setattr(
+            server,
+            "_content_identity",
+            lambda: ("drive-discovery", "analyst@cevalente.com.br"),
+        )
+        monkeypatch.setattr(server, "_get_content_runtime", lambda: runtime)
+        public_payload = server.workspace_file_content_read(
+            "synthetic-public-doc",
+            "application/vnd.google-apps.document",
+            "2026-09-16T10:00:00.000Z",
+        )
+        response = await client.call_tool(
+            "workspace_file_content_read",
+            {
+                "file_id": "synthetic-public-doc",
+                "expected_mime_type": "application/vnd.google-apps.document",
+                "modified_time": "2026-09-16T10:00:00.000Z",
+            },
+        )
+
+    mcp_text, mcp_payload = _text_content_result(response)
+    for payload in (public_payload, mcp_payload):
+        assert payload["structural_failure_kind"] == "TAB_TRAVERSAL"
+    for envelope in (json.dumps(public_payload, sort_keys=True), mcp_text):
+        for sentinel in sentinels:
+            assert sentinel not in envelope
+
+
+@pytest.mark.anyio
+async def test_paragraph_fingerprint_survives_public_and_mcp_leakage_boundary(
+    client: Client,
+    monkeypatch,
+):
+    sentinels = (
+        "FAKE_DOCUMENT_CONTENT_SENTINEL",
+        "FAKE_URL_SENTINEL",
+        "FAKE_DOCUMENT_ID_SENTINEL",
+    )
+    malformed_document = {
+        "documentId": "synthetic-public-doc",
+        "suggestionsViewMode": "SUGGESTIONS_INLINE",
+        "tabs": [
+            {
+                "tabProperties": {
+                    "tabId": "tab-main",
+                    "title": "",
+                    "index": 0,
+                    "nestingLevel": 0,
+                },
+                "documentTab": {
+                    "body": {
+                        "content": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 3,
+                                "paragraph": {
+                                    "elements": [
+                                        {
+                                            "startIndex": 1,
+                                            "endIndex": 3,
+                                            "textRun": {"content": "X\n", "textStyle": {}},
+                                        }
+                                    ],
+                                    "paragraphStyle": " | ".join(sentinels),
+                                },
+                            }
+                        ]
+                    },
+                    "headers": {},
+                    "footers": {},
+                    "footnotes": {},
+                    "lists": {},
+                    "inlineObjects": {},
+                    "positionedObjects": {},
+                },
+                "childTabs": [],
+            }
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.googleapis.com":
+            return _synthetic_json_response(
+                {
+                    "id": "synthetic-public-doc",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-09-16T10:00:00.000Z",
+                    "trashed": False,
+                }
+            )
+        assert request.url.host == "docs.googleapis.com"
+        return _synthetic_json_response(malformed_document)
+
+    with content_runtime_harness(
+        monkeypatch,
+        handler,
+        retry_policy=RetryPolicy(max_attempts=1, initial_delay_seconds=0, max_delay_seconds=0),
+    ) as (runtime, _):
+        monkeypatch.setattr(
+            server,
+            "_content_identity",
+            lambda: ("drive-discovery", "analyst@cevalente.com.br"),
+        )
+        monkeypatch.setattr(server, "_get_content_runtime", lambda: runtime)
+        public_payload = server.workspace_file_content_read(
+            "synthetic-public-doc",
+            "application/vnd.google-apps.document",
+            "2026-09-16T10:00:00.000Z",
+        )
+        response = await client.call_tool(
+            "workspace_file_content_read",
+            {
+                "file_id": "synthetic-public-doc",
+                "expected_mime_type": "application/vnd.google-apps.document",
+                "modified_time": "2026-09-16T10:00:00.000Z",
+            },
+        )
+
+    mcp_text, mcp_payload = _text_content_result(response)
+    for payload in (public_payload, mcp_payload):
+        assert payload["processing_status"] == "EXTRACTION_FAILED"
+        assert payload["safe_error_code"] == "RESPONSE_VALIDATION"
+        assert payload["failure_stage"] == "DOCS_STRUCTURAL_EXTRACTION"
+        assert payload["structural_failure_kind"] == "PARAGRAPH_STRUCTURE"
+        assert payload["paragraph_failure_kind"] == "PARAGRAPH_STYLE"
+    for envelope in (json.dumps(public_payload, sort_keys=True), mcp_text):
+        for sentinel in sentinels:
+            assert sentinel not in envelope
+
+
+@pytest.mark.anyio
+async def test_content_exception_path_redacts_all_adversarial_sentinels(
+    non_raising_client: Client,
+    monkeypatch,
+):
+    sentinels = (
+        "FAKE_ACCESS_TOKEN_SENTINEL",
+        "FAKE_JWT_SENTINEL",
+        "FAKE_DOCUMENT_ID_SENTINEL",
+        "FAKE_URL_SENTINEL",
+        "FAKE_DOCUMENT_CONTENT_SENTINEL",
+    )
+
+    def fail_content(request):
+        raise RuntimeError(" | ".join(sentinels), *sentinels)
+
+    monkeypatch.setattr(
+        server,
+        "_content_identity",
+        lambda: ("content-reader", "synthetic@example.invalid"),
+    )
+    monkeypatch.setattr(server, "_execute_content", fail_content)
+
+    response = await non_raising_client.call_tool(
+        "workspace_file_content_read",
+        {
+            "file_id": "synthetic-file",
+            "expected_mime_type": "application/vnd.google-apps.document",
+            "modified_time": "2026-09-16T10:00:00Z",
+        },
+    )
+
+    assert response.is_error is True
+    mcp_text = "\n".join(
+        content.text
+        for content in response.content
+        if content.type == "text"
+    )
+    serialized = json.dumps(mcp_text)
+    assert "UNEXPECTED_LOCAL" in mcp_text
+    for sentinel in sentinels:
+        assert sentinel not in mcp_text
+        assert sentinel not in serialized
 
 
 @pytest.mark.anyio

@@ -11,8 +11,10 @@ import re
 from typing import Protocol, runtime_checkable
 
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
-from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError, FailureStage
 from google_workspace_admin.content.limits import GLOBAL_CONTENT_CEILING
+from google_workspace_admin.content.outcomes import ProcessingStatus
+from google_workspace_admin.content.routing import ContentClass
 from google_workspace_admin.http_errors import SAFE_ERROR_CODES
 
 
@@ -32,6 +34,7 @@ class AuditTargetKind(str, Enum):
     DRIVE = "drive"
     MAILBOX = "mailbox"
     DOMAIN = "domain"
+    FILE = "file"
 
 
 class AuditExtent(str, Enum):
@@ -44,6 +47,11 @@ class ContentAuditOperation(str, Enum):
     DRIVE_LIST = "drive.list"
     DRIVE_GET = "drive.get"
     DRIVE_FILES_LIST = "drive.files.list"
+    FILE_CONTENT_READ = "content.file.read"
+
+
+class ContentAuditReader(str, Enum):
+    GOOGLE_DOCS = "google_docs"
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +125,10 @@ class AuditEvent:
     result_count: int | None
     success: bool
     safe_error_code: str | None = None
+    content_class: ContentClass | None = None
+    reader: ContentAuditReader | None = None
+    processing_status: ProcessingStatus | None = None
+    failure_stage: FailureStage | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.timestamp, datetime) or self.timestamp.tzinfo is None:
@@ -164,6 +176,39 @@ class AuditEvent:
                 operation=ContentErrorOperation.AUDIT,
             )
         if self.safe_error_code is not None and self.safe_error_code not in SAFE_ERROR_CODES:
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.AUDIT,
+            )
+        if self.failure_stage is not None and type(self.failure_stage) is not FailureStage:
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.AUDIT,
+            )
+        docs_event = self.operation is ContentAuditOperation.FILE_CONTENT_READ
+        if docs_event:
+            if (
+                self.content_class is not ContentClass.GOOGLE_DOC
+                or self.reader is not ContentAuditReader.GOOGLE_DOCS
+                or not isinstance(self.processing_status, ProcessingStatus)
+            ):
+                raise ContentSafeError(
+                    code="LOCAL_VALIDATION",
+                    operation=ContentErrorOperation.AUDIT,
+                )
+            if self.processing_status in {
+                ProcessingStatus.PROCESSED,
+                ProcessingStatus.EMPTY,
+                ProcessingStatus.PARTIALLY_PROCESSED,
+            } and self.failure_stage is not None:
+                raise ContentSafeError(
+                    code="LOCAL_VALIDATION",
+                    operation=ContentErrorOperation.AUDIT,
+                )
+        elif any(
+            value is not None
+            for value in (self.content_class, self.reader, self.processing_status, self.failure_stage)
+        ):
             raise ContentSafeError(
                 code="LOCAL_VALIDATION",
                 operation=ContentErrorOperation.AUDIT,

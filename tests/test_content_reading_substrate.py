@@ -16,6 +16,7 @@ from google_workspace_admin.content import (
     DEFAULT_CONTENT_READING_BUDGETS,
     DEFAULT_UNTRUSTED_CONTENT_POLICY,
     DocsProvenance,
+    FailureStage,
     DownloadPreflight,
     ExcelProvenance,
     InventorySnapshot,
@@ -24,6 +25,7 @@ from google_workspace_admin.content import (
     PowerPointProvenance,
     ProcessingOutcome,
     ProcessingStatus,
+    ParagraphFailureKind,
     RecordPayload,
     RecordsPayload,
     SafeContentErrorCode,
@@ -32,6 +34,7 @@ from google_workspace_admin.content import (
     SlidesProvenance,
     StructuredField,
     StructuredPayload,
+    StructuralFailureKind,
     TextPayload,
     TextProvenance,
     validate_coverage_complete,
@@ -41,7 +44,59 @@ from google_workspace_admin.content import (
     route_mime_type,
     validate_reader_continuation,
 )
-from google_workspace_admin.content.errors import ContentSafeError
+from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+
+
+def test_structural_failure_kind_is_closed_and_complete():
+    assert tuple(StructuralFailureKind) == (
+        StructuralFailureKind.TAB_TRAVERSAL,
+        StructuralFailureKind.BODY_STRUCTURAL_ELEMENT,
+        StructuralFailureKind.PARAGRAPH_STRUCTURE,
+        StructuralFailureKind.PARAGRAPH_ELEMENT_INDEX,
+        StructuralFailureKind.TABLE_STRUCTURE,
+        StructuralFailureKind.TABLE_CELL_STRUCTURE,
+        StructuralFailureKind.TABLE_OF_CONTENTS_STRUCTURE,
+        StructuralFailureKind.HEADER_STRUCTURE,
+        StructuralFailureKind.FOOTER_STRUCTURE,
+        StructuralFailureKind.FOOTNOTE_STRUCTURE,
+        StructuralFailureKind.OTHER_STRUCTURAL_VALIDATION,
+    )
+
+
+def test_paragraph_failure_kind_is_closed_and_complete():
+    assert tuple(ParagraphFailureKind) == (
+        ParagraphFailureKind.PARAGRAPH_OBJECT,
+        ParagraphFailureKind.PARAGRAPH_STYLE,
+        ParagraphFailureKind.NAMED_STYLE,
+        ParagraphFailureKind.BULLET_STRUCTURE,
+        ParagraphFailureKind.ELEMENTS_CONTAINER,
+        ParagraphFailureKind.ELEMENT_STRUCTURE,
+        ParagraphFailureKind.POSITIONED_OBJECTS,
+        ParagraphFailureKind.PARAGRAPH_LIMIT,
+    )
+
+
+@pytest.mark.parametrize(
+    ("stage", "structural_kind"),
+    [
+        (FailureStage.DOCS_REQUEST, None),
+        (FailureStage.DOCS_RESPONSE_TRANSPORT, None),
+        (FailureStage.DOCS_JSON_PARSE, None),
+        (FailureStage.DOCS_SCHEMA_PARSE, None),
+        (FailureStage.PROVENANCE_BUILD, None),
+        (FailureStage.DOCS_STRUCTURAL_EXTRACTION, StructuralFailureKind.TABLE_STRUCTURE),
+        (FailureStage.DOCS_STRUCTURAL_EXTRACTION, StructuralFailureKind.PARAGRAPH_ELEMENT_INDEX),
+    ],
+)
+def test_paragraph_failure_kind_is_null_outside_known_paragraph_boundary(stage, structural_kind):
+    outcome = ProcessingOutcome(
+        ProcessingStatus.EXTRACTION_FAILED,
+        ContentClass.GOOGLE_DOC,
+        safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+        failure_stage=stage,
+        structural_failure_kind=structural_kind,
+    )
+    assert outcome.paragraph_failure_kind is None
 
 
 @pytest.mark.parametrize(
@@ -117,6 +172,10 @@ def test_defaults_are_exact_and_immutable():
         "max_docs_structural_elements",
         "max_docs_tables",
         "max_docs_text_runs",
+        "max_docs_tabs",
+        "max_docs_tab_depth",
+        "max_docs_structural_depth",
+        "max_chunks_per_invocation",
         "max_sheets_cells_per_chunk",
         "max_sheets_cells_per_file",
         "max_sheets_tabs",
@@ -295,6 +354,15 @@ def test_processing_outcomes_are_terminal_and_unambiguous():
         continuation="opaque",
     )
     assert processed.is_success and empty.is_success and partial.is_partial
+    assert processed.paragraph_failure_kind is None
+    assert empty.paragraph_failure_kind is None
+    assert partial.paragraph_failure_kind is None
+    terminal_partial = ProcessingOutcome(
+        ProcessingStatus.PARTIALLY_PROCESSED,
+        ContentClass.GOOGLE_DOC,
+        partial_reason="UNSUPPORTED_KNOWN_COVERAGE_GAP",
+    )
+    assert terminal_partial.is_partial and terminal_partial.continuation is None
     with pytest.raises(ContentSafeError):
         ProcessingOutcome(ProcessingStatus.READING, ContentClass.TEXT)  # type: ignore[arg-type]
     with pytest.raises(ContentSafeError):
@@ -317,6 +385,181 @@ def test_processing_outcomes_are_terminal_and_unambiguous():
         safe_error_code=SafeContentErrorCode.ACCESS_DENIED,
     )
     assert denied.is_failure and not denied.is_success
+    staged_failure = ProcessingOutcome(
+        ProcessingStatus.EXTRACTION_FAILED,
+        ContentClass.GOOGLE_DOC,
+        safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+        failure_stage=FailureStage.DOCS_JSON_PARSE,
+    )
+    assert staged_failure.failure_stage is FailureStage.DOCS_JSON_PARSE
+    assert staged_failure.structural_failure_kind is None
+    structural_failure = ProcessingOutcome(
+        ProcessingStatus.EXTRACTION_FAILED,
+        ContentClass.GOOGLE_DOC,
+        safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+        failure_stage=FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+        structural_failure_kind=StructuralFailureKind.TABLE_STRUCTURE,
+    )
+    assert structural_failure.structural_failure_kind is StructuralFailureKind.TABLE_STRUCTURE
+    paragraph_failure = ProcessingOutcome(
+        ProcessingStatus.EXTRACTION_FAILED,
+        ContentClass.GOOGLE_DOC,
+        safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+        failure_stage=FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+        structural_failure_kind=StructuralFailureKind.PARAGRAPH_STRUCTURE,
+        paragraph_failure_kind=ParagraphFailureKind.PARAGRAPH_STYLE,
+    )
+    assert paragraph_failure.paragraph_failure_kind is ParagraphFailureKind.PARAGRAPH_STYLE
+    with pytest.raises(ContentSafeError):
+        ProcessingOutcome(
+            ProcessingStatus.EXTRACTION_FAILED,
+            ContentClass.GOOGLE_DOC,
+            safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+            failure_stage="DOCS_JSON_PARSE",  # type: ignore[arg-type]
+        )
+    with pytest.raises(ContentSafeError):
+        ProcessingOutcome(
+            ProcessingStatus.PROCESSED,
+            ContentClass.TEXT,
+            chunk_count=1,
+            failure_stage=FailureStage.DOCS_JSON_PARSE,
+        )
+    for stage, kind in (
+        (FailureStage.DOCS_STRUCTURAL_EXTRACTION, None),
+        (FailureStage.DOCS_REQUEST, StructuralFailureKind.PARAGRAPH_STRUCTURE),
+        (FailureStage.PROVENANCE_BUILD, StructuralFailureKind.TABLE_CELL_STRUCTURE),
+    ):
+        with pytest.raises(ContentSafeError):
+            ProcessingOutcome(
+                ProcessingStatus.EXTRACTION_FAILED,
+                ContentClass.GOOGLE_DOC,
+                safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+                failure_stage=stage,
+                structural_failure_kind=kind,
+            )
+
+    for kwargs in (
+        {
+            "processing_status": ProcessingStatus.PROCESSED,
+            "content_class": ContentClass.GOOGLE_DOC,
+            "chunk_count": 1,
+            "paragraph_failure_kind": ParagraphFailureKind.PARAGRAPH_STYLE,
+        },
+        {
+            "processing_status": ProcessingStatus.EXTRACTION_FAILED,
+            "content_class": ContentClass.GOOGLE_DOC,
+            "safe_error_code": SafeContentErrorCode.RESPONSE_VALIDATION,
+            "failure_stage": FailureStage.DOCS_REQUEST,
+            "paragraph_failure_kind": ParagraphFailureKind.PARAGRAPH_OBJECT,
+        },
+        {
+            "processing_status": ProcessingStatus.EXTRACTION_FAILED,
+            "content_class": ContentClass.GOOGLE_DOC,
+            "safe_error_code": SafeContentErrorCode.RESPONSE_VALIDATION,
+            "failure_stage": FailureStage.PROVENANCE_BUILD,
+            "paragraph_failure_kind": ParagraphFailureKind.ELEMENT_STRUCTURE,
+        },
+        {
+            "processing_status": ProcessingStatus.EXTRACTION_FAILED,
+            "content_class": ContentClass.GOOGLE_DOC,
+            "safe_error_code": SafeContentErrorCode.RESPONSE_VALIDATION,
+            "failure_stage": FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+            "structural_failure_kind": StructuralFailureKind.TABLE_STRUCTURE,
+            "paragraph_failure_kind": ParagraphFailureKind.BULLET_STRUCTURE,
+        },
+        {
+            "processing_status": ProcessingStatus.EXTRACTION_FAILED,
+            "content_class": ContentClass.GOOGLE_DOC,
+            "safe_error_code": SafeContentErrorCode.RESPONSE_VALIDATION,
+            "failure_stage": FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+            "structural_failure_kind": StructuralFailureKind.PARAGRAPH_ELEMENT_INDEX,
+            "paragraph_failure_kind": ParagraphFailureKind.ELEMENTS_CONTAINER,
+        },
+        {
+            "processing_status": ProcessingStatus.EXTRACTION_FAILED,
+            "content_class": ContentClass.GOOGLE_DOC,
+            "safe_error_code": SafeContentErrorCode.RESPONSE_VALIDATION,
+            "failure_stage": FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+            "structural_failure_kind": StructuralFailureKind.PARAGRAPH_STRUCTURE,
+        },
+    ):
+        with pytest.raises(ContentSafeError):
+            ProcessingOutcome(**kwargs)
+    with pytest.raises(TypeError):
+        ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.RESPONSE_DOCS_GET,
+            failure_stage=FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+            structural_failure_kind="TABLE_STRUCTURE",  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError):
+        ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.RESPONSE_DOCS_GET,
+            failure_stage=FailureStage.DOCS_STRUCTURAL_EXTRACTION,
+            structural_failure_kind=StructuralFailureKind.PARAGRAPH_STRUCTURE,
+            paragraph_failure_kind="PARAGRAPH_STYLE",  # type: ignore[arg-type]
+        )
+    with pytest.raises(ValueError):
+        ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.RESPONSE_DOCS_GET,
+            failure_stage=FailureStage.DOCS_REQUEST,
+            paragraph_failure_kind=ParagraphFailureKind.PARAGRAPH_OBJECT,
+        )
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        ProcessingStatus.TOO_LARGE,
+        ProcessingStatus.ACCESS_DENIED,
+        ProcessingStatus.NOT_FOUND,
+        ProcessingStatus.CHANGED_DURING_AUDIT,
+        ProcessingStatus.EXTRACTION_FAILED,
+        ProcessingStatus.TRANSIENT_UPSTREAM,
+    ],
+)
+def test_pre_rv_remediation_terminal_failures_forbid_counts_and_resume_state(status):
+    assert ProcessingOutcome(status, ContentClass.TEXT).is_failure
+    for kwargs in (
+        {"chunk_count": 1},
+        {"result_count": 1},
+        {"continuation": "opaque"},
+        {"truncated": True},
+    ):
+        with pytest.raises(ContentSafeError):
+            ProcessingOutcome(status, ContentClass.TEXT, **kwargs)
+
+
+def test_pre_rv_remediation_bounded_failure_forbids_chunks_even_with_zero_counts():
+    chunk = ContentChunk(
+        file_ref="file-1",
+        content_class=ContentClass.TEXT,
+        sequence=0,
+        content_kind=ContentKind.TEXT,
+        payload=TextPayload("data"),
+        provenance=TextProvenance(line=1),
+    )
+    with pytest.raises(ContentSafeError):
+        BoundedReadResult(
+            (chunk,),
+            ProcessingOutcome(
+                ProcessingStatus.EXTRACTION_FAILED,
+                ContentClass.TEXT,
+                safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+            ),
+        )
+    with pytest.raises(ContentSafeError):
+        BoundedReadResult(
+            (),
+            ProcessingOutcome(
+                ProcessingStatus.EXTRACTION_FAILED,
+                ContentClass.GOOGLE_DOC,
+                safe_error_code=SafeContentErrorCode.RESPONSE_VALIDATION,
+            ),
+            (DocsProvenance("tab-1", "BODY", block_role="SECTION_BREAK"),),
+        )
 
 
 def test_processing_status_sets_are_closed_and_disjoint():
@@ -399,6 +642,15 @@ def test_bounded_read_result_matches_outcome_and_chunks():
         continuation="opaque",
     )
     assert BoundedReadResult((partial_chunk,), partial_outcome).outcome.is_partial
+    terminal_partial = BoundedReadResult(
+        (),
+        ProcessingOutcome(
+            ProcessingStatus.PARTIALLY_PROCESSED,
+            ContentClass.GOOGLE_DOC,
+            partial_reason="UNSUPPORTED_KNOWN_COVERAGE_GAP",
+        ),
+    )
+    assert terminal_partial.outcome.continuation is None
     with pytest.raises(ContentSafeError):
         BoundedReadResult(
             (partial_chunk,),

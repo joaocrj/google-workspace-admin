@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.errors import (
+    ContentErrorOperation,
+    ContentSafeError,
+    FailureStage,
+    ParagraphFailureKind,
+    StructuralFailureKind,
+)
 from google_workspace_admin.content.routing import ContentClass
 
 
@@ -101,6 +107,9 @@ class ProcessingOutcome:
     partial_reason: str | None = None
     continuation: str | None = None
     safe_error_code: SafeContentErrorCode | None = None
+    failure_stage: FailureStage | None = None
+    structural_failure_kind: StructuralFailureKind | None = None
+    paragraph_failure_kind: ParagraphFailureKind | None = None
 
     def __post_init__(self) -> None:
         if type(self.processing_status) is not ProcessingStatus or self.processing_status in NON_TERMINAL_STATUSES:
@@ -114,21 +123,55 @@ class ProcessingOutcome:
         token = _token(self.continuation)
         if self.safe_error_code is not None and type(self.safe_error_code) is not SafeContentErrorCode:
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        if self.failure_stage is not None and type(self.failure_stage) is not FailureStage:
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        if (
+            self.structural_failure_kind is not None
+            and type(self.structural_failure_kind) is not StructuralFailureKind
+        ):
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        if (
+            self.paragraph_failure_kind is not None
+            and type(self.paragraph_failure_kind) is not ParagraphFailureKind
+        ):
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        if self.failure_stage is FailureStage.DOCS_STRUCTURAL_EXTRACTION:
+            if self.structural_failure_kind is None:
+                raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        elif self.structural_failure_kind is not None:
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        if self.structural_failure_kind is StructuralFailureKind.PARAGRAPH_STRUCTURE:
+            if self.paragraph_failure_kind is None:
+                raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+        elif self.paragraph_failure_kind is not None:
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
 
         status = self.processing_status
         if status is ProcessingStatus.PROCESSED:
-            if self.chunk_count < 1 or self.truncated or self.partial_reason is not None or token is not None or self.safe_error_code is not None:
+            if self.chunk_count < 1 or self.truncated or self.partial_reason is not None or token is not None or self.safe_error_code is not None or self.failure_stage is not None or self.structural_failure_kind is not None or self.paragraph_failure_kind is not None:
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
             _reason(self.partial_reason, required=False)
         elif status is ProcessingStatus.EMPTY:
-            if self.chunk_count != 0 or self.result_count != 0 or self.truncated or self.partial_reason is not None or token is not None or self.safe_error_code is not None:
+            if self.chunk_count != 0 or self.result_count != 0 or self.truncated or self.partial_reason is not None or token is not None or self.safe_error_code is not None or self.failure_stage is not None or self.structural_failure_kind is not None or self.paragraph_failure_kind is not None:
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
         elif status is ProcessingStatus.PARTIALLY_PROCESSED:
-            if self.chunk_count < 1 or not self.truncated or token is None:
+            if self.failure_stage is not None or self.structural_failure_kind is not None or self.paragraph_failure_kind is not None:
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
             _reason(self.partial_reason, required=True)
+            resumable = self.truncated or token is not None
+            if resumable:
+                if self.chunk_count < 1 or not self.truncated or token is None:
+                    raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
+            elif token is not None:
+                raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
         else:
-            if self.truncated or self.partial_reason is not None or token is not None:
+            if (
+                self.chunk_count != 0
+                or self.result_count != 0
+                or self.truncated
+                or self.partial_reason is not None
+                or token is not None
+            ):
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
 
         object.__setattr__(self, "continuation", token)

@@ -11,6 +11,7 @@ from google_workspace_admin.content.audit import (
     AuditScopeSummary,
     AuditTargetKind,
     ContentAuditOperation,
+    ContentAuditReader,
     pseudonymize_target,
 )
 from google_workspace_admin.content.auth import (
@@ -24,6 +25,7 @@ from google_workspace_admin.content.auth.scopes import all_approved_scopes, scop
 from google_workspace_admin.content.errors import (
     ContentErrorOperation,
     ContentSafeError,
+    FailureStage,
 )
 from google_workspace_admin.content.evidence import EvidenceReference, EvidenceSourceType
 from google_workspace_admin.content.limits import (
@@ -44,6 +46,8 @@ from google_workspace_admin.content.policy import (
     validate_subject_for_capability,
     validate_subject_for_profile,
 )
+from google_workspace_admin.content.outcomes import ProcessingStatus
+from google_workspace_admin.content.routing import ContentClass
 
 
 def _profile(scope=ApprovedScopeProfile.DRIVE_DISCOVERY):
@@ -322,6 +326,76 @@ def test_audit_operation_is_closed_and_rejects_token_shaped_text():
         )
 
 
+def test_docs_audit_preserves_only_typed_failure_stage():
+    class KeyProvider:
+        def get_key(self):
+            return b"synthetic-audit-key" * 2
+
+    sentinels = (
+        "FAKE_ACCESS_TOKEN_SENTINEL",
+        "FAKE_JWT_SENTINEL",
+        "FAKE_DOCUMENT_ID_SENTINEL",
+        "FAKE_URL_SENTINEL",
+        "FAKE_DOCUMENT_CONTENT_SENTINEL",
+    )
+    pseudonyms = tuple(
+        pseudonymize_target(sentinel, key_provider=KeyProvider())
+        for sentinel in sentinels
+    )
+    events = tuple(
+        AuditEvent(
+            timestamp=datetime.now(timezone.utc),
+            operation=ContentAuditOperation.FILE_CONTENT_READ,
+            auditor_profile_id="content-reader",
+            target_pseudonym=pseudonym,
+            scope_summary=AuditScopeSummary(
+                operation=ContentAuditOperation.FILE_CONTENT_READ,
+                scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
+                target_kind=AuditTargetKind.FILE,
+                extent=AuditExtent.BOUNDED_OPERATION,
+            ),
+            result_count=0,
+            success=False,
+            safe_error_code="RESPONSE_VALIDATION",
+            content_class=ContentClass.GOOGLE_DOC,
+            reader=ContentAuditReader.GOOGLE_DOCS,
+            processing_status=ProcessingStatus.EXTRACTION_FAILED,
+            failure_stage=FailureStage.DOCS_JSON_PARSE,
+        )
+        for pseudonym in pseudonyms
+    )
+    assert all(
+        event.failure_stage is FailureStage.DOCS_JSON_PARSE for event in events
+    )
+    serialized_audit = " ".join(
+        f"{event!s} {event!r}" for event in events
+    )
+    for sentinel in sentinels:
+        assert sentinel not in serialized_audit
+    assert all(pseudonymized.startswith("target_") for pseudonymized in pseudonyms)
+    pseudonym = pseudonyms[0]
+    with pytest.raises(ContentSafeError):
+        AuditEvent(
+            timestamp=datetime.now(timezone.utc),
+            operation=ContentAuditOperation.FILE_CONTENT_READ,
+            auditor_profile_id="content-reader",
+            target_pseudonym=pseudonym,
+            scope_summary=AuditScopeSummary(
+                operation=ContentAuditOperation.FILE_CONTENT_READ,
+                scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
+                target_kind=AuditTargetKind.FILE,
+                extent=AuditExtent.BOUNDED_OPERATION,
+            ),
+            result_count=0,
+            success=False,
+            safe_error_code="RESPONSE_VALIDATION",
+            content_class=ContentClass.GOOGLE_DOC,
+            reader=ContentAuditReader.GOOGLE_DOCS,
+            processing_status=ProcessingStatus.EXTRACTION_FAILED,
+            failure_stage="DOCS_JSON_PARSE",  # type: ignore[arg-type]
+        )
+
+
 def test_content_safe_error_operation_is_closed_and_does_not_reflect_free_text():
     token_shaped = "eyJhbGciOiJSUzI1NiJ9.secret.signature"
     error = ContentSafeError(code="LOCAL_VALIDATION", operation=token_shaped)  # type: ignore[arg-type]
@@ -335,13 +409,14 @@ def test_content_safe_error_operation_is_closed_and_does_not_reflect_free_text()
 
 
 @pytest.mark.anyio
-async def test_mcp_boundary_has_twenty_read_tools_and_three_content_tools():
+async def test_mcp_boundary_has_twenty_read_tools_and_four_content_tools():
     async with Client(server.mcp, raise_exceptions=True) as client:
         tools = await client.list_tools()
     names = {tool.name for tool in tools.tools}
-    assert len(names) == len(tools.tools) == 23
+    assert len(names) == len(tools.tools) == 24
     assert {
         "workspace_drives_list",
         "workspace_drive_get",
         "workspace_drive_files_list",
+        "workspace_file_content_read",
     } <= names

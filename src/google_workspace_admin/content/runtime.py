@@ -90,6 +90,8 @@ class ContentRuntime:
                 return services.adapter.drive_get(context, normalized)
             if operation is ContentOperation.DRIVE_FILES_LIST:
                 return services.adapter.drive_files_list(context, normalized)
+            if operation is ContentOperation.FILE_CONTENT_READ:
+                return services.adapter.file_content_read(context, normalized)
         except ContentSafeError:
             raise
         except Exception:

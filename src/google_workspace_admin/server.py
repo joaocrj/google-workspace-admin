@@ -67,7 +67,18 @@ from google_workspace_admin.content.operations import (
     DriveFilesListRequest,
     DriveGetRequest,
     DriveListRequest,
+    FileContentReadRequest,
 )
+from google_workspace_admin.content.chunks import ContentKind, TextPayload
+from google_workspace_admin.content.inventory import InventorySnapshot
+from google_workspace_admin.content.outcomes import (
+    ProcessingOutcome,
+    ProcessingStatus,
+    SafeContentErrorCode,
+)
+from google_workspace_admin.content.provenance import DocsProvenance
+from google_workspace_admin.content.readers import BoundedReadResult
+from google_workspace_admin.content.routing import ContentClass, route_mime_type
 from google_workspace_admin.content.results import (
     DriveFileInventoryItem,
     DriveFileInventoryPage,
@@ -128,6 +139,95 @@ def _serialize_content_drive_get(result: object) -> dict:
             "drive_id": result.drive.drive_id,
             "name": result.drive.name,
         }
+    }
+
+
+def _serialize_docs_provenance(value: object) -> dict:
+    if type(value) is not DocsProvenance:
+        raise ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.READING_PROVENANCE,
+        )
+    serialized = {
+        "tab_id": value.tab_id,
+        "tab_path": list(value.tab_path),
+        "segment": value.structural_segment,
+        "structural_path": list(value.structural_path),
+        "segment_id": value.segment_id,
+        "start_index": value.start_index,
+        "end_index": value.end_index,
+        "paragraph_index": value.paragraph_index,
+        "text_run_index": value.text_run_index,
+        "table_index": value.table_index,
+        "row": value.row,
+        "column": value.column,
+        "sub_offset_utf16": value.sub_offset_utf16,
+        "block_role": value.block_role,
+        "list_id": value.list_id,
+        "list_nesting_level": value.list_nesting_level,
+        "object_id": value.object_id,
+        "section_index": value.section_index,
+    }
+    return {key: item for key, item in serialized.items() if item is not None and item != []}
+
+
+def _serialize_content_read_result(result: object) -> dict:
+    if type(result) is not BoundedReadResult:
+        raise ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.FILE_CONTENT_READ,
+        )
+    chunks = []
+    for chunk in result.chunks:
+        if (
+            chunk.content_class is not ContentClass.GOOGLE_DOC
+            or chunk.content_kind is not ContentKind.TEXT
+            or type(chunk.payload) is not TextPayload
+        ):
+            raise ContentSafeError(
+                code="RESPONSE_VALIDATION",
+                operation=ContentErrorOperation.FILE_CONTENT_READ,
+            )
+        chunks.append(
+            {
+                "file_ref": chunk.file_ref,
+                "sequence": chunk.sequence,
+                "content_kind": chunk.content_kind.value,
+                "text": chunk.payload.text,
+                "provenance": _serialize_docs_provenance(chunk.provenance),
+                "truncated": chunk.truncated,
+            }
+        )
+    outcome = result.outcome
+    return {
+        "processing_status": outcome.processing_status.value,
+        "content_class": outcome.content_class.value,
+        "chunk_count": outcome.chunk_count,
+        "result_count": outcome.result_count,
+        "truncated": outcome.truncated,
+        "partial_reason": outcome.partial_reason,
+        "continuation_token": outcome.continuation,
+        "safe_error_code": (
+            None if outcome.safe_error_code is None else outcome.safe_error_code.value
+        ),
+        "failure_stage": (
+            None if outcome.failure_stage is None else outcome.failure_stage.value
+        ),
+        "structural_failure_kind": (
+            None
+            if outcome.structural_failure_kind is None
+            else outcome.structural_failure_kind.value
+        ),
+        "paragraph_failure_kind": (
+            None
+            if outcome.paragraph_failure_kind is None
+            else outcome.paragraph_failure_kind.value
+        ),
+        "structural_locations": [
+            _serialize_docs_provenance(location)
+            for location in result.structural_locations
+        ],
+        "chunks": chunks,
     }
 
 
@@ -1867,6 +1967,56 @@ def workspace_drive_files_list(
             code="UNEXPECTED_LOCAL",
             layer="local",
             operation="drive.files.list",
+        ) from None
+
+
+@mcp.tool()
+def workspace_file_content_read(
+    file_id: StrictStr,
+    expected_mime_type: StrictStr,
+    modified_time: StrictStr,
+    continuation_token: StrictStr | None = None,
+) -> dict:
+    """Lê um chunk bounded de conteúdo por MIME e snapshot de inventário."""
+
+    try:
+        snapshot = InventorySnapshot(
+            file_id=file_id,
+            expected_mime_type=expected_mime_type,
+            modified_time=modified_time,
+        )
+        content_class = route_mime_type(snapshot.expected_mime_type)
+        if content_class is not ContentClass.GOOGLE_DOC:
+            unsupported = BoundedReadResult(
+                (),
+                ProcessingOutcome(
+                    ProcessingStatus.NATIVE_TYPE_UNSUPPORTED,
+                    content_class,
+                    safe_error_code=SafeContentErrorCode.CONTENT_NOT_SUPPORTED,
+                ),
+            )
+            return _serialize_content_read_result(unsupported)
+        profile_id, delegated_subject = _content_identity()
+        result = _execute_content(
+            FileContentReadRequest(
+                profile_id=profile_id,
+                user_key=delegated_subject,
+                file_id=snapshot.file_id,
+                expected_mime_type=snapshot.expected_mime_type,
+                modified_time=snapshot.modified_time,
+                continuation_token=continuation_token,
+            )
+        )
+        return _serialize_content_read_result(result)
+    except ContentSafeError:
+        raise
+    except SafeOperationError:
+        raise
+    except Exception:
+        raise SafeOperationError(
+            code="UNEXPECTED_LOCAL",
+            layer="local",
+            operation="content.file.read",
         ) from None
 
 

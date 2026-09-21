@@ -577,3 +577,462 @@ concretos, novas MCP tools, scopes, dependências, mutações ou alterações da
 Read Layer. O estado final é PLAN V1 = COMPLETE, IMPLEMENT V1 = COMPLETE,
 REAL GOOGLE VALIDATION = NOT APPLICABLE, FINAL REVIEW V1 = PASS e CHECKPOINT
 V1 = COMPLETE. O SHA é produzido somente pelo Git após a consolidação.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS CONTENT — IMPLEMENT V1 — COMPLETE
+
+Implementado o primeiro reader concreto de Content por meio da façade pública
+`workspace_file_content_read`, com routing MIME fechado e suporte concreto
+exclusivo a `application/vnd.google-apps.document`. As demais classes já
+roteadas continuam produzindo outcome explícito de reader indisponível, sem
+simular cobertura.
+
+O fluxo Google Docs usa adapter fechado para `documents.get`, com
+`includeTabsContent=true`, `suggestionsViewMode=SUGGESTIONS_INLINE`, comentários
+fora do escopo e resposta limitada a 32 MiB durante a leitura. O guard TOCTOU
+usa `files.get` metadata-only antes e depois da leitura, validando `id`,
+`mimeType`, `modifiedTime` e `trashed` antes de liberar qualquer chunk.
+
+A extração cobre tabs e child tabs em depth-first pre-order, títulos de tabs,
+body, parágrafos, text runs, headings, listas, tabelas aninhadas, TOC, headers,
+footers, footnotes e texto visível de links, person/date/rich-link e alt text.
+Objetos visuais, equações e unions potencialmente textuais não suportadas
+produzem partial terminal explícito. Limite de output produz partial resumível
+com continuação opaca, íntegra, expiring, vinculada a arquivo, MIME, snapshot e
+versão do reader.
+
+Foi adicionada a capability semântica interna `GOOGLE_DOCS_CONTENT`, reutilizando
+exclusivamente `drive.readonly`: novos scopes OAuth = 0, nova autorização DWD =
+0, IAM/Service Account/env novos = 0. `canDownload`, export, OCR, comments
+Developer Preview e qualquer operação Write permanecem ausentes.
+
+PLAN V1 = **COMPLETE** e IMPLEMENT V1 = **COMPLETE**. REAL VALIDATION = **NOT
+EXECUTED**, FINAL REVIEW/CHECKPOINT = **NOT EXECUTED**. O serviço
+`docs.googleapis.com` precisa estar habilitado para a validação real, mas o
+estado atual permanece **UNKNOWN** e qualquer ação futura será manual e
+explicitamente autorizada. Não houve chamada Google funcional, ADC, IAM,
+OAuth, gcloud, staging, commit ou push nesta entrega.
+
+Os gates locais registraram **33 passed** no reader Google Docs, **84 passed**
+no substrate 1.5.3, **172 passed** em Shared Drive + Drive Inventory +
+Operational Auth, **207 passed** em Foundation/security/protocol e **864
+passed** na regressão completa, acima do baseline anterior de 827 sem
+regressões.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS CONTENT — PRE-RV REVIEW V1 — BLOCKED
+
+A revisão local pré-RV bloqueou a autorização de acesso real por seis findings:
+descompressão transparente antes do contador de bytes, outcomes de falha que
+aceitavam contagens/chunks, store de continuation sem sincronização, HTTP 408
+classificado incorretamente após retries, `sectionBreak` descartado e cobertura
+de testes insuficiente. A revisão não alterou arquivos e não executou atividade
+Google, ADC, IAM, OAuth ou gcloud.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS CONTENT — PRE-RV REMEDIATION V1 — COMPLETE
+
+Os seis findings foram corrigidos sem ampliar a superfície MCP. O adapter agora
+conta o stream raw/Content-Encoding por `iter_raw()`, aplica cap raw/wire de 32
+MiB, decodifica somente `identity`, `gzip` e `deflate` incrementalmente com cap
+decodificado de 32 MiB e trata `Content-Length` apenas como otimização. Bombas
+de compressão e encodings desconhecidos falham fechados sem retry de
+`TOO_LARGE`.
+
+Failures terminais exigem zero chunks/resultados/continuation; o store local de
+continuation tornou purge/capacity/insertion/resolve/expiry atômicos e continua
+limitado a 1.000 estados, TTL máximo de uma hora e valores tipados sem conteúdo.
+HTTP 408 termina como `TRANSIENT_UPSTREAM` após no máximo três attempts.
+`sectionBreak` passou a produzir `structural_locations` bounded com provenance
+tipada, location-only, incluindo tab, segmento, structural path, índices e
+relações seguras de header/footer, sem texto inventado ou novo fetch.
+
+Os testes locais registraram **20 casos específicos de remediação**, **46
+Google Docs**, **91 substrate**, **54 Shared Drive**, **94 Drive Inventory**,
+**24 Operational Auth**, **207 Foundation/security/protocol** e **884 passed**
+na regressão completa. PRE-RV REVIEW V1 permanece **BLOCKED** historicamente;
+PRE-RV REMEDIATION V1 = **COMPLETE**; PRE-RV re-review, REAL VALIDATION e
+CHECKPOINT = **NOT EXECUTED**. Não houve Google, ADC, IAM, OAuth, gcloud,
+staging, commit ou push.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS CONTENT — PRE-RV REMEDIATION V2 — COMPLETE
+
+A continuação recuperou o working tree interrompido sem reiniciar ou refazer a
+remediação. Branch, HEAD, staging e os 27 paths autorizados foram reconfirmados;
+os seis findings permanecem resolvidos. A evidência adicional de
+`sectionBreak` confirmou também documento sem texto como `EMPTY`, com boundary
+location-only no array bounded `structural_locations` e sem texto inventado.
+
+Os gates finais passaram em **21 casos específicos de remediação**, **47 Google
+Docs**, **91 substrate**, **54 Shared Drive**, **94 Drive Inventory**, **24
+Operational Auth**, **207 Foundation/security/protocol** e **885 testes** na
+regressão completa. PRE-RV REVIEW V1 continua historicamente **BLOCKED**;
+PRE-RV REMEDIATION V1/V2 = **COMPLETE**; PRE-RV RE-REVIEW, REAL VALIDATION e
+CHECKPOINT = **NOT EXECUTED**. Próximo gate: autorização explícita de PRE-RV
+RE-REVIEW. Google, ADC, IAM, OAuth, gcloud, staging, commit e push permaneceram
+zero.
+
+## 16/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS CONTENT — PRE-RV RE-REVIEW V1 — BLOCKED / RR-P2-01 REMEDIATION V1 — COMPLETE
+
+O PRE-RV RE-REVIEW V1 manteve o gate bloqueado exclusivamente pelo finding
+RR-P2-01: o decoder já estava tecnicamente bounded e fail-closed, mas faltavam
+testes versionados permanentes para streams gzip/deflate malformados,
+truncados e com trailing data, Content-Encoding empilhado e o raw cap + 1
+exato.
+
+RR-P2-01 REMEDIATION V1 adicionou somente testes em
+`tests/test_google_docs_content.py`; nenhum source de produção mudou. Os testes
+atravessam o stream raw real, a seleção de encoding, o decoder incremental, as
+validações de EOF/trailing, os caps e o resultado seguro. Foram aprovados **12
+casos RR-P2-01**, **21 casos de remediação anteriores**, **59 Google Docs**,
+**91 substrate**, **54 Shared Drive**, **94 Drive Inventory**, **24 Operational
+Auth**, **207 Foundation/security/protocol** e **897 testes** na regressão
+completa. O compression-bomb existente permaneceu inalterado e aprovado.
+
+PRE-RV REVIEW V1 continua historicamente **BLOCKED — 6 findings**; PRE-RV
+REMEDIATION V1/V2 = **COMPLETE**; PRE-RV RE-REVIEW V1 = **BLOCKED — RR-P2-01**;
+RR-P2-01 REMEDIATION V1 = **COMPLETE**; PRE-RV FINAL RE-REVIEW, REAL VALIDATION
+e CHECKPOINT = **NOT EXECUTED**. Próximo gate: autorização explícita de PRE-RV
+FINAL RE-REVIEW. Google, ADC, IAM, OAuth, gcloud, staging, commit e push
+permaneceram zero.
+
+## 17/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS — FAILURE OBSERVABILITY IMPLEMENT V1 — COMPLETE / SEM COMMIT
+
+A implementação autorizada adicionou o enum fechado `FailureStage` com dez
+estágios causais e propagou `failure_stage` tipado no `ProcessingOutcome`, nos
+boundaries do reader Google Docs e na serialização MCP. `processing_status`,
+`safe_error_code`, budgets, retry, scopes, capability routing e invariantes de
+outcome permaneceram inalterados. O audit de conteúdo aceita somente
+`FailureStage` ou `null`, preservando pseudonimização HMAC e sem conteúdo,
+identificadores, URLs, mensagens de exceção ou material de credencial.
+
+Foram adicionados testes sintéticos de preflight, request/resposta Docs,
+transporte, JSON/schema, extração estrutural, provenance, postflight,
+serialização MCP e leakage. O catálogo permaneceu em 24 tools (20 Read, 4
+Content, 0 Write), sem scopes, DWD, IAM, configuração ou dependências novas.
+PRE-RV FINAL RE-REVIEW V1 = **PASS** é o estado histórico corrigido; a cadeia
+de real auth e target resolution permanece **PASS**, a V1 de validação real
+teve metodologia de captura insuficiente, V2 produziu `EXTRACTION_FAILED`, o
+diagnóstico foi concluído e a validação real pós-remediação permanece
+**PENDING**. Implementação validada somente localmente, sem Google, ADC, IAM,
+OAuth, staging, commit ou push.
+
+## 17/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS — FAILURE OBSERVABILITY REMEDIATION V2 — COMPLETE / SEM COMMIT
+
+A remediation V2 corrigiu exclusivamente os dois achados P2 do PRE-REAL
+OBSERVABILITY REVIEW V1. `README.md` e `docs/02_MCP_CATALOG.md` passaram a
+registrar o estado factual: PRE-RV FINAL RE-REVIEW V1 = PASS, real auth,
+discovery e target resolution = PASS, REAL CONTENT VALIDATION V2 bloqueada por
+`EXTRACTION_FAILED`, observabilidade implementada e validada localmente, e
+validação real de conteúdo pós-remediação ainda pendente.
+
+Os testes existentes de auditoria e protocolo MCP agora exercitam todos os
+cinco sentinelas sintéticos nos boundaries de audit e exceção segura, provando
+que não atravessam a representação pública. Não houve mudança funcional de
+produção, nem alteração de scopes, DWD, IAM, configuração, catálogo ou
+dependências. Google, ADC, IAM, OAuth, staging, commit, push e checkpoint
+permaneceram zero.
+
+## 17/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS — OBSERVABILITY REMEDIATION V3 — COMPLETE / SEM COMMIT
+
+A Remediation V3 corrigiu exclusivamente o P2-02 remanescente do PRE-REAL
+OBSERVABILITY RE-REVIEW V2: a evidência de teste pública/MCP agora injeta cada
+um dos cinco sentinelas em uma exceção upstream sintética levantada pelo
+`httpx.MockTransport`, deixa o adapter existente realizar a tradução segura e
+atravessa o boundary MCP real até `TextContent` e JSON. O teste parametrizado
+confirma a presença positiva dos valores na mensagem, no `repr` e no traceback
+antes da tradução; depois confirma a ausência de todos os sentinelas, da
+mensagem, do `repr` e do traceback nos envelopes público e MCP, preservando os
+campos seguros de status, código e estágio.
+
+Os caminhos audit e exception existentes permaneceram inalterados e continuam
+em 5/5. A cobertura public e MCP passou a 5/5; a força adversarial passou a
+**STRONG**, sem leakage. Nenhum source funcional foi alterado. Os testes locais
+foram executados sem Google, ADC, IAM, OAuth ou chamadas funcionais; a revisão
+pós-remediação, a validação real de conteúdo e o checkpoint permanecem
+pendentes. 1.5.4 continua **NOT COMPLETE**.
+
+## 18/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS — STRUCTURAL RUNTIME FINGERPRINT IMPLEMENT V1 — COMPLETE / SEM COMMIT
+
+Implementada exclusivamente a observabilidade estrutural autorizada para a
+falha real pendente. `StructuralFailureKind` é uma taxonomia fechada de onze
+valores e percorre `ContentSafeError`, `ProcessingOutcome`, a serialização
+pública e o boundary MCP `TextContent` JSON. O fingerprint é `null` fora de
+`DOCS_STRUCTURAL_EXTRACTION`; dentro desse stage, outcomes sem fingerprint e
+combinações inválidas falham fechado. Nenhuma string arbitrária de caller,
+resposta upstream ou conteúdo de documento é aceita como fingerprint.
+
+Foram etiquetados de modo causal tabs, dispatch do body, parágrafos,
+índices/ranges de elementos de parágrafo, tabelas, células, TOC, headers,
+footers, footnotes e validação estrutural residual. `PROVENANCE_BUILD` foi
+mantido isolado com `structural_failure_kind=null`; `content/audit.py` não foi
+alterado, conforme o PLAN. `processing_status`, `safe_error_code` e
+`failure_stage` preservam integralmente seu significado anterior.
+
+Os testes locais sintéticos atravessam cada uma das onze fronteiras reais,
+propagation, estados nulos, combinações inválidas, resultado público,
+serialização MCP e leakage adversarial de material sintético de documento, URL
+e identificador. O hardening adicional confirma que um primeiro `sectionBreak`
+com `endIndex=1` sem `startIndex`, e o caso explícito `startIndex=0`, extraem
+com sucesso; a hipótese sectionBreak como causa da falha real foi
+**REJEITADA**. Isto não implementa correção funcional de parser.
+
+Os gates focais registraram 12 testes de fingerprint causal/propagation, 1 de
+serialização MCP, 1 de leakage e 2 de sectionBreak; a regressão completa
+terminou em **927 passed**.
+
+REAL CONTENT VALIDATION V3 permanece **BLOCKED / DOCS_STRUCTURAL_EXTRACTION**;
+a próxima leitura real continua pendente, bem como review final e checkpoint.
+Não houve Google, Drive, Docs, ADC, IAM, OAuth, login, mudanças de scopes/DWD/
+IAM/configuração, staging, commit ou push. 1.5.4 permanece **NOT COMPLETE**.
+
+## 18/09/2026 — WORKSPACE CONTENT 1.5.4 GOOGLE DOCS — PARAGRAPH RUNTIME FINGERPRINT IMPLEMENT V1 — COMPLETE / SEM COMMIT
+
+Implementada exclusivamente a dimensão de observabilidade aprovada para a
+falha real `PARAGRAPH_STRUCTURE`. O enum fechado `ParagraphFailureKind` possui
+oito valores e foi propagado por `ContentSafeError`, `ProcessingOutcome`, o
+resultado público e o boundary MCP `TextContent` JSON. O nesting invariant
+exige que o campo só exista com `DOCS_STRUCTURAL_EXTRACTION` e
+`StructuralFailureKind.PARAGRAPH_STRUCTURE`; índices de `ParagraphElement`,
+provenance e demais boundaries permanecem isolados.
+
+Os testes locais atravessam causalmente os oito boundaries, preservam a
+classificação filha, cobrem estados nulos e combinações inválidas e verificam
+leakage público/MCP. A semântica funcional do parser não foi alterada,
+`content/audit.py` não foi tocado, o catálogo continua 24/20/4/0 e a próxima
+validação real de parágrafo permanece pendente. Não houve Google, ADC, IAM,
+OAuth, login, mudança de scopes/DWD/configuração, staging, commit ou push.
+
+## 20/09/2026 — WORKSPACE CONTENT 1.5.4 — ELEMENT STRUCTURE TARGETED DIAGNOSTIC V1 — COMPLETE / SEM CHECKPOINT
+
+O histórico imutável da sequência foi reconciliado sem apagar falhas: REAL
+V4B registrou `PARAGRAPH_STRUCTURE`; a implementação/revisão de
+`ParagraphFailureKind` concluiu localmente com **946 passed**. A V5 inicial
+encontrou `WSAEACCES` 10013 no ambiente Codex e `ADC_REFRESH` no MCP
+hospedado. A classificação de sentinela fixa foi `REAUTH_REQUIRED`; a rede do
+host manual permaneceu saudável. Após o operador executar `gcloud auth
+application-default login`, a validação isolada da ADC passou e um processo MCP
+novo confirmou a recuperação fim a fim da cadeia hospedada, sem registrar
+credenciais.
+
+A V5B tentou resolução global e foi bloqueada após 246 inventários e 24.500
+itens, sem leitura de conteúdo. A V4 recusou repetir essa varredura. A estratégia
+rasa posterior retornou 17 Shared Drives e resolveu o alvo após três primeiras
+páginas, com 1.079 itens. A V5C consumiu o snapshot preservado em exatamente
+uma leitura real e obteve `RESPONSE_VALIDATION`,
+`DOCS_STRUCTURAL_EXTRACTION`, `PARAGRAPH_STRUCTURE` e
+`ELEMENT_STRUCTURE`, com zero chunks e sem continuação. O fingerprint foi
+decisivo, mas não identifica sozinho qual dos checks internos do único boundary
+de elemento falhou.
+
+Esta entrega adiciona somente scaffolding privado ao parser: um coletor
+context-local, efêmero, desligado por padrão e first-failure-only. Quando um
+harness futuro e explicitamente autorizado o instala, ele captura uma única
+observação fechada: tipos simbólicos de índices/payload, flags de presença dos
+metadados reconhecidos, members de union allowlisted, flag de desconhecido,
+member selecionado e label interno fechado do branch que rejeitou. Não retém
+texto, valores, chaves arbitrárias, URLs, e-mails, IDs, JSON bruto nem produz
+logs, arquivos, auditoria ou campos MCP. A tool pública, requests, results,
+enums, códigos seguros, scopes e arquitetura `ADC → IAM signJwt → DWD → OAuth`
+permanecem inalterados.
+
+Os testes focados cobrem seleção de union, payloads de `textRun`, variantes
+não textuais, isolamento disabled-by-default, preservação de
+`PARAGRAPH_ELEMENT_INDEX`, `ELEMENTS_CONTAINER` e `PARAGRAPH_LIMIT`, além de
+leakage com sentinelas. A remediação funcional permanece pendente de uma única
+observação real sanitizada. Os testes focados registraram **338 passed** e a
+regressão completa **978 passed**, acima do baseline de 946. Não houve chamadas
+Google/Drive/Docs, ADC, IAM, DWD, OAuth, rede, login, staging, commit, push ou
+checkpoint nesta entrega.
+
+## 20/09/2026 — WORKSPACE CONTENT 1.5.4 — TEXT RUN CONTENT STATE DIAGNOSTIC IMPLEMENTATION V1 — COMPLETE / SEM CHECKPOINT
+
+A leitura real controlada, autorizada em gate separado, reduziu a falha de
+`ELEMENT_STRUCTURE` a `TEXT_RUN_CONTENT_INVALID`. A observação privada mostrou
+um `ParagraphElement` mapping com uma única union reconhecida (`textRun`),
+payload mapping, índices presentes inteiros e ausência de chaves desconhecidas.
+O valor de `textRun.content` não foi capturado nem exposto.
+
+O plano local posterior confirmou que a implementação atual usa
+`text_run.get("content")`: ausência e `null` ainda compartilham o mesmo caminho
+de rejeição, enquanto tipos não string continuam inválidos. A evidência oficial
+disponível torna ausência e `null` plausíveis, mas não prova uma normalização
+segura sem conhecer a representação real e sua compatibilidade com os índices
+UTF-16. Por isso, esta entrega mantém a semântica de produção e acrescenta
+somente a classificação privada, fechada e sem valores `content_state`:
+`ABSENT`, `NULL`, `STRING`, `BOOLEAN`, `INTEGER`, `FLOAT`, `MAPPING`, `LIST` ou
+`OTHER_SCALAR`.
+
+O novo campo só é preenchido imediatamente no branch
+`TEXT_RUN_CONTENT_INVALID`; ele diferencia explicitamente chave ausente de
+`null`, classifica `bool` antes de `int`, conserva uma única observação por
+request e não é incluído em resultado, auditoria, logs, arquivo, banco, schema
+ou tool MCP. A aceitação de `textRun.content`, os códigos seguros, os
+fingerprints públicos, o catálogo e a arquitetura de autenticação permanecem
+inalterados. Os testes focados registraram **139 passed** e a regressão
+completa **996 passed**, sem falhas e acima do baseline de 978. O diagnóstico
+real de estado de conteúdo permanece pendente de autorização explícita; não
+houve Google, Drive, Docs, rede, ADC, IAM, DWD, OAuth, login, staging, commit,
+push ou checkpoint nesta entrega.
+
+## 20/09/2026 — WORKSPACE CONTENT 1.5.4 — GOOGLE DOCS TEXT RUN STRING FAILURE DIAGNOSTIC IMPLEMENTATION V1 — COMPLETE / SEM CHECKPOINT
+
+A reassessment partiu da evidência real preservada
+`TEXT_RUN_CONTENT_INVALID / content_state=STRING`: U+E907 e caracteres
+private-use são aceitos, a comparação de span UTF-16 permanece isolada e a
+causa real ainda é desconhecida. A implementação acrescenta somente o campo
+privado `string_failure_reason`, um `Literal` fechado aos três predicados reais
+de `_text()`: `MAXIMUM_EXCEEDED`, `UTF8_ENCODING_INVALID` e
+`DISALLOWED_C0_OR_C1_CONTROL`. Cada motivo é capturado no ponto exato de
+rejeição, na mesma observação first-failure-only, e somente para conteúdo
+string. Não há fallback `OTHER`, retenção de texto/comprimento/Unicode/posição/
+bytes/hash/erro, captura sem coletor, ou mudança de limite, UTF-8, controles,
+U+E907, índice, outcome ou superfície MCP.
+
+Os testes locais confirmam as três causas sintéticas, C0/C1, conteúdo válido,
+TAB/LF/CR, U+E907 como placeholder após validação UTF-16, private-use, format,
+noncharacter, Unicode suplementar, mismatch separado, ausência de leakage,
+first-failure e equivalência de outcomes com o coletor instalado/desligado.
+Foram **156 testes focados** e **1013 testes de regressão**, sem falhas e acima
+do baseline de 996. O catálogo permaneceu em 24 tools (20 Read, 4 Content,
+0 Write), sem duplicatas; `server.py` permaneceu inalterado por este gate.
+
+O próximo gate recomendado é `GOOGLE_DOCS_TEXT_RUN_STRING_FAILURE_TARGETED_REAL_DIAGNOSTIC_V1`,
+autorizado separadamente para uma leitura real controlada, retornando somente
+branch, `content_state`, um dos três motivos e status seguros existentes. Nenhuma
+chamada Google, Workspace MCP, rede ou autenticação ocorreu nesta entrega;
+nenhum login ADC adicional nem `gcloud auth login` foi necessário ou executado.
+Staging, commit e push = zero; checkpoint não autorizado. A causa real
+`string_failure_reason` permanece desconhecida e 1.5.4 segue incompleta.
+
+## 20/09/2026 — WORKSPACE CONTENT 1.5.4 — GOOGLE DOCS TEXT RUN CONTROL RANGE DIAGNOSTIC IMPLEMENTATION V1 — COMPLETE / SEM CHECKPOINT
+
+A leitura real V1B resolveu a causa da falha do alvo como
+`TEXT_RUN_CONTENT_INVALID / content_state=STRING /
+DISALLOWED_C0_OR_C1_CONTROL`. `MAXIMUM_EXCEEDED` e
+`UTF8_ENCODING_INVALID` foram eliminados para esse alvo. O plano de controle
+V1 rastreou a política atual e concluiu que regras `InsertTextRequest` são de
+inserção, não uma especificação de validade de respostas `TextRun`; U+E907
+reforça essa distinção. Nenhuma classe atualmente rejeitada foi provada como
+legítima em respostas por evidência estática, portanto nenhuma remediação foi
+feita nem autorizada por inferência.
+
+A observação privada, context-local, first-failure-only e desativada sem
+coletor agora inclui `control_range`, com exatamente seis labels:
+`C0_0000_0008`, `VT_000B`, `FF_000C`, `C0_000E_001F`, `DEL_007F` e
+`C1_0080_009F`. A classificação ocorre no branch que já rejeita o primeiro
+controle. A política de produção permanece idêntica: TAB/LF/CR continuam
+aceitos e as seis classes continuam rejeitadas. Nenhum code point/caractere,
+texto, posição, contagem ou fallback `OTHER`/`UNKNOWN` é retido; demais
+callers de `_text`, limite, UTF-8, U+E907, validação UTF-16, proveniência,
+chunking e resultados não mudaram.
+
+Os testes focados registraram **183 passed**; a regressão completa registrou
+**1040 passed**, sem falhas e acima do baseline de 1013. Pytest emitiu um aviso
+na primeira execução com o cache padrão; a validação final pelo comando do
+runbook com cache desativado passou sem warnings. O catálogo permaneceu em 24
+tools (20 Read, 4 Content, 0 Write), sem duplicatas;
+`server.py` não recebeu mudanças por este gate e `mcp.run()` segue como operação
+final absoluta. As alterações preexistentes foram preservadas: 27 caminhos no
+total, nenhum staging, commit ou push. Não houve Google, Drive, Docs,
+Workspace MCP, rede ou autenticação; nenhum login adicional foi necessário ou
+executado. Docs/04 e docs/05 estão sincronizados; 1.5.4 segue incompleta.
+
+Próximo gate recomendado, não executado: `GOOGLE_DOCS_TEXT_RUN_CONTROL_RANGE_TARGETED_REAL_DIAGNOSTIC_V1`,
+com autorização separada e no máximo uma leitura real controlada. A faixa real
+do controle permanece desconhecida.
+
+## 21/09/2026 — WORKSPACE CONTENT 1.5.4 — GOOGLE DOCS TEXT RUN VT TARGETED IMPLEMENTATION V1 — COMPLETE / SEM CHECKPOINT
+
+A leitura real controlada anterior identificou `VT_000B` no caminho
+`TEXT_RUN_CONTENT_INVALID / content_state=STRING /
+DISALLOWED_C0_OR_C1_CONTROL`, sem mudança durante a auditoria. A reassessment
+concreta concluiu que Google pode retornar esse valor em `TextRun.content` e
+que a saída normalizada deve usar ASCII SPACE, sem remover o separador nem
+introduzir uma quebra de linha.
+
+O parser agora permite VT somente na validação da fonte `TextRun.content`, por
+um parâmetro privado com padrão estrito; os demais callers de `_text()` continuam
+rejeitando-o. Tipo, limite, UTF-8 estrito e os demais controles são validados
+antes de comparar o span UTF-16 original. Após span correto, VT é substituído
+um-por-um por SPACE e o tratamento existente de U+E907 continua em seguida.
+Essa transformação conserva comprimento UTF-16 e UTF-8, provenance, limites
+de chunk e continuação; VT-only segue o filtro whitespace existente. A
+rejeição dos outros cinco grupos C0/C1, TAB/LF/CR, limite de 32 MiB, UTF-8,
+U+E907 e taxonomia pública permanecem inalterados. O scaffold privado
+`failing_branch`, `content_state`, `string_failure_reason` e `control_range`
+foi mantido para a validação real pós-fix.
+
+Os testes locais confirmam VT-only, texto misto, repetição e bordas, mismatch
+de índice UTF-16, isolamento de metadata genérica, interação com U+E907,
+preservação TAB/LF/CR, os controles vizinhos, provenance e chunking com
+continuação comparados a uma entrada sintética equivalente com espaço. Foram
+**194 testes focados** e **1051 testes na regressão completa**, sem falhas e
+acima do baseline de 1040. O catálogo permaneceu em 24 tools (20 Read, 4
+Content, 0 Write), sem duplicatas; `server.py` não mudou e `mcp.run()` continua
+no final absoluto.
+
+Não houve chamadas Google/Drive/Docs, Workspace MCP, rede ou autenticação; as
+variáveis de configuração Google e o alvo diagnóstico não foram necessários.
+Os 27 caminhos preexistentes foram preservados e somente
+`google_docs.py`, `test_google_docs_content.py`, `docs/04_PHASE_STATUS.md` e
+este histórico receberam delta. Staging, commit e push = zero; checkpoint não
+autorizado. Próximo gate: `GOOGLE_DOCS_TEXT_RUN_VT_TARGETED_REAL_VALIDATION_V1`,
+com novo snapshot e exatamente uma leitura real, sem retry. 1.5.4 permanece
+incompleta.
+
+## 21/09/2026 — WORKSPACE CONTENT 1.5.4 — VT REAL VALIDATION V1B + CONTROL RANGE CLEANUP V1 — COMPLETE / SEM CHECKPOINT
+
+A validação real pós-fix V1B, executada manualmente pelo operador uma única
+vez (`manual retries=0`), resolveu o mesmo alvo e invocou o content-reader de
+produção exatamente uma vez. O precondition de ADC pós-reauth estava
+**HEALTHY** e a resolução do alvo passou; o
+resultado foi `PROCESSED`, com **2 chunks**, sem continuação e
+`CHANGED_DURING_AUDIT=NO`. A falha anterior
+`TEXT_RUN_CONTENT_INVALID / STRING / DISALLOWED_C0_OR_C1_CONTROL / VT_000B`
+não se repetiu: o leitor avançou além do defeito, nenhuma falha mais profunda
+foi observada e a validação real da correção VT foi **PASS**.
+
+A limpeza removeu o campo privado `control_range`, o classificador das seis
+faixas e a captura/assertions incident-only. `failing_branch`, `content_state`,
+`string_failure_reason` e o coletor context-local, efêmero,
+first-failure-only e disabled-by-default foram mantidos. A alteração não tocou
+o caminho de parsing, a política C0/C1, a normalização VT→SPACE, a validação de
+span UTF-16, provenance ou chunking. `FailureStage`, `StructuralFailureKind`
+e `ParagraphFailureKind`, catálogo e schemas MCP também permaneceram
+inalterados.
+
+Foram **190 testes focados** e **1047 testes na regressão completa**, sem
+falhas. Em relação aos baselines 194/1051, foram removidos 4 casos privados
+redundantes/incident-only, nenhum foi adicionado e a variação líquida foi
+**-4**; a cobertura de comportamento de controles vizinhos e a regressão de
+VT permaneceram. O catálogo continua em 24 tools (20 Read, 4 Content, 0 Write),
+sem duplicatas; `server.py` não foi alterado e `mcp.run()` segue como operação
+final absoluta.
+
+Não houve chamadas Google/API/auth nesta limpeza; a evidência V1B acima é o
+resultado sanitizado fornecido pelo operador. As 27 alterações preexistentes
+foram preservadas. Docs/04 e docs/05 foram sincronizados. A implementação
+funcional da fase 1.5.4 está completa; revisão final e checkpoint/commit
+permanecem pendentes. Staging, commit e push = zero; checkpoint não autorizado.
+
+## 21/09/2026 — WORKSPACE CONTENT 1.5.4 — GOOGLE DOCS FINAL REVIEW V1 + CHECKPOINT V1 — COMPLETE
+
+A Final Review V1 examinou o diff completo autorizado de Google Docs 1.5.4 e
+verificou o fluxo de leitura, a normalização VT→SPACE após validação UTF-16,
+o catálogo público, o `mcp.run()` como operação final, a remoção do diagnóstico
+privado `control_range`, a cobertura de regressão e a higiene do repositório.
+Foram encontrados **0 achados bloqueantes** e **0 não bloqueantes**; a prontidão
+para checkpoint foi aprovada.
+
+A validação real pós-fix V1B permanece **PASS**: uma resolução de alvo e uma
+invocação do leitor de produção resultaram em `PROCESSED`, **2 chunks**, sem
+continuação, sem TOCTOU e sem repetição do defeito VT; nenhuma falha mais
+profunda foi observada. O conjunto final reteve **190 testes focados** e
+**1047 testes na regressão completa**, com zero falhas. A diferença de quatro
+casos em relação aos baselines anteriores corresponde exclusivamente à remoção
+dos casos privados incident-only de `control_range`.
+
+Este commit estabelece o checkpoint de Google Docs Content 1.5.4. A
+implementação funcional, validação real, limpeza diagnóstica, documentação e
+revisão final estão completas. O catálogo permanece com 24 tools (20 Read,
+4 Content, 0 Write), sem duplicatas. Nenhuma próxima fase foi iniciada; ela
+aguarda autorização explícita. Não houve chamadas Google/API/auth, push ou
+alterações de configuração nesta entrega.

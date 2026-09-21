@@ -530,3 +530,49 @@ scope ou alteração de configuração Google nesta etapa. REAL GOOGLE VALIDATIO
 = **NOT APPLICABLE / NOT EXECUTED**; FINAL REVIEW V1 = **COMPLETE**;
 CHECKPOINT V1 = **COMPLETE**. Não há reader concreto nem nova configuração
 Google nesta etapa; 1.5.4 aguarda autorização explícita.
+
+## Fase 1.5.4 — Google Docs Content — IMPLEMENT V1 local
+
+PLAN V1 = **COMPLETE**; IMPLEMENT V1 = **COMPLETE**; PRE-RV REVIEW V1 =
+**BLOCKED — 6 findings**; PRE-RV REMEDIATION V1/V2 = **COMPLETE**; PRE-RV
+RE-REVIEW V1 = **BLOCKED — RR-P2-01**; RR-P2-01 REMEDIATION V1 = **COMPLETE**;
+PRE-RV FINAL RE-REVIEW V1 = **PASS**; real auth, discovery e target resolution
+= **PASS**; REAL CONTENT VALIDATION V2 = **BLOCKED — EXTRACTION_FAILED**;
+FAILURE OBSERVABILITY IMPLEMENT V1 e REMEDIATION V2 = **COMPLETE / LOCAL
+VALIDATION**; REAL POST-REMEDIATION VALIDATION = **PENDING**; CHECKPOINT =
+**NOT EXECUTED**. A 1.5.4 ainda não está completa.
+
+O primeiro reader concreto usa `documents.get` da Google Docs API, no serviço
+`docs.googleapis.com`, com `includeTabsContent=true`,
+`suggestionsViewMode=SUGGESTIONS_INLINE` e comments Developer Preview omitidos.
+O método aceita oficialmente `drive.readonly`; a capability interna
+`GOOGLE_DOCS_CONTENT` reutiliza o profile operacional `DRIVE_DISCOVERY` e seu
+único scope efetivo:
+
+`https://www.googleapis.com/auth/drive.readonly`
+
+Não foi adicionado `documents.readonly`, scope DWD, profile de credencial,
+variável de ambiente, Service Account ou grant IAM. `capabilities.canDownload`
+não é usado como gate, pois a operação não baixa nem exporta arquivo.
+
+O enablement de `docs.googleapis.com` foi confirmado manualmente pelo usuário
+para a validação real. Codex/MCP não altera API, Google Cloud, IAM, DWD, Service
+Account ou Admin Console.
+
+Cada leitura faz `Drive files.get` metadata-only antes e depois do fetch Docs,
+com `id,mimeType,modifiedTime,trashed` e Shared Drive support. MIME e
+`modifiedTime` são o guard autoritativo de TOCTOU; `revisionId`, quando
+presente, apenas reforça o binding de continuation. A implementação e os testes
+desta entrega usam exclusivamente fakes e `httpx.MockTransport`; Google API,
+ADC, IAM `signJwt`, DWD e OAuth reais não foram executados.
+
+O adapter usa `httpx.Response.iter_raw()` para contar incrementalmente a
+representação HTTP codificada antes de qualquer Content-Encoding decode. O
+limite raw/wire interno é 32 MiB (`max_download_bytes`) e a representação
+decodificada entregue ao parser também é limitada a 32 MiB
+(`max_parser_input_bytes`). `Content-Length` serve somente para rejeição
+antecipada; os contadores reais continuam autoritativos quando o header está
+ausente ou subdeclara o corpo. `identity`, `gzip` e `deflate` são os únicos
+encodings aceitos; gzip/deflate usam descompressão incremental com limite de
+saída e qualquer outro encoding falha fechado. Isso não altera API, scope,
+DWD, IAM, Service Account, variável de ambiente ou credencial.

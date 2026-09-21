@@ -20,6 +20,8 @@ from google_workspace_admin.content.auth.handles import (
 )
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.continuation import DocsContinuationManager
+from google_workspace_admin.content.google_docs_adapter import _build_google_docs_read_port
 from google_workspace_admin.content.operations import (
     ContentOperation,
     _NormalizedOperationRequest,
@@ -34,10 +36,11 @@ from google_workspace_admin.content.results import (
     parse_drive_list,
 )
 from google_workspace_admin.content.transport import RetryPolicy, _sleep_with_cancellation
+from google_workspace_admin.content.readers import BoundedReadResult
 from google_workspace_admin.http_errors import WorkspaceApiError, parse_json_object, request_safe
 
 
-ContentTypedResult = DriveListPage | DriveGetResult | DriveFileListPage
+ContentTypedResult = DriveListPage | DriveGetResult | DriveFileListPage | BoundedReadResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +50,9 @@ class _HttpAdapterPorts:
     drive_files_list: Callable[
         [AuthorizedOperationContext, _NormalizedOperationRequest], DriveFileListPage
     ]
+    file_content_read: Callable[
+        [AuthorizedOperationContext, _NormalizedOperationRequest], BoundedReadResult
+    ]
     close: Callable[[], None]
 
 
@@ -55,6 +61,7 @@ def _build_http_adapter(
     client: httpx.Client,
     require_context: Callable[[object], object],
     token_provider: Callable[[object, ApprovedScopeProfile], str],
+    continuation_manager: DocsContinuationManager,
     timeout: float = 30.0,
     retry_policy: RetryPolicy | None = None,
     sleeper: Callable[[float], None] = time.sleep,
@@ -286,9 +293,19 @@ def _build_http_adapter(
             ),
         )
 
+    file_content_read = _build_google_docs_read_port(
+        client=client,
+        require_context=require_context,
+        token_provider=token_provider,
+        retry_policy=policy,
+        sleeper=sleeper,
+        continuation_manager=continuation_manager,
+    )
+
     return _HttpAdapterPorts(
         drive_list=drive_list,
         drive_get=drive_get,
         drive_files_list=drive_files_list,
+        file_content_read=file_content_read,
         close=client.close,
     )

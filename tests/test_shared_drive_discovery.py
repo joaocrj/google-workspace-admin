@@ -74,17 +74,17 @@ def _bind_runtime(monkeypatch, runtime):
 
 
 @pytest.mark.anyio
-async def test_catalog_has_exactly_twenty_read_and_three_content_tools(client: Client):
+async def test_catalog_has_exactly_twenty_read_and_four_content_tools(client: Client):
     tools = await client.list_tools()
     names = [tool.name for tool in tools.tools]
 
-    assert len(names) == len(set(names)) == 23
+    assert len(names) == len(set(names)) == 24
     assert {
         "workspace_drives_list",
         "workspace_drive_get",
         "workspace_drive_files_list",
     } <= set(names)
-    assert len([name for name in names if name.startswith("workspace_")]) == 23
+    assert len([name for name in names if name.startswith("workspace_")]) == 24
     assert not any(
         name.endswith(("_create", "_update", "_delete", "_move", "_send"))
         for name in names
@@ -515,7 +515,7 @@ def test_content_scope_and_mutation_barriers_are_closed():
 
 def test_server_registration_and_run_invariants_are_preserved():
     source = Path(server.__file__).read_text(encoding="utf-8")
-    assert source.count("@mcp.tool()") == 23
+    assert source.count("@mcp.tool()") == 24
     assert source.count("mcp.run()") == 1
     assert source.rstrip().endswith("mcp.run()")
     assert source.count("def workspace_drive_files_list(") == 1

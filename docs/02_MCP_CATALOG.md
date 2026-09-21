@@ -1,8 +1,8 @@
 # Catálogo MCP atual
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
-catálogo atual possui 23 ferramentas, todas de leitura: 20 Read históricas e 3
-tools Content das verticais 1.5.1–1.5.2. Cada camada de API obtém um token para o scope
+catálogo atual possui 24 ferramentas, todas de leitura: 20 Read históricas e 4
+tools Content das verticais 1.5.1–1.5.4. Cada camada de API obtém um token para o scope
 mínimo que ela declara e o servidor serializa uma seleção de campos antes de
 devolver a resposta ao Codex.
 
@@ -10,8 +10,9 @@ devolver a resposta ao Codex.
 
 A Foundation Content permanece interna como infraestrutura. A entrega 1.5.1
 registra `workspace_drives_list` e `workspace_drive_get`; a entrega 1.5.2
-registra exatamente mais uma ferramenta, `workspace_drive_files_list`.
-O catálogo público agora possui exatamente 23 tools: Read = 20, Content = 3 e
+registra exatamente mais uma ferramenta, `workspace_drive_files_list`; a
+entrega 1.5.4 registra `workspace_file_content_read`.
+O catálogo público agora possui exatamente 24 tools: Read = 20, Content = 4 e
 Write = 0.
 Os contratos de operação, transporte, scopes read-only, subjects e limites
 continuam não sendo helpers MCP.
@@ -60,6 +61,13 @@ inventário rejeita também respostas com `trashed` ausente ou diferente de
 | `workspace_drives_list` | `content` / `server.py` | `page_size` StrictInt 1–100, padrão 25; `page_token` StrictStr opcional não vazio; `max_items` StrictInt 1–100, padrão 100; `use_domain_admin_access` StrictBool, padrão `false`; uma página, sem auto-pagination | Shared Drives allowlisted como `{drive_id, name}` e token Google validado |
 | `workspace_drive_get` | `content` / `server.py` | `drive_id` StrictStr, trim boundary, 1–256 caracteres, sem whitespace/control; `use_domain_admin_access` StrictBool, padrão `false` | um Shared Drive allowlisted como `{drive_id, name}` |
 | `workspace_drive_files_list` | `content` / `server.py` | `drive_id` StrictStr; `page_size` StrictInt 1–500, padrão 100; `page_token` StrictStr opaco opcional; `max_items` StrictInt 1–500, padrão 500; uma página, sem auto-pagination | `{files: [{file_id, name, mime_type, modified_time, size, parents}], next_page_token}` |
+| `workspace_file_content_read` | `content` / `server.py` | `file_id`, `expected_mime_type` e `modified_time` como StrictStr; `continuation_token` StrictStr opaco opcional; budgets internos | outcome explícito, `safe_error_code` e `failure_stage` fechado (`null` em sucesso/empty/partial), chunks textuais bounded, provenance Docs tipada e continuation opcional; somente Google Docs possui reader concreto nesta versão |
+
+Em resultados de conteúdo, `processing_status` informa o resultado terminal,
+`safe_error_code` classifica o que falhou e `failure_stage` informa, por enum
+fechado, onde a falha ocorreu. `failure_stage` aceita somente os dez valores
+tipados do reader e nunca carrega mensagens de exceção, URLs, identificadores,
+tokens ou conteúdo do arquivo.
 
 ## Endpoints Directory em uso
 
@@ -464,3 +472,50 @@ FINAL REVIEW V1 confirmou o boundary semântico e estático: 23 tools (20 Read,
 MCP tools. A revisão foi local; REAL GOOGLE VALIDATION = NOT APPLICABLE / NOT
 EXECUTED; CHECKPOINT V1 = **COMPLETE**. Não há reader concreto e nenhuma nova
 MCP tool foi iniciada.
+
+## Fase 1.5.4 — Google Docs Content — IMPLEMENT V1
+
+`workspace_file_content_read(file_id, expected_mime_type, modified_time,
+continuation_token=None)` é a única nova tool. O MIME router é sempre aplicado;
+somente `application/vnd.google-apps.document` possui reader concreto. Outros
+MIME types recebem `NATIVE_TYPE_UNSUPPORTED` explícito sem autenticação ou HTTP.
+
+O fluxo Google Docs é fechado e GET-only:
+
+1. `GET https://www.googleapis.com/drive/v3/files/{fileId}` com
+   `fields=id,mimeType,modifiedTime,trashed` e `supportsAllDrives=true`;
+2. `GET https://docs.googleapis.com/v1/documents/{documentId}` com
+   `fields=documentId,revisionId,suggestionsViewMode,tabs`,
+   `includeTabsContent=true` e `suggestionsViewMode=SUGGESTIONS_INLINE`;
+3. repetição do metadata-only `files.get` antes de liberar o resultado.
+
+Host, URL, path, método, fields, query, scope, suggestions/comments mode,
+budgets, retry e export MIME não são inputs. `commentsViewMode` é omitido e
+Google Docs comments/comment threads Developer Preview não são cobertos por
+1.5.4 V1. Não há `files.export`, download, OCR ou gate `canDownload`.
+
+O adapter limita separadamente a representação codificada raw/wire e a
+representação decodificada a 32 MiB antes do parse. `Content-Length` é somente
+uma otimização antecipada; `iter_raw()` e os contadores reais são
+autoritativos. `identity`, `gzip` e `deflate` usam política fechada, com
+descompressão incremental limitada; outros encodings falham fechados. O reader
+percorre tabs/child tabs em depth-first pre-order e extrai tab title,
+paragraphs, text runs, headings, lists, tables/cells/nested tables, TOC,
+headers, footers, footnotes, texto visível de links/smart elements e alt text.
+`sectionBreak` é retornado separadamente em `structural_locations` como
+provenance tipada location-only, sem inventar texto nem duplicar conteúdo de
+header/footer; esse array também é bounded. Objetos visuais,
+equations e unions textuais desconhecidas produzem terminal
+`PARTIALLY_PROCESSED`; limite de output com cursor seguro produz partial
+resumível com continuation opaca.
+
+Catálogo corrente: **24 tools únicas — Read = 20, Content = 4, Write = 0**.
+PLAN V1 = COMPLETE; IMPLEMENT V1 = COMPLETE; PRE-RV REVIEW V1 = BLOCKED — 6
+findings; PRE-RV REMEDIATION V1/V2 = COMPLETE; PRE-RV RE-REVIEW V1 = BLOCKED —
+RR-P2-01; RR-P2-01 REMEDIATION V1 = COMPLETE; PRE-RV FINAL RE-REVIEW V1 =
+PASS; real auth, discovery e target resolution = PASS; REAL CONTENT VALIDATION
+V2 = BLOCKED com `EXTRACTION_FAILED`; FAILURE OBSERVABILITY IMPLEMENT V1 e
+REMEDIATION V2 = COMPLETE / LOCAL VALIDATION. A validação real de conteúdo
+pós-remediação permanece PENDING; 1.5.4 ainda NÃO está completa e o checkpoint
+permanece NOT EXECUTED. As remediações adicionaram somente observabilidade
+segura e testes, sem alterar a superfície do catálogo.

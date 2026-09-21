@@ -43,6 +43,10 @@ class ContentReadingBudgets:
     max_docs_structural_elements: int = 50_000
     max_docs_tables: int = 2_000
     max_docs_text_runs: int = 100_000
+    max_docs_tabs: int = 200
+    max_docs_tab_depth: int = 32
+    max_docs_structural_depth: int = 32
+    max_chunks_per_invocation: int = 64
     max_sheets_cells_per_chunk: int = 100_000
     max_sheets_cells_per_file: int = 5_000_000
     max_sheets_tabs: int = 200
@@ -72,6 +76,10 @@ class ContentReadingBudgets:
             ("max_docs_structural_elements", 50_000),
             ("max_docs_tables", 2_000),
             ("max_docs_text_runs", 100_000),
+            ("max_docs_tabs", 200),
+            ("max_docs_tab_depth", 32),
+            ("max_docs_structural_depth", 32),
+            ("max_chunks_per_invocation", 500),
             ("max_sheets_cells_per_chunk", 100_000),
             ("max_sheets_cells_per_file", 5_000_000),
             ("max_sheets_tabs", 200),

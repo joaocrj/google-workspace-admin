@@ -9,7 +9,8 @@ from google_workspace_admin.content.errors import ContentErrorOperation, Content
 
 
 MAX_LOCATION_LENGTH = 256
-MAX_INDEX = 10_000_000
+MAX_INDEX = 50_000_000
+MAX_PATH_DEPTH = 64
 
 
 def _location(value: object) -> str:
@@ -33,11 +34,43 @@ def _index(value: object, *, optional: bool = False) -> int | None:
     return value
 
 
+def _location_optional(value: object) -> str | None:
+    return None if value is None else _location(value)
+
+
+def _location_path(value: object) -> tuple[str, ...]:
+    if type(value) not in (tuple, list) or len(value) > MAX_PATH_DEPTH:
+        raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+    result = tuple(_location(item) for item in value)
+    return result
+
+
+def _index_path(value: object) -> tuple[int, ...]:
+    if type(value) not in (tuple, list) or len(value) > MAX_PATH_DEPTH:
+        raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+    return tuple(_index(item) for item in value)  # type: ignore[arg-type]
+
+
 @dataclass(frozen=True, slots=True)
 class DocsProvenance:
     tab_id: str
     structural_segment: str
     text_run_index: int | None = None
+    tab_path: tuple[str, ...] = ()
+    structural_path: tuple[int, ...] = ()
+    segment_id: str | None = None
+    start_index: int | None = None
+    end_index: int | None = None
+    paragraph_index: int | None = None
+    table_index: int | None = None
+    row: int | None = None
+    column: int | None = None
+    sub_offset_utf16: int | None = None
+    block_role: str | None = None
+    list_id: str | None = None
+    list_nesting_level: int | None = None
+    object_id: str | None = None
+    section_index: int | None = None
 
     def __post_init__(self) -> None:
         if type(self) is not DocsProvenance:
@@ -45,6 +78,26 @@ class DocsProvenance:
         _location(self.tab_id)
         _location(self.structural_segment)
         _index(self.text_run_index, optional=True)
+        object.__setattr__(self, "tab_path", _location_path(self.tab_path))
+        object.__setattr__(self, "structural_path", _index_path(self.structural_path))
+        for field_name in ("segment_id", "block_role", "list_id", "object_id"):
+            object.__setattr__(self, field_name, _location_optional(getattr(self, field_name)))
+        for field_name in (
+            "start_index",
+            "end_index",
+            "paragraph_index",
+            "table_index",
+            "row",
+            "column",
+            "sub_offset_utf16",
+            "list_nesting_level",
+            "section_index",
+        ):
+            _index(getattr(self, field_name), optional=True)
+        if (self.start_index is None) != (self.end_index is None):
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+        if self.start_index is not None and self.end_index is not None and self.end_index < self.start_index:
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
 
 
 @dataclass(frozen=True, slots=True)

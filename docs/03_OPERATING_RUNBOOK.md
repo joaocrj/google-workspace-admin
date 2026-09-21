@@ -772,3 +772,83 @@ Não existe operação Google executável em 1.5.3, portanto REAL GOOGLE VALIDAT
 = NOT APPLICABLE / NOT EXECUTED. FINAL REVIEW V1 = **COMPLETE** e CHECKPOINT
 V1 = **COMPLETE**; readers concretos somente poderão começar após autorização
 explícita da etapa 1.5.4.
+
+## Fase 1.5.4 — Google Docs Content — operação local
+
+`workspace_file_content_read` exige `file_id`, `expected_mime_type` e
+`modified_time`; `continuation_token` é opcional. Budgets, endpoint, fields,
+scope, retry e suggestions mode são políticas internas. Somente o MIME Google
+Docs possui reader concreto; outros MIME routes terminam explicitamente como
+não suportados nesta versão.
+
+O resultado mantém três responsabilidades separadas: `processing_status` é o
+resultado terminal, `safe_error_code` é a classificação segura do que falhou e
+`failure_stage` é um enum fechado da localização causal. Os estágios possíveis
+são `PREFLIGHT_FETCH`, `PREFLIGHT_VALIDATION`, `DOCS_REQUEST`,
+`DOCS_RESPONSE_TRANSPORT`, `DOCS_JSON_PARSE`, `DOCS_SCHEMA_PARSE`,
+`DOCS_STRUCTURAL_EXTRACTION`, `PROVENANCE_BUILD`, `POSTFLIGHT_FETCH` e
+`POSTFLIGHT_VALIDATION`. Em `PROCESSED`, `EMPTY` e `PARTIALLY_PROCESSED`, o
+campo é `null`; em falha terminal, só é preenchido quando o boundary conhece a
+causa de forma segura. Mensagens de exceção, response bodies, URLs e IDs nunca
+são projetados no resultado MCP ou no audit.
+
+Para Google Docs, uma invocation executa metadata Drive preflight,
+`documents.get` e metadata Drive postflight. Nenhum chunk é liberado se MIME,
+`modifiedTime` ou `trashed` divergirem. A resposta Docs possui dois limites
+independentes de 32 MiB: representação codificada raw/wire e representação
+decodificada entregue ao parser. O adapter conta `iter_raw()` antes de
+decodificar e usa descompressão incremental limitada para `gzip` e `deflate`;
+`identity` é direto e qualquer outro Content-Encoding falha fechado.
+`Content-Length` é somente otimização de rejeição antecipada: os contadores
+reais são autoritativos para header ausente, incorreto, subdeclarado ou
+transferência chunked. Somente depois de comprovar o limite decodificado o JSON
+é materializado. Output MCP permanece separado e bounded. `includeTabsContent`
+é sempre true, suggestions são sempre inline e não existe fallback para modos
+que silenciem sugestões. Comments/comment threads Developer Preview ficam fora
+de 1.5.4 V1 e `commentsViewMode` não é solicitado.
+
+Continuation é local, expira, é vinculada ao arquivo/snapshot/versão e usa
+handle opaco autenticado. Reinício do processo invalida o estado; isso deve ser
+tratado como validação local segura, não como cursor Google. A continuation
+refaz o fetch completo e nunca é seguida automaticamente. O store RAM possui
+TTL e capacidade finitos; purge, capacity check, insertion, resolve e remoção
+por expiração são protegidos atomicamente por lock. O lock não atravessa I/O,
+parse ou normalização, e o estado não armazena conteúdo ou resposta Google.
+
+Objetos visuais e equations sem representação textual não recebem OCR nem
+download e produzem `PARTIALLY_PROCESSED`. Hyperlinks e URIs de embedded
+objects nunca são seguidos. Conteúdo como instruções, URLs ou comandos permanece
+dado não confiável sob `NEVER_EXECUTE_FILE_CONTENT`.
+
+Section breaks não geram texto. Cada boundary validada é retornada no array
+bounded `structural_locations`, com provenance de tab, segmento, structural
+path, índices UTF-16 e ordinal, além de IDs seguros de relação quando
+aplicáveis. Um documento sem texto extraível continua `EMPTY` mesmo que possua
+section boundaries; os locations não são contados como chunks de conteúdo.
+
+Validação local, sem ADC/Google:
+
+```powershell
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_google_docs_content.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_content_reading_substrate.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_shared_drive_discovery.py tests\test_drive_file_inventory.py tests\test_content_operational_auth.py tests\test_content_keyless.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_content_auth_boundary.py tests\test_content_foundation.py tests\test_content_transport_security.py tests\test_mcp_protocol.py
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+git diff --check
+```
+
+Antes da REAL VALIDATION, verificar manualmente a habilitação de
+`docs.googleapis.com`. Se estiver desabilitada, somente o usuário poderá
+habilitá-la após autorização específica. A validação real deve usar um único
+Google Doc previamente selecionado, uma chamada bounded, sem seguir
+continuation e sem reproduzir conteúdo em terminal, audit, fixtures ou Git.
+
+Estado desta entrega: PLAN V1 = COMPLETE; IMPLEMENT V1 = COMPLETE; PRE-RV
+REVIEW V1 = BLOCKED — 6 findings; PRE-RV REMEDIATION V1/V2 = COMPLETE; PRE-RV
+RE-REVIEW V1 = BLOCKED — RR-P2-01; RR-P2-01 REMEDIATION V1 = COMPLETE; PRE-RV
+FINAL RE-REVIEW V1 = PASS; REAL VALIDATION V1 = BLOCKED por metodologia de
+captura insuficiente; EXTRACTION FAILURE DIAGNOSTIC = COMPLETE; FAILURE
+OBSERVABILITY IMPLEMENT V1 = COMPLETE / LOCAL VALIDATION; REAL
+POST-REMEDIATION VALIDATION = PENDING; CHECKPOINT = NOT EXECUTED. A
+remediação final passou nos testes sintéticos desta entrega e na regressão
+completa, sempre sem atividade Google/auth.

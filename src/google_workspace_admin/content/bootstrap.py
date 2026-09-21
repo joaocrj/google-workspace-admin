@@ -28,6 +28,7 @@ from google_workspace_admin.content.auth.resolver import SubjectLookup
 from google_workspace_admin.content.auth.subject import WorkspaceSubject
 from google_workspace_admin.content.auth.production import build_content_token_provider
 from google_workspace_admin.content.config import load_content_config
+from google_workspace_admin.content.continuation import DocsContinuationManager
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
 from google_workspace_admin.content.http_adapter import _build_http_adapter
 from google_workspace_admin.content.operations import (
@@ -366,6 +367,7 @@ def create_content_runtime() -> ContentRuntime:
             client=client,
             require_context=kernel.require_context,
             token_provider=provide_token,
+            continuation_manager=DocsContinuationManager(),
             retry_policy=_build_retry_policy(),
             sleeper=_build_sleeper(),
         )

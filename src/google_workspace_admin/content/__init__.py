@@ -4,9 +4,16 @@ No MCP tool or Google authentication is registered here.  Operational access
 is limited to a startup-assembled :class:`ContentRuntime` and closed requests.
 """
 
-from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.errors import (
+    ContentErrorOperation,
+    ContentSafeError,
+    FailureStage,
+    ParagraphFailureKind,
+    StructuralFailureKind,
+)
 from google_workspace_admin.content.operations import (
     DriveFilesListRequest,
+    FileContentReadRequest,
     DriveGetRequest,
     DriveListRequest,
 )
@@ -94,12 +101,16 @@ __all__ = [
     "DriveFileInventoryPage",
     "DriveFileSummary",
     "DriveFilesListRequest",
+    "FileContentReadRequest",
     "DriveGetRequest",
     "DriveGetResult",
     "DriveListPage",
     "DriveListRequest",
     "DriveSummary",
     "ContentSafeError",
+    "FailureStage",
+    "ParagraphFailureKind",
+    "StructuralFailureKind",
     "ContentClass",
     "route_mime_type",
     "validate_mime_type",

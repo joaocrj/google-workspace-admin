@@ -20,6 +20,7 @@ class ContentCapability(str, Enum):
     DRIVE_METADATA = "drive_metadata"
     GMAIL_METADATA = "gmail_metadata"
     GMAIL_CONTENT = "gmail_content"
+    GOOGLE_DOCS_CONTENT = "google_docs_content"
 
 
 class AdminCapability(str, Enum):
@@ -55,6 +56,13 @@ _RULES = MappingProxyType(
         "drive.files.list": OperationCapabilityRule(
             operation="drive.files.list",
             capability=ContentCapability.DRIVE_DISCOVERY,
+            scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
+            subject_capability=SubjectCapability.DRIVE,
+            admin_capability=AdminCapability.NONE,
+        ),
+        "content.file.read": OperationCapabilityRule(
+            operation="content.file.read",
+            capability=ContentCapability.GOOGLE_DOCS_CONTENT,
             scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
             subject_capability=SubjectCapability.DRIVE,
             admin_capability=AdminCapability.NONE,
