@@ -23,6 +23,9 @@ from google_workspace_admin.content.auth.subject import (
     WorkspaceSubject,
 )
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.public_file_ref import (
+    decode_public_file_ref_hmac_key,
+)
 
 
 CONTENT_DISCOVERY_PROFILE_ID = "drive-discovery"
@@ -32,6 +35,9 @@ CONTENT_SERVICE_ACCOUNT_ENV = "GOOGLE_WORKSPACE_CONTENT_SERVICE_ACCOUNT"
 CONTENT_SUBJECT_ENV = "GOOGLE_WORKSPACE_CONTENT_SUBJECT"
 CONTENT_CUSTOMER_ID_ENV = "GOOGLE_WORKSPACE_CONTENT_CUSTOMER_ID"
 CONTENT_DOMAIN_ENV = "GOOGLE_WORKSPACE_CONTENT_DOMAIN"
+CONTENT_PUBLIC_FILE_REF_HMAC_KEY_ENV = (
+    "GOOGLE_WORKSPACE_CONTENT_PUBLIC_FILE_REF_HMAC_KEY_B64"
+)
 
 CONTENT_REQUIRED_ENV_VARS = (
     CONTENT_PROJECT_ID_ENV,
@@ -78,13 +84,14 @@ def _required_environment_value(
 
 @dataclass(frozen=True, slots=True)
 class ContentConfig:
-    """Trusted startup configuration containing identifiers only."""
+    """Trusted startup configuration with its optional redacted HMAC key."""
 
     project_id: str
     service_account: str
     subject: str
     customer_id: str
     domain: str
+    public_file_ref_hmac_key: bytes | None = None
 
     def __post_init__(self) -> None:
         project_id = _required_text(self.project_id)
@@ -92,6 +99,7 @@ class ContentConfig:
         subject = _required_text(self.subject).casefold()
         customer_id = _required_text(self.customer_id)
         domain = _required_text(self.domain).casefold()
+        public_file_ref_hmac_key = self.public_file_ref_hmac_key
 
         if not _PROJECT_ID_PATTERN.fullmatch(project_id):
             raise _configuration_failure()
@@ -107,15 +115,21 @@ class ContentConfig:
             raise _configuration_failure("TARGET_SUBJECT_INVALID")
         if subject.rsplit("@", 1)[1].casefold() != domain:
             raise _configuration_failure("MAILBOX_NOT_ALLOWED")
+        if public_file_ref_hmac_key is not None and (
+            type(public_file_ref_hmac_key) is not bytes
+            or len(public_file_ref_hmac_key) != 32
+        ):
+            raise _configuration_failure()
 
         object.__setattr__(self, "project_id", project_id)
         object.__setattr__(self, "service_account", service_account)
         object.__setattr__(self, "subject", subject)
         object.__setattr__(self, "customer_id", customer_id)
         object.__setattr__(self, "domain", domain)
+        object.__setattr__(self, "public_file_ref_hmac_key", public_file_ref_hmac_key)
 
     def __repr__(self) -> str:
-        return "<ContentConfig identifiers-only redacted>"
+        return "<ContentConfig redacted>"
 
     @classmethod
     def from_environment(
@@ -125,6 +139,12 @@ class ContentConfig:
         """Parse configuration lazily, without touching credentials."""
 
         source = os.environ if environment is None else environment
+        encoded_public_file_ref_key = source.get(CONTENT_PUBLIC_FILE_REF_HMAC_KEY_ENV)
+        public_file_ref_key = (
+            None
+            if encoded_public_file_ref_key is None
+            else decode_public_file_ref_hmac_key(encoded_public_file_ref_key)
+        )
         return cls(
             project_id=_required_environment_value(source, CONTENT_PROJECT_ID_ENV),
             service_account=_required_environment_value(
@@ -137,6 +157,7 @@ class ContentConfig:
                 CONTENT_CUSTOMER_ID_ENV,
             ),
             domain=_required_environment_value(source, CONTENT_DOMAIN_ENV),
+            public_file_ref_hmac_key=public_file_ref_key,
         )
 
     def to_provisioned_profile(self) -> ProvisionedContentProfile:

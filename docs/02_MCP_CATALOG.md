@@ -2,9 +2,33 @@
 
 O servidor se chama **Google Workspace Admin** e é iniciado por `stdio`. O
 catálogo atual possui 24 ferramentas, todas de leitura: 20 Read históricas e 4
-tools Content das verticais 1.5.1–1.5.4. Cada camada de API obtém um token para o scope
-mínimo que ela declara e o servidor serializa uma seleção de campos antes de
-devolver a resposta ao Codex.
+tools Content das verticais 1.5.1–1.5.5. Cada camada de API obtém um token para
+o scope mínimo que ela declara e o servidor serializa uma seleção de campos
+antes de devolver a resposta ao Codex.
+
+## Contrato congelado do MVP
+
+O usuário primário é um operador técnico/administrador de TI; cada runtime está
+configurado para uma organização Workspace. A interface atual é um host MCP
+conversacional externo. O MVP é local e somente de leitura, com 24 ferramentas
+públicas e **zero ferramentas públicas de escrita**. Uma UI própria não é
+requisito.
+
+As famílias incluídas são leitura administrativa selecionada, Reports, Shared
+Drive discovery/inventory, Docs Content e Sheets Content após validação final.
+Multi-tenant, serviço remoto público, self-service, edição pública de documentos,
+Gmail send, gestão de eventos Calendar e execução genérica de APIs são fases
+futuras. Drivers de validação controlada não são capacidades MCP de produto.
+
+Docs 1.5.4 está checkpointed e real-validated. Sheets 1.5.5 está implementado,
+validado offline e validado com Google real. O contrato regional e o reparo
+canônico da fixture estão concluídos; `PRODUCT DEFECT = NO` e
+`PRODUCTION_READER_DEFECT = NO`. Nenhum gate Sheets de implementação ou
+validação real está pendente. O checkpoint Git está **STAGED / COMMIT
+PENDING**: staging = COMPLETE, commit = PENDING e sincronização remota = NOT
+PERFORMED. Este catálogo registra o estado, mas não autoriza o commit; a
+autorização de execução é externa e vinculada à conversa atual. Veja o roadmap
+A–F em `docs/04_PHASE_STATUS.md`.
 
 ## Fase 1.5 — Foundation Content e Shared Drive Discovery
 
@@ -61,13 +85,24 @@ inventário rejeita também respostas com `trashed` ausente ou diferente de
 | `workspace_drives_list` | `content` / `server.py` | `page_size` StrictInt 1–100, padrão 25; `page_token` StrictStr opcional não vazio; `max_items` StrictInt 1–100, padrão 100; `use_domain_admin_access` StrictBool, padrão `false`; uma página, sem auto-pagination | Shared Drives allowlisted como `{drive_id, name}` e token Google validado |
 | `workspace_drive_get` | `content` / `server.py` | `drive_id` StrictStr, trim boundary, 1–256 caracteres, sem whitespace/control; `use_domain_admin_access` StrictBool, padrão `false` | um Shared Drive allowlisted como `{drive_id, name}` |
 | `workspace_drive_files_list` | `content` / `server.py` | `drive_id` StrictStr; `page_size` StrictInt 1–500, padrão 100; `page_token` StrictStr opaco opcional; `max_items` StrictInt 1–500, padrão 500; uma página, sem auto-pagination | `{files: [{file_id, name, mime_type, modified_time, size, parents}], next_page_token}` |
-| `workspace_file_content_read` | `content` / `server.py` | `file_id`, `expected_mime_type` e `modified_time` como StrictStr; `continuation_token` StrictStr opaco opcional; budgets internos | outcome explícito, `safe_error_code` e `failure_stage` fechado (`null` em sucesso/empty/partial), chunks textuais bounded, provenance Docs tipada e continuation opcional; somente Google Docs possui reader concreto nesta versão |
+| `workspace_file_content_read` | `content` / `server.py` | `file_id`, `expected_mime_type` e `modified_time` como StrictStr; `continuation_token` StrictStr opaco opcional; budgets internos | outcome explícito, `safe_error_code` e `failure_stage` fechado, chunks textuais bounded e provenance tipada Docs/Sheets; leitores concretos para Google Docs e Sheets |
 
 Em resultados de conteúdo, `processing_status` informa o resultado terminal,
 `safe_error_code` classifica o que falhou e `failure_stage` informa, por enum
 fechado, onde a falha ocorreu. `failure_stage` aceita somente os dez valores
 tipados do reader e nunca carrega mensagens de exceção, URLs, identificadores,
 tokens ou conteúdo do arquivo.
+
+Cada chamada a `workspace_file_content_read` retorna uma invocation bounded:
+`processing_status`, `chunk_count`, `result_count` e `chunks` descrevem somente
+essa resposta; `chunk_count` é o número de chunks liberados nela. O caller
+retém esses chunks e segue cada `continuation_token` opaco uma única vez,
+agregando as respostas. `PARTIALLY_PROCESSED` com token pode ter zero chunks
+atuais, especialmente ao percorrer células sparse de Sheets. A ausência do
+token encerra a cadeia de chamadas, mas o status ainda determina se houve
+sucesso (`PROCESSED`/`EMPTY`), cobertura parcial (`PARTIALLY_PROCESSED`) ou
+falha. `EMPTY` terminal significa zero chunks na invocation final e pode
+seguir respostas anteriores que liberaram conteúdo; não descarta esses chunks.
 
 ## Endpoints Directory em uso
 
@@ -476,9 +511,9 @@ MCP tool foi iniciada.
 ## Fase 1.5.4 — Google Docs Content — IMPLEMENT V1
 
 `workspace_file_content_read(file_id, expected_mime_type, modified_time,
-continuation_token=None)` é a única nova tool. O MIME router é sempre aplicado;
-somente `application/vnd.google-apps.document` possui reader concreto. Outros
-MIME types recebem `NATIVE_TYPE_UNSUPPORTED` explícito sem autenticação ou HTTP.
+continuation_token=None)` é a única tool de leitura de conteúdo. Na entrega
+1.5.4, somente `application/vnd.google-apps.document` possuía reader concreto;
+outros MIME types recebiam `NATIVE_TYPE_UNSUPPORTED` sem autenticação ou HTTP.
 
 O fluxo Google Docs é fechado e GET-only:
 
@@ -515,7 +550,124 @@ findings; PRE-RV REMEDIATION V1/V2 = COMPLETE; PRE-RV RE-REVIEW V1 = BLOCKED —
 RR-P2-01; RR-P2-01 REMEDIATION V1 = COMPLETE; PRE-RV FINAL RE-REVIEW V1 =
 PASS; real auth, discovery e target resolution = PASS; REAL CONTENT VALIDATION
 V2 = BLOCKED com `EXTRACTION_FAILED`; FAILURE OBSERVABILITY IMPLEMENT V1 e
-REMEDIATION V2 = COMPLETE / LOCAL VALIDATION. A validação real de conteúdo
-pós-remediação permanece PENDING; 1.5.4 ainda NÃO está completa e o checkpoint
-permanece NOT EXECUTED. As remediações adicionaram somente observabilidade
-segura e testes, sem alterar a superfície do catálogo.
+REMEDIATION V2 = COMPLETE / LOCAL VALIDATION. Ao fim da entrega 1.5.4, a
+validação real de conteúdo pós-remediação permanecia PENDING. As remediações
+adicionaram somente observabilidade segura e testes, sem alterar a superfície
+do catálogo.
+
+## Fase 1.5.5 — Google Sheets Content — windows, continuation & TOCTOU
+
+O mesmo `workspace_file_content_read` agora roteia o MIME
+`application/vnd.google-apps.spreadsheet` ao reader interno de Sheets. A rota
+usa somente `spreadsheets.get` GET em `sheets.googleapis.com`, com field masks
+fixos e janelas GridData geradas internamente de uma linha por até 1000 colunas.
+Cada invocation limita GridData a 8 chamadas/8000 células solicitadas, no
+máximo 11 chamadas de conteúdo/metadata incluindo Drive preflight/postflight,
+200 sheets, 5.000.000 células lógicas por arquivo, 64 chunks, 256 KiB por
+chunk e 2 MiB de conteúdo extraído. Cada resposta Sheets é limitada a 2 MiB
+raw/decoded antes de materializar JSON. Sparse responses não reduzem a contagem
+da área solicitada.
+
+A continuação é opaca, autenticada, de uso único, vinculada ao arquivo/snapshot
+e reader version, com no máximo 4096 caracteres, TTL de 15 minutos e até 1000
+estados locais. O cursor retém apenas a próxima posição de conteúdo no servidor;
+metadados do workbook são relidos e comparados antes de retomar. Drive
+preflight/postflight valida `id`, `mimeType`, `modifiedTime` e `trashed`;
+`size` não é requerido para arquivos Sheets nativos. Saída fica em buffer e só
+é liberada após postflight; uma divergência produz `CHANGED_DURING_AUDIT`, sem
+retry ou chunks da invocation atual.
+
+Sheets percorre sheets pela ordem oficial do índice e células por linha/coluna,
+incluindo conteúdo oculto. OBJECT, DATA_SOURCE e Smart Chips detectados são
+coverage gaps explícitos; conteúdo de comentários não é disponibilizado por
+este caminho Sheets API e continua como future coverage gap não observável por
+esta leitura. Smart Chips não têm conteúdo extraído. Fórmulas, hyperlinks e
+targets de chips são dados inertes; links não são seguidos. Não há Drive export,
+OCR, comments API ou execução de fórmulas. Uma coverage gap persistente termina
+como `PARTIALLY_PROCESSED`, sem continuation para conteúdo não suportado. Outros
+MIME types continuam em `NATIVE_TYPE_UNSUPPORTED`. Charts, drawings/images,
+slicers e outras estruturas workbook-level não são inspecionados por este
+reader de células e permanecem coverage gap futura documentada, não detectada
+por esta versão.
+
+A ativação e a regressão foram validadas offline com mocks, e a validação real
+final foi concluída em 02/10/2026. O catálogo permanece **24 tools únicas —
+Read 20, Content 4, Write 0, duplicatas 0**; nenhuma tool ou parâmetro público
+foi adicionado. DWD/scope não mudou; o reader usa o profile existente
+`DRIVE_DISCOVERY` (`drive.readonly`).
+
+### Referência pública pseudônima do arquivo — IMPLEMENT V3B
+
+Chunks públicos de Google Docs e Google Sheets usam o mesmo contrato
+`file_ref`: `gdrv_v1_<base64url sem padding>` com digest HMAC-SHA-256. O MAC é
+separado por domínio e vincula o Customer ID concreto configurado ao `file_id`
+Drive exato, preservando maiúsculas/minúsculas. `ContentChunk` aceita somente
+essa forma canônica; IDs Drive brutos não podem ser serializados como referência
+pública. O pseudônimo não é resolvido para um ID e não é aceito como entrada de
+leitura.
+
+A chave dedicada é lida de
+`GOOGLE_WORKSPACE_CONTENT_PUBLIC_FILE_REF_HMAC_KEY_B64`, em Base64 padrão
+canônico que representa exatamente 32 bytes. Ela é distinta da chave de
+continuation e de qualquer segredo OAuth/DWD. Sem a chave, a leitura Docs/Sheets
+falha fechada antes de autenticação ou HTTP com `CONTENT_NOT_SUPPORTED`; chave
+inválida ou entrada já iniciada por `gdrv_v1_` falha antes de qualquer request.
+A chave real dedicada foi provisionada manualmente pelo operador na configuração
+live do processo MCP, fora do repositório; seu valor não deve ser exibido,
+registrado ou commitado. No RERUN 4, autenticação e a primeira leitura pública
+foram alcançadas, mas a travessia parou porque uma allowlist global de textos
+sintéticos do harness rejeitou conteúdo fora da lista. Esse bloqueio histórico
+foi corrigido no harness; a validação real final Sheets foi concluída em
+02/10/2026.
+O contrato é interno à resposta de chunks e não adiciona tool ou parâmetro MCP.
+
+## Histórico — profile interno do driver O1 spill restoration
+
+Esta seção descreve somente o driver histórico de spill restoration O1/P1;
+ela não define o reparo canônico atual K1/L1, documentado em “Sheets 1.5.5 —
+estado final e primitive de reparo de validação” abaixo. Os limites O1-only
+registrados aqui continuam históricos e não são requisitos do reparo atual.
+
+O catálogo MCP continua sem ferramentas de escrita. As tools públicas de Drive
+e a leitura pública de conteúdo Sheets preservam `DRIVE_DISCOVERY` com somente
+`drive.readonly`. Um profile interno separado, fixo em
+`drive.readonly + spreadsheets`, é reservado ao driver controlado da fixture.
+Ele não aparece em parâmetros, capabilities públicas, bootstrap MCP ou
+registro `@mcp.tool()`. O builder interno não recebe scope ou sujeito dinâmico.
+
+Esse profile não é selecionável pelo MCP. O driver repo-local
+`validation/fixtures/run_gsheets_spill_restoration_controlled_v1.py` e o
+transporte de validação `validation/fixtures/gsheets_controlled_write.py`
+existem fora do pacote público; `server.py`, bootstrap, runtime, readers e
+adapter Sheets públicos não os importam. O driver não registra ferramentas,
+continuações ou rotas públicas. O catálogo permanece em **24 tools** (Read 20,
+Content 4, Write 0).
+
+O transporte permite somente metadata Drive exact-ID, metadata workbook,
+leitura O1:P1 e uma possível `spreadsheets.batchUpdate` que escreve a fórmula
+canônica em O1, uma única vez. Não há P1, K1/L1, locale, formato, search/list,
+retry ou request body fornecido pelo caller. Os testes usam fakes e
+`httpx.MockTransport`. Nesta implementação V2, não ocorreu chamada Google,
+autenticação nem mutação. Registros sobre o estado do scope DWD serão
+reconciliados na Phase C; a recomendação de verificar/provisionar DWD como gate
+independente está **SUPERSEDED**. A recomendação de diagnóstico regional
+metadata-only acima pertence ao plano histórico e foi superada pela validação
+real concluída em 02/10/2026. O checkpoint Git atual está **STAGED / COMMIT
+PENDING**: staging = COMPLETE e commit = PENDING. A autorização de commit é
+externa e vinculada à conversa atual; este catálogo não autoriza sua execução.
+
+## Sheets 1.5.5 — estado final e primitive de reparo de validação
+
+A leitura pública de Sheets permanece somente `spreadsheets.get` por GET, com
+`drive.readonly`, máscara fixa e sem fallback de export. A fixture canônica está
+em `pt_BR` / `America/Sao_Paulo`; K1=`1234.5` com `NUMBER / 0.00`, L1=`0.125`
+com `PERCENT / 0.0%`, O1=`=SEQUENCE(1,2)` e P1=`EXPECTED_TRAILING_OMISSION`,
+sem padding sintético. A observação real final confirmou todos esses pontos.
+
+A primitive privada de reparo de validação aceita apenas K1/L1, no máximo dois
+targets e uma transação Sheets, escrevendo somente `userEnteredValue`. Mantém
+`NO_OP_ALREADY_CANONICAL`, precondição de estabilidade Drive A/B e verificação
+pós-write com Drive C; retry, polling e rollback são zero. Formatos, O1 e P1
+nunca são escritos. O fluxo histórico `apply_explicit_repair` mantém sua
+semântica própria de rollback. A primitive não é tool pública; Write permanece
+0 no catálogo.

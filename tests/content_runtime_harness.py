@@ -14,7 +14,15 @@ from google_workspace_admin.content.auth.subject import (
     SubjectResolutionSource,
     WorkspaceSubject,
 )
+from google_workspace_admin.content.public_file_ref import PublicFileRefProvider
 from google_workspace_admin.content.transport import RetryPolicy
+
+
+_TEST_PUBLIC_FILE_REF_PROVIDER = PublicFileRefProvider(
+    "customer-1",
+    bytes(range(32)),
+)
+_USE_TEST_PUBLIC_FILE_REF_PROVIDER = object()
 
 
 def provisioned_profile(
@@ -70,6 +78,7 @@ def content_runtime_harness(
     subjects: dict[str, WorkspaceSubject] | None = None,
     retry_policy: RetryPolicy | None = None,
     sleeper=None,
+    public_file_ref_provider=_USE_TEST_PUBLIC_FILE_REF_PROVIDER,
 ):
     captured: list[httpx.Request] = []
 
@@ -91,6 +100,15 @@ def content_runtime_harness(
 
     monkeypatch.setattr(bootstrap, "_load_provisioned_profiles", lambda: configured_profiles)
     monkeypatch.setattr(bootstrap, "_build_subject_lookup", lambda: lookup)
+    monkeypatch.setattr(
+        bootstrap,
+        "_build_public_file_ref_provider",
+        lambda: (
+            _TEST_PUBLIC_FILE_REF_PROVIDER
+            if public_file_ref_provider is _USE_TEST_PUBLIC_FILE_REF_PROVIDER
+            else public_file_ref_provider
+        ),
+    )
     monkeypatch.setattr(
         bootstrap,
         "_build_http_client",

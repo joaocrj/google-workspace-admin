@@ -46,6 +46,8 @@ from google_workspace_admin.content import (
 )
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
 
+TEST_PUBLIC_FILE_REF = "gdrv_v1_" + "A" * 43
+
 
 def test_structural_failure_kind_is_closed_and_complete():
     assert tuple(StructuralFailureKind) == (
@@ -224,7 +226,7 @@ def test_typed_payloads_reject_arbitrary_objects_and_bound_bytes():
 
 def test_content_chunk_validates_kind_payload_provenance_sequence_and_token():
     chunk = ContentChunk(
-        file_ref="file-1",
+        file_ref=TEST_PUBLIC_FILE_REF,
         content_class=ContentClass.TEXT,
         sequence=0,
         content_kind=ContentKind.TEXT,
@@ -234,9 +236,19 @@ def test_content_chunk_validates_kind_payload_provenance_sequence_and_token():
         truncated=True,
     )
     assert chunk.sequence == 0 and chunk.continuation == "opaque-token"
+    assert chunk.file_ref == TEST_PUBLIC_FILE_REF
     with pytest.raises(ContentSafeError):
         ContentChunk(
-            file_ref="file-1",
+            file_ref="raw-drive-id",
+            content_class=ContentClass.TEXT,
+            sequence=0,
+            content_kind=ContentKind.TEXT,
+            payload=TextPayload("hello"),
+            provenance=TextProvenance(line=1),
+        )
+    with pytest.raises(ContentSafeError):
+        ContentChunk(
+            file_ref=TEST_PUBLIC_FILE_REF,
             content_class=ContentClass.TEXT,
             sequence=True,  # type: ignore[arg-type]
             content_kind=ContentKind.TEXT,
@@ -263,7 +275,7 @@ def test_content_chunk_validates_kind_payload_provenance_sequence_and_token():
         )
     with pytest.raises(ContentSafeError):
         ContentChunk(
-            file_ref="file-1",
+            file_ref=TEST_PUBLIC_FILE_REF,
             content_class=ContentClass.TEXT,
             sequence=0,
             content_kind=ContentKind.TEXT,
@@ -273,7 +285,7 @@ def test_content_chunk_validates_kind_payload_provenance_sequence_and_token():
         )
     with pytest.raises(ContentSafeError):
         ContentChunk(
-            file_ref="file-1",
+            file_ref=TEST_PUBLIC_FILE_REF,
             content_class=ContentClass.TEXT,
             sequence=0,
             content_kind=ContentKind.TEXT,
@@ -284,7 +296,7 @@ def test_content_chunk_validates_kind_payload_provenance_sequence_and_token():
         )
     with pytest.raises(ContentSafeError):
         ContentChunk(
-            file_ref="file-1",
+            file_ref=TEST_PUBLIC_FILE_REF,
             content_class=ContentClass.PDF,
             sequence=0,
             content_kind=ContentKind.TEXT,
@@ -293,7 +305,7 @@ def test_content_chunk_validates_kind_payload_provenance_sequence_and_token():
         )
     with pytest.raises(ContentSafeError):
         ContentChunk(
-            file_ref="file-1",
+            file_ref=TEST_PUBLIC_FILE_REF,
             content_class=ContentClass.TEXT,
             sequence=0,
             content_kind=ContentKind.TEXT,
@@ -534,7 +546,7 @@ def test_pre_rv_remediation_terminal_failures_forbid_counts_and_resume_state(sta
 
 def test_pre_rv_remediation_bounded_failure_forbids_chunks_even_with_zero_counts():
     chunk = ContentChunk(
-        file_ref="file-1",
+        file_ref=TEST_PUBLIC_FILE_REF,
         content_class=ContentClass.TEXT,
         sequence=0,
         content_kind=ContentKind.TEXT,
@@ -593,7 +605,7 @@ def test_coverage_ledger_enforces_exactly_one_terminal_outcome_per_file():
 
 def test_bounded_read_result_matches_outcome_and_chunks():
     chunk = ContentChunk(
-        file_ref="file-1",
+        file_ref=TEST_PUBLIC_FILE_REF,
         content_class=ContentClass.TEXT,
         sequence=0,
         content_kind=ContentKind.TEXT,
@@ -611,7 +623,7 @@ def test_bounded_read_result_matches_outcome_and_chunks():
         BoundedReadResult(
             (
                 ContentChunk(
-                    file_ref="file-1",
+                    file_ref=TEST_PUBLIC_FILE_REF,
                     content_class=ContentClass.TEXT,
                     sequence=0,
                     content_kind=ContentKind.TEXT,
@@ -623,7 +635,7 @@ def test_bounded_read_result_matches_outcome_and_chunks():
             ProcessingOutcome(ProcessingStatus.PROCESSED, ContentClass.TEXT, chunk_count=1, result_count=1),
         )
     partial_chunk = ContentChunk(
-        file_ref="file-1",
+        file_ref=TEST_PUBLIC_FILE_REF,
         content_class=ContentClass.TEXT,
         sequence=0,
         content_kind=ContentKind.TEXT,

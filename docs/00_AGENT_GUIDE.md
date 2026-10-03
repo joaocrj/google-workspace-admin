@@ -3,10 +3,36 @@
 ## Missão e limites
 
 Este repositório implementa o **Google Workspace Admin MCP**, um servidor MCP
-local para consultar, de forma controlada, recursos administrativos do Google
-Workspace. A linha de desenvolvimento atual é **FASE 1 — READ / ADMIN
-INVENTORY**. Não há ferramenta de escrita, alteração de usuários, grupos,
-unidades organizacionais ou domínios no catálogo atual.
+local, somente de leitura, para um operador técnico ou administrador de TI. O
+MVP configura uma organização Google Workspace por runtime e usa um host MCP
+conversacional externo via `stdio`. O catálogo público tem 24 ferramentas e
+zero ferramentas de escrita.
+
+O MVP inclui leitura administrativa selecionada, Reports, descoberta/inventário
+de Shared Drives, Google Docs Content e Google Sheets Content após validação
+final. UI gráfica própria, multi-tenant, serviço remoto, self-service de
+funcionários e operações públicas de escrita são fases futuras, não requisitos
+do MVP. Consulte `docs/04_PHASE_STATUS.md` para o roadmap canônico A–F.
+
+O perfil regional padrão brasileiro da fixture é `pt_BR` e
+`America/Sao_Paulo`; o idioma humano principal é português do Brasil. O reader
+de produção permanece locale-agnostic e timezone-agnostic. A implementação
+Google Sheets 1.5.5 está completa; o contrato regional, o reparo canônico da
+fixture e a validação real final foram concluídos. A evidência confirmou
+`locale=pt_BR`, `timeZone=America/Sao_Paulo`, K1/L1 canônicos, fórmula O1 e
+omissão trailing válida em P1; `PRODUCT DEFECT = NO` e
+`PRODUCTION_READER_DEFECT = NO`. Nenhum gate Sheets de implementação ou
+validação real é necessário antes do checkpoint.
+
+A implementação técnica e a validação real do Workspace Content Google Sheets
+1.5.5 estão concluídas. O checkpoint Git está staged, mas ainda não foi
+commitado; a correção do allow-list confirmou
+src/google_workspace_admin/server.py como caminho canônico, enquanto
+src/google_workspace_admin/content/server.py não existe no repositório. A
+continuação exata do checkpoint depende de autorização externa, fornecida pelo
+operador na conversa atual. A documentação do repositório registra estado e
+histórico do projeto; não autoriza execução de continuação, runner, operação
+Google ou commit. Identificadores de gates anteriores são somente históricos.
 
 Antes de atuar, leia:
 

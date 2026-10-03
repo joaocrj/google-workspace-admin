@@ -22,6 +22,12 @@ class ApprovedScopeProfile(str, Enum):
     GMAIL_CONTENT = "gmail_content"
 
 
+class _ControlledValidationScopeProfile(str, Enum):
+    """Scope profile reserved for the offline/explicit Sheets validation driver."""
+
+    GSHEETS_FIXTURE_WRITE = "gsheets_fixture_write"
+
+
 _SCOPE_REGISTRY = MappingProxyType(
     {
         ApprovedScopeProfile.DRIVE_DISCOVERY: (
@@ -48,6 +54,15 @@ _SCOPE_REGISTRY = MappingProxyType(
     }
 )
 
+_CONTROLLED_VALIDATION_SCOPE_REGISTRY = MappingProxyType(
+    {
+        _ControlledValidationScopeProfile.GSHEETS_FIXTURE_WRITE: (
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/spreadsheets",
+        ),
+    }
+)
+
 
 def scopes_for(profile: ApprovedScopeProfile) -> tuple[str, ...]:
     """Return the immutable scope tuple for an approved profile."""
@@ -69,3 +84,16 @@ def all_approved_scopes() -> frozenset[str]:
         for scopes in _SCOPE_REGISTRY.values()
         for scope in scopes
     )
+
+
+def _controlled_validation_scopes_for(
+    profile: object,
+) -> tuple[str, ...]:
+    """Resolve scopes that are intentionally absent from public Content auth."""
+
+    if type(profile) is not _ControlledValidationScopeProfile:
+        raise ContentSafeError(
+            code="READ_ONLY_OPERATION_FORBIDDEN",
+            operation=ContentErrorOperation.SCOPE_REGISTRY,
+        )
+    return _CONTROLLED_VALIDATION_SCOPE_REGISTRY[profile]

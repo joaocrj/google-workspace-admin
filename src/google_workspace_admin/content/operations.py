@@ -19,6 +19,8 @@ class ContentOperation(str, Enum):
     DRIVE_GET = "drive.get"
     DRIVE_FILES_LIST = "drive.files.list"
     FILE_CONTENT_READ = "content.file.read"
+    SHEETS_WORKBOOK_METADATA = "sheets.workbook.metadata"
+    SHEETS_GRIDDATA_WINDOW = "sheets.griddata.window"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +68,16 @@ DRIVE_FILES_LIST_FIELDS = (
 )
 DOCS_GET_FIELDS = "documentId,revisionId,suggestionsViewMode,tabs"
 DRIVE_FILE_METADATA_FIELDS = "id,mimeType,modifiedTime,trashed"
+SHEETS_API_ROOT = "https://sheets.googleapis.com/v4/spreadsheets"
+SHEETS_WORKBOOK_METADATA_FIELDS = (
+    "sheets(properties(sheetId,index,title,hidden,sheetType,gridProperties(rowCount,columnCount)))"
+)
+SHEETS_GRIDDATA_FIELDS = (
+    "sheets(properties(sheetId,index,sheetType),data(startRow,startColumn,"
+    "rowData(values(userEnteredValue,effectiveValue(errorValue(type)),formattedValue,"
+    "note,hyperlink,textFormatRuns(startIndex,format(link(uri))),"
+    "chipRuns(startIndex,chip(personProperties(email),richLinkProperties(uri)))))))"
+)
 
 DRIVE_LIST_PAGINATION = PaginationBounds(
     api_max_page_size=100,
@@ -158,6 +170,28 @@ _CONTRACTS = MappingProxyType(
             DOCS_GET_FIELDS,
             True,
         ),
+        ContentOperation.SHEETS_WORKBOOK_METADATA: ContentOperationContract(
+            ContentOperation.SHEETS_WORKBOOK_METADATA,
+            "GET",
+            f"{SHEETS_API_ROOT}/{{spreadsheet_id}}",
+            ApprovedScopeProfile.DRIVE_DISCOVERY,
+            "sheets.spreadsheets.get.metadata",
+            False,
+            None,
+            SHEETS_WORKBOOK_METADATA_FIELDS,
+            True,
+        ),
+        ContentOperation.SHEETS_GRIDDATA_WINDOW: ContentOperationContract(
+            ContentOperation.SHEETS_GRIDDATA_WINDOW,
+            "GET",
+            f"{SHEETS_API_ROOT}/{{spreadsheet_id}}",
+            ApprovedScopeProfile.DRIVE_DISCOVERY,
+            "sheets.spreadsheets.get.griddata",
+            False,
+            None,
+            SHEETS_GRIDDATA_FIELDS,
+            True,
+        ),
     }
 )
 
@@ -172,6 +206,8 @@ def get_operation_contract(operation: ContentOperation) -> ContentOperationContr
 
 
 def _operation_for_request(request: object) -> ContentOperation:
+    if type(request) is FileContentReadRequest and request.expected_mime_type == "application/vnd.google-apps.spreadsheet":
+        return ContentOperation.SHEETS_WORKBOOK_METADATA
     request_types = {
         DriveListRequest: ContentOperation.DRIVE_LIST,
         DriveGetRequest: ContentOperation.DRIVE_GET,
@@ -345,7 +381,10 @@ def _normalize_verified_operation_request(
         page_size = pagination.effective_page_size
         page_token = pagination.page_token
         response_item_limit = pagination.effective_page_size
-    elif operation is ContentOperation.FILE_CONTENT_READ:
+    elif operation in {
+        ContentOperation.FILE_CONTENT_READ,
+        ContentOperation.SHEETS_WORKBOOK_METADATA,
+    }:
         snapshot = InventorySnapshot(
             file_id=request.file_id,
             expected_mime_type=request.expected_mime_type,

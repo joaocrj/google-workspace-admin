@@ -21,6 +21,7 @@ class ContentCapability(str, Enum):
     GMAIL_METADATA = "gmail_metadata"
     GMAIL_CONTENT = "gmail_content"
     GOOGLE_DOCS_CONTENT = "google_docs_content"
+    GOOGLE_SHEETS_CONTENT = "google_sheets_content"
 
 
 class AdminCapability(str, Enum):
@@ -63,6 +64,20 @@ _RULES = MappingProxyType(
         "content.file.read": OperationCapabilityRule(
             operation="content.file.read",
             capability=ContentCapability.GOOGLE_DOCS_CONTENT,
+            scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
+            subject_capability=SubjectCapability.DRIVE,
+            admin_capability=AdminCapability.NONE,
+        ),
+        "sheets.workbook.metadata": OperationCapabilityRule(
+            operation="sheets.workbook.metadata",
+            capability=ContentCapability.GOOGLE_SHEETS_CONTENT,
+            scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
+            subject_capability=SubjectCapability.DRIVE,
+            admin_capability=AdminCapability.NONE,
+        ),
+        "sheets.griddata.window": OperationCapabilityRule(
+            operation="sheets.griddata.window",
+            capability=ContentCapability.GOOGLE_SHEETS_CONTENT,
             scope_profile=ApprovedScopeProfile.DRIVE_DISCOVERY,
             subject_capability=SubjectCapability.DRIVE,
             admin_capability=AdminCapability.NONE,

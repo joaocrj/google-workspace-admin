@@ -673,7 +673,7 @@ $env:GOOGLE_WORKSPACE_CONTENT_DOMAIN = "cevalente.com.br"
 ```
 
 O bloco é uma instrução futura e não foi aplicado automaticamente. Não use
-`.env`, ambiente persistente do Windows ou `C:\Users\joaoc\.codex\config.toml`
+`.env`, ambiente persistente do Windows ou `local workstation path (omitted)`
 para armazenar essa configuração sem uma decisão operacional separada. Não
 adicione variável de scope ou Client ID DWD.
 
@@ -777,9 +777,9 @@ explícita da etapa 1.5.4.
 
 `workspace_file_content_read` exige `file_id`, `expected_mime_type` e
 `modified_time`; `continuation_token` é opcional. Budgets, endpoint, fields,
-scope, retry e suggestions mode são políticas internas. Somente o MIME Google
-Docs possui reader concreto; outros MIME routes terminam explicitamente como
-não suportados nesta versão.
+scope, retry e suggestions mode são políticas internas. Na entrega 1.5.4,
+somente o MIME Google Docs possuía reader concreto; outros MIME routes então
+terminavam explicitamente como não suportados.
 
 O resultado mantém três responsabilidades separadas: `processing_status` é o
 resultado terminal, `safe_error_code` é a classificação segura do que falhou e
@@ -837,18 +837,442 @@ Validação local, sem ADC/Google:
 git diff --check
 ```
 
-Antes da REAL VALIDATION, verificar manualmente a habilitação de
+## Fase 1.5.5 — Google Sheets Content — operação local
+
+### Estado terminal atual — 02/10/2026
+
+Google Sheets 1.5.5 está implementado, validado offline e validado com Google
+real. A fixture está em `pt_BR` / `America/Sao_Paulo`; K1=`1234.5` é
+`NUMBER / 0.00`, L1=`0.125` é `PERCENT / 0.0%`, O1 é `=SEQUENCE(1,2)` e P1 é
+`EXPECTED_TRAILING_OMISSION`, sem padding sintético. O reparo canônico K1/L1 e a
+validação real final estão completos; `PRODUCT DEFECT = NO` e
+`PRODUCTION_READER_DEFECT = NO`.
+
+Nenhum gate Sheets de implementação ou validação real está pendente. O
+checkpoint Git atual está **STAGED / COMMIT PENDING**: 49 caminhos aprovados
+staged, commit não criado e sincronização remota não realizada. Este runbook
+descreve procedimentos; não autoriza commit, runner, operação Google ou outra
+operação futura. A autorização específica é externa e vinculada à conversa
+atual com o operador. Os ponteiros nas subseções históricas abaixo são
+referências históricas, não instruções atuais.
+
+### Histórico — direção operacional pré-rebase e limite do gate
+
+> Snapshot histórico anterior à rebase do contrato e à validação real final.
+> Os status `PENDING` e recomendações de gates Sheets abaixo foram superados
+> pelos resultados de 02/10/2026; mantenha-os apenas como cronologia.
+
+O escopo congelado é um MVP local, somente de leitura, para um operador
+técnico/IT e uma organização Workspace por runtime. A evidência real mais
+recente confirmou que o perfil regional canônico da fixture já é
+`locale=pt_BR` e `timeZone=America/Sao_Paulo`. **Nenhum reparo regional no
+Google é necessário.** O reader de produção segue locale-agnostic e
+timezone-agnostic.
+
+O gate offline de rebase do contrato foi executado e classificado **B —
+HARNESS_CONTRACT_EXTENSION_REQUIRED**. A especificação e o loader locais ainda
+exigem `en_US` e não representam timezone; essa implementação está obsoleta em
+relação à evidência e ao requisito brasileiro, mas não foi alterada. O harness
+canônico exige literais exatos de display: retirar o literal antigo de K1/L1
+também retiraria a verificação da presença desses componentes. Não enfraqueça a
+asserção nem mantenha `1234.50`/`12.5%` como literais brasileiros atuais. Os
+registros históricos com `en_US` permanecem historicamente corretos.
+
+O próximo gate recomendado, ainda **NOT AUTHORIZED**, é
+`WORKSPACE-CONTENT-GSHEETS-PENDING-DISPLAY-HARNESS-CONTRACT-ARCHITECTURE-OFFLINE-V1`.
+Ele deve decidir como o contrato/harness representa, separadamente, componente
+obrigatório e literal exato pendente. Depois disso, a rebase local poderá fixar
+`pt_BR` e `America/Sao_Paulo`, seguida pela leitura real read-only de K1:L1 e
+O1:P1; não há escrita regional Google prevista. Escritas de células só poderão
+ser avaliadas depois de evidência read-only e autorização própria.
+
+O gate de checkpoint não está autorizado. A próxima revisão de checkpoint só
+poderá ser proposta depois de todas as condições registradas em
+`docs/04_PHASE_STATUS.md` serem satisfeitas.
+
+O MIME `application/vnd.google-apps.spreadsheet` usa a mesma tool
+`workspace_file_content_read`. O reader chama somente `spreadsheets.get` por
+GET em `sheets.googleapis.com`, com masks fixos e uma linha por janela, até
+1000 colunas. O traversal segue a ordem `SheetProperties.index`, depois row e
+column ascendentes; conteúdo oculto em sheets, rows e columns não é filtrado.
+Cada invocation pode solicitar no máximo 8 janelas GridData/8000 células; com
+Drive preflight, uma chamada de metadata Sheets e Drive postflight, o teto é 11
+chamadas de conteúdo/metadata. Metadata aceita no máximo 200 sheets; ultrapassar
+o teto termina como partial de limite, sem alegar cobertura completa. Cada
+resposta Sheets é limitada a 2 MiB raw e decoded antes de materializar JSON.
+Células solicitadas são contadas pela área da janela mesmo quando a resposta é
+sparse. O limite lógico por arquivo é 5.000.000 células e não pode ser reiniciado
+por continuation.
+
+Aplicam-se os budgets compartilhados de até 64 chunks/invocation, 256 KiB por
+chunk e 2 MiB de conteúdo extraído por invocation. Continuation usa handles
+opacos autenticados de uso único, até 4096 caracteres, vinculados ao arquivo,
+snapshot e versão do reader; o estado é apenas local, com TTL de 15 minutos e
+máximo de 1000 estados. Ao retomar, o reader refaz preflight e metadata, valida
+o fingerprint estrutural e continua no próximo componente/célula sem duplicar
+ou omitir conteúdo.
+
+Para consumir a leitura bounded, o caller mantém os chunks de cada resposta
+segura e usa cada token uma vez. `processing_status` e `chunk_count` descrevem
+somente a invocation atual; `chunk_count` deve corresponder a `len(chunks)`.
+Uma página sparse pode retornar `PARTIALLY_PROCESSED`, zero chunks e um token.
+O fluxo de consumo é:
+
+```text
+agregado = []
+resposta = workspace_file_content_read(...)
+repetir:
+    se resposta.processing_status for falha: parar e tratar a falha
+    acrescentar resposta.chunks ao agregado uma única vez
+    se resposta.continuation_token estiver ausente: parar
+    resposta = workspace_file_content_read(..., continuation_token=token atual)
+```
+
+Sem token, `PROCESSED` ou `EMPTY` conclui com sucesso a cobertura suportada;
+`PARTIALLY_PROCESSED` sem token encerra com cobertura parcial ou limite de
+recurso e não deve ser promovido a sucesso integral. Falhas também não têm
+token e não são conclusão bem-sucedida. Um `EMPTY` final só informa que aquela
+invocation não liberou chunks: conteúdo já recebido em respostas anteriores
+permanece no agregado.
+
+Drive preflight/postflight compara `id`, `mimeType`, `modifiedTime` e `trashed`;
+Drive `size` não é exigido para um arquivo Google Sheets nativo. Todos os chunks
+da invocation ficam em buffer até o postflight. Divergência retorna
+`CHANGED_DURING_AUDIT`, sem retry, chunks atuais ou continuation. Falhas
+estruturais também descartam os chunks ainda não liberados.
+
+`OBJECT`, `DATA_SOURCE` e Smart Chips detectados produzem coverage gap explícita;
+fórmulas, hyperlinks e destinos de rich-text/chips são dados não executáveis e
+nunca são seguidos. Não há export Drive, comentários API, OCR, Apps Script,
+macros ou execução de fórmulas. Comentários de célula não são cobertos nem
+detectáveis por este caminho Sheets API e permanecem future coverage gap; um
+resultado `PROCESSED`/`EMPTY` descreve os componentes cobertos por este reader,
+não uma verificação de comentários. Charts, drawings/images, slicers e outras
+estruturas workbook-level também não são inspecionados por este reader de
+células e permanecem future coverage gaps não detectadas. Não houve real Google
+validation; ela continua pendente.
+
+Teste focado offline de Sheets:
+
+```powershell
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_google_sheets_content.py
+```
+
+Antes da REAL VALIDATION de Google Docs, verificar manualmente a habilitação de
 `docs.googleapis.com`. Se estiver desabilitada, somente o usuário poderá
 habilitá-la após autorização específica. A validação real deve usar um único
 Google Doc previamente selecionado, uma chamada bounded, sem seguir
 continuation e sem reproduzir conteúdo em terminal, audit, fixtures ou Git.
 
-Estado desta entrega: PLAN V1 = COMPLETE; IMPLEMENT V1 = COMPLETE; PRE-RV
-REVIEW V1 = BLOCKED — 6 findings; PRE-RV REMEDIATION V1/V2 = COMPLETE; PRE-RV
-RE-REVIEW V1 = BLOCKED — RR-P2-01; RR-P2-01 REMEDIATION V1 = COMPLETE; PRE-RV
-FINAL RE-REVIEW V1 = PASS; REAL VALIDATION V1 = BLOCKED por metodologia de
-captura insuficiente; EXTRACTION FAILURE DIAGNOSTIC = COMPLETE; FAILURE
-OBSERVABILITY IMPLEMENT V1 = COMPLETE / LOCAL VALIDATION; REAL
-POST-REMEDIATION VALIDATION = PENDING; CHECKPOINT = NOT EXECUTED. A
-remediação final passou nos testes sintéticos desta entrega e na regressão
-completa, sempre sem atividade Google/auth.
+Estado consolidado aceito para Docs 1.5.4: **checkpointed e real-validated**.
+Os estados de bloqueios e remediações intermediários acima permanecem nos
+registros históricos, mas não representam o estado atual da entrega. Sheets
+1.5.5 está implementado e validado offline; a validação real final segue
+**PENDING**.
+
+## Google Docs/Sheets: pseudônimo público de `file_ref`
+
+A leitura Docs/Sheets só libera chunks quando o bootstrap construiu o provider
+compartilhado de pseudônimo. O processo MCP deve receber
+`GOOGLE_WORKSPACE_CONTENT_PUBLIC_FILE_REF_HMAC_KEY_B64`, uma chave dedicada de
+32 bytes codificada em Base64 padrão canônico. A mesma chave e o Customer ID
+concreto produzem referências estáveis `gdrv_v1_<base64url sem padding>` por
+HMAC-SHA-256 sobre o ID Drive exato e sensível a maiúsculas/minúsculas. Não
+reutilize chave de continuation, credencial OAuth/DWD ou outro segredo.
+
+A chave não é obrigatória para iniciar o runtime de Content Discovery, mas é
+obrigatória para ler conteúdo Docs/Sheets. Ausente, a leitura termina com
+`EXTRACTION_FAILED / CONTENT_NOT_SUPPORTED` antes de autenticação e HTTP; valor
+inválido ou `file_id` começando com `gdrv_v1_` também falha fechado antes de
+request. O pseudo-ID é somente identificador de saída: não existe resolver e
+ele não serve como entrada de leitura.
+
+Após o IMPLEMENT V3B, o operador provisionou a chave dedicada fora do
+repositório, na configuração live do processo MCP. Nunca exiba nem versione esse
+segredo. No RERUN 4, a cadeia keyless e a primeira leitura pública foram
+alcançadas; a travessia parou porque o harness aplicava uma allowlist global de
+textos sintéticos e rejeitou conteúdo não listado. Esse bloqueio histórico foi
+corrigido no harness; a validação real final foi concluída em 02/10/2026.
+
+Teste offline do contrato e dos readers:
+
+```powershell
+.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests\test_content_public_file_ref.py tests\test_content_operational_auth.py tests\test_content_reading_substrate.py tests\test_google_docs_content.py tests\test_google_sheets_content.py
+```
+
+## Histórico — Google Sheets validation fixture contract V1 (superado)
+
+> Este snapshot antecede a rebase brasileira e a validação real final. O
+> `en_US`, os estados `PENDING` e os ponteiros de gate nesta seção descrevem a
+> cronologia daquele contrato; não são o estado nem a operação atual.
+
+O gate `WORKSPACE-CONTENT-GSHEETS-BRAZILIAN-REGIONAL-CONTRACT-REBASE-OFFLINE-V1`
+terminou em **B — HARNESS_CONTRACT_EXTENSION_REQUIRED**. A metadata real
+confirmou `locale=pt_BR` e `timeZone=America/Sao_Paulo`; nenhum reparo regional
+no Google é necessário. O reader de produção continua locale-agnostic e
+timezone-agnostic.
+
+A implementação local permanece inalterada: o JSON canônico e o loader ainda
+exigem `en_US` e não representam timezone. Essa exigência antiga está
+**SUPERSEDED** como perfil brasileiro e impede a rebase até a decisão de
+arquitetura; as ocorrências históricas continuam preservadas. O harness
+canônico forma `EXPECTED` a partir de literais de `direct_expectations` e
+compara o `CELL_DISPLAY` por igualdade exata. Remover o literal K1/L1 da lista
+também removeria a checagem de presença. Portanto, não enfraquecer a checagem e
+não inferir novos literais.
+
+K1 mantém número `1234.5` e formato `0.00`; L1 mantém número `0.125` e formato
+`0.0%`. A presença de `CELL_DISPLAY` continua obrigatória; o literal brasileiro
+exato de cada célula está **PENDING_REAL_OBSERVATION**. M1 permanece uma lacuna
+regional: serial, tipo efetivo, formato e interpretação de timezone não estão
+definidos. O1 permanece `=SEQUENCE(1,2)`; locale não autoriza traduzir nomes de
+funções ou fórmulas. P1 é resultado derivado/não authored e escrita direta é
+proibida.
+
+O driver controlado O1 permanece inalterado e em quarentena. Se uma escrita
+futura se tornar necessária, exige
+`REGIONAL_REQUALIFICATION_REQUIRED_BEFORE_FUTURE_REAL_WRITE`; a precondição
+histórica `en_US` do driver não foi reescrita. A próxima observação de células,
+depois da arquitetura e da rebase local, será read-only em K1:L1 e O1:P1.
+
+Próximo gate recomendado, ainda **NOT AUTHORIZED**:
+`WORKSPACE-CONTENT-GSHEETS-PENDING-DISPLAY-HARNESS-CONTRACT-ARCHITECTURE-OFFLINE-V1`.
+Consulte a árvore canônica em `docs/04_PHASE_STATUS.md`.
+
+## Registro histórico — contrato local anterior da fixture V1
+
+> **Contrato existente, alvo superado:** esta seção descreve o spec/helper
+> atualmente presente no worktree antes da rebase regional. A declaração
+> `en_US`, as precondições e os procedimentos abaixo são históricos para esse
+> contrato e não são ponteiros operacionais atuais. A rebase canônica brasileira
+> depende do diagnóstico regional real e será um trabalho offline separado.
+
+O contrato atualmente presente no worktree está em
+`validation/fixtures/gsheets_validation_v1.json`. Ele declara o alias
+`GSHEETS_VALIDATION_V1`, schema version `1`, fixture contract version `1`, aba
+ordinal `0` e locale `en_US`. O spec não contém identidade Drive nem material de
+autenticação. O loader estrito é
+`validation/fixtures/fixture_contract.py`; o helper é
+`validation/fixtures/setup_gsheets_validation_v1.py` e os testes locais estão
+em `tests/test_gsheets_validation_v1_fixture_contract.py`.
+
+`spec_schema_version` avança quando a forma ou interpretação do documento muda.
+`fixture_contract_version` avança quando muda qualquer comportamento ou
+expectativa da fixture, incluindo locale, display, valor authored, fórmula,
+formato, componente ou estrutura. Mudanças somente documentais não avançam
+nenhuma versão. Versões não suportadas, campos desconhecidos, chaves JSON
+duplicadas, tipos inválidos, coordenadas ou componentes duplicados e `null`
+falham fechados.
+
+A igualdade exata de `formattedValue` para `CELL_DISPLAY` foi retida e a
+semântica de aceitação não mudou. A4 e J1 continuam assertions de display; não
+há expectativa de visibilidade para linha/coluna. Valores authored e formatos
+de M1/N1 permanecem `UNSPECIFIED`. K1, L1, O1 e P1 seguem os contratos
+explícitos do spec. O1 same-formula rewrite permanece
+`STILL_REQUIRES_CONTROLLED_REAL_TEST`; o driver repo-local V2 que o poderá
+executar está implementado offline, mas nenhuma validação real ocorreu. P1
+permanece sem valor ou fórmula authored e nunca é alvo de escrita direta.
+
+### Preflight e VERIFY_ONLY
+
+O procedimento anterior de preflight exigia evidência de locale
+verificado para o ID recebido em runtime, proveniente de
+`SHEETS_SPREADSHEET_PROPERTIES` e vinculado àquele arquivo. Sem prova, a
+classificação histórica é `FIXTURE_LOCALE_UNVERIFIED`; a comparação com `en_US`
+está **SUPERSEDED**. O preflight não altera locale e não inicia reparo. O reader
+de produção continua locale-agnostic.
+
+O modo `VERIFY_ONLY` é um procedimento anterior, não parte do próximo gate.
+Quando autorizado em fase própria, recebe o ID exato como entrada runtime,
+valida a identidade por metadata exact-ID e lê somente `A1:P1`, `A4`,
+`A6:B6` e `Z900`. Não existe interface de Drive search/list nem capacidade de
+escrita no protocolo de leitura. Metadata preflight/postflight e a avaliação
+retornam somente classificações e estados seguros, sem ID ou valores observados.
+O CLI do helper canônico de contrato/setup expõe o plano; ele não é o driver de
+leitura Google. O driver controlado V2 descrito abaixo é separado, exige seu
+próprio modo explícito e não foi executado contra Google nesta entrega.
+
+### APPLY_EXPLICIT_REPAIR
+
+`APPLY_EXPLICIT_REPAIR` é um modo separado histórico: exige seleção explícita do modo,
+identificador do gate de autorização e confirmação explícita em runtime. O
+driver mantém a leitura pré-escrita em memória, produz plano determinístico e
+limita o campo de escrita a `userEnteredValue` de K1/L1, preservando os formatos
+canônicos NUMBER `0.00` e PERCENT `0.0%`. Após a escrita, verifica os resultados
+focados. Se uma pós-condição falhar, tenta uma única restauração dos valores
+authored salvos e confirma o estado focado; falha de restauração termina como
+`ROLLBACK_UNCONFIRMED`, sem retry. O plano nunca inclui P1. O1 não é uma ação
+executável deste helper; sua operação dedicada é implementada somente no
+driver controlado V2 descrito abaixo. A recomendação antiga para o gate
+`WORKSPACE-CONTENT-GSHEETS-DWD-SPREADSHEETS-SCOPE-VERIFY-AND-PROVISION-V1` está
+**SUPERSEDED** como próximo passo. O próximo gate congelado é o diagnóstico
+regional metadata-only; qualquer mudança administrativa exige solicitação e
+execução manual pelo usuário. Locale divergente não será reparado pelo
+diagnóstico.
+
+O contrato de driver é injetado por `VerifyOnlyReader` e
+`ExplicitRepairDriver`; não abre cliente Google, ADC, OAuth ou rede por conta
+própria. O ID de arquivo permanece argumento runtime e não deve ser salvo em
+spec, log, captura ou output.
+
+Nota para a Phase C: o padrão repository-wide `*.json` do `.gitignore` também
+ignora o spec canônico. A revisão futura deverá inspecionar seu conteúdo para
+privacidade e decidir/documentar o tracking intencional antes de um checkpoint.
+Não há instrução vigente para stage/force-add: checkpoint exige revisão e gate
+separados.
+
+Verificações offline:
+
+```powershell
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_gsheets_validation_v1_fixture_contract.py
+uv run python -B validation\gworkspace_rerun4_harness_safe.py --self-test
+```
+
+O plano anterior que recomendava teste real imediato de restauração de spill
+O1/P1 está **SUPERSEDED**. O1/P1 só entram depois do diagnóstico regional, da
+rebase e de uma leitura read-only específica; qualquer reparo é posterior e
+separadamente autorizado.
+
+## Histórico — O1/P1 spill restoration controlled driver
+
+Este driver é uma ferramenta interna de validação, não uma capacidade do MVP.
+Seu uso real está **QUARANTINED** e não é parte do próximo gate. Se uma escrita
+futura se tornar necessária, exige
+`REGIONAL_REQUALIFICATION_REQUIRED_BEFORE_FUTURE_REAL_WRITE`. Nenhuma operação
+O1/P1 está autorizada pelo freeze documental.
+
+O MCP público e o adapter Sheets público continuam somente leitura. O profile
+interno fixo `drive.readonly + spreadsheets` e o builder privado auditado são
+reutilizados pelo driver abaixo, mas continuam fora do bootstrap, runtime e
+catálogo MCP. O catálogo é 24 tools, Write 0. Um registro anterior deste
+runbook reporta `DWD_SPREADSHEETS_SCOPE_READY`; outro documento mantinha o scope
+como não confirmado. Essa divergência foi reconciliada pela evidência de
+readiness e reparo registrada em `docs/05_CHANGE_HISTORY.md`.
+
+O driver repo-local e o transporte de validação estão implementados em:
+
+- `validation/fixtures/run_gsheets_spill_restoration_controlled_v1.py`
+- `validation/fixtures/gsheets_controlled_write.py`
+
+O driver deriva a raiz de seu próprio `__file__`, valida os marcadores e carrega
+o spec pelo loader canônico antes de qualquer input operacional. O modo local
+não lê Fixture ID, config, ADC ou rede; o modo execute valida o ID process-local
+por SHA-256 antes da ponte config/auth. O transporte limita-se a metadata
+Drive exact-ID, metadata do workbook, uma leitura O1:P1 antes/depois e uma
+possível regravação O1 (`updateCells`, máscara `userEnteredValue`, orçamento de
+uma tentativa). P1 nunca é alvo de escrita. Search/list, ranges arbitrários,
+retries, polling e rollback não existem nessa interface.
+
+Verificações offline recomendadas para o driver:
+
+```powershell
+uv run python -B validation\fixtures\run_gsheets_spill_restoration_controlled_v1.py --help
+uv run python -B validation\fixtures\run_gsheets_spill_restoration_controlled_v1.py --local-preflight
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_gsheets_spill_restoration_controlled_driver.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_content_operational_auth.py
+```
+
+Esta implementação V2 executou somente testes com fakes/MockTransport. A
+validação real final de Sheets foi concluída em 02/10/2026; o driver O1/P1
+continua uma ferramenta privada de validação, sem exposição no MCP.
+
+### Post-write failure gating V1 — PASS offline
+
+Uma falha de `write_o1_once()` consome a única tentativa e encerra o driver
+imediatamente como `G — WRITE_FAILURE`. O caminho não faz leitura O1:P1
+pós-write, Drive postflight, retry ou rollback. O transporte atual sinaliza
+falha por `ControlledTransportError`; seu contrato não define um resultado
+explícito de falha nem uma resposta de write cujo conteúdo precise ser
+interpretado.
+
+Depois de uma escrita bem-sucedida, a verificação continua obrigatória: uma
+leitura O1:P1 pós-write, um Drive postflight e classificação baseada na
+evidência. Os caminhos existentes para `A — SAME_FORMULA_REWRITE_RESTORED_SPILL`,
+`B — SAME_FORMULA_REWRITE_DID_NOT_RESTORE_SPILL` e
+`D — O1_POSTWRITE_CONTRACT_VIOLATION` permanecem cobertos.
+
+Comandos de regressão offline deste gate:
+
+```powershell
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_gsheets_spill_restoration_controlled_driver.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_content_operational_auth.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_gsheets_validation_v1_fixture_contract.py
+uv run python -B validation\gworkspace_rerun4_harness_safe.py --self-test
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_google_sheets_content.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_content_public_file_ref.py tests\test_content_operational_auth.py tests\test_content_reading_substrate.py tests\test_google_docs_content.py tests\test_google_sheets_content.py
+uv run python -B -m pytest -q -p no:cacheprovider
+```
+
+O `--local-preflight` pode ser executado da raiz ou de cwd externo usando o
+caminho explícito do driver e o projeto `uv` do repositório. Esses modos não
+leem `GSHEETS_VALIDATION_V1_FILE_ID`, config, ADC ou rede.
+
+### Drive preflight request contract V1 — PASS offline
+
+O Drive preflight controlado usa somente `GET drive/v3/files/{fileId}` pelo ID
+exato recebido depois do identity guard. A projeção é exatamente
+`id,mimeType,trashed,modifiedTime`, e o único parâmetro adicional é
+`supportsAllDrives=true`. Não há `q`, `corpora`, `driveId`,
+`includeItemsFromAllDrives` nem operação de busca/listagem. O transporte mantém
+host e método fechados, timeout finito, redirects desativados, corpo de resposta
+limitado, sem retry e sem logging de request/resposta.
+
+O transporte compara o `id` retornado com o ID solicitado dentro da boundary e
+entrega apenas `id_present` e `id_matches_requested_exact_id`; o valor do ID
+nunca entra no DTO ou no resultado seguro. A passagem ao Sheets exige ID
+presente e correspondente, MIME presente e Google Sheets, `trashed` presente e
+`false`, e `modifiedTime` não vazio, ISO 8601 parseável e com timezone. Campo
+ausente, incorreto ou inválido encerra fail-closed antes da metadata Sheets.
+O timestamp é mantido somente em memória para a comparação pós-write e não é
+reportado.
+
+O diagnóstico real anterior parou durante inspeção do contrato local e enviou
+zero requests HTTP Drive; não observou resposta nem defeito Google. O repair e
+os testes usam somente fakes/`httpx.MockTransport`; não acessam Google,
+autenticação, rede, gcloud ou a fixture.
+
+Regressão offline do repair:
+
+```powershell
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_gsheets_spill_restoration_controlled_driver.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_content_operational_auth.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_gsheets_validation_v1_fixture_contract.py
+uv run python -B validation\gworkspace_rerun4_harness_safe.py --self-test
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_google_sheets_content.py
+uv run python -B -m pytest -q -p no:cacheprovider tests\test_content_public_file_ref.py tests\test_content_operational_auth.py tests\test_content_reading_substrate.py tests\test_google_docs_content.py tests\test_google_sheets_content.py
+uv run python -B -m pytest -q -p no:cacheprovider
+```
+
+Registro histórico: o ponteiro para
+`WORKSPACE-CONTENT-GSHEETS-DRIVE-PREFLIGHT-EVIDENCE-DIAGNOSTIC-V1-RETRY-1` e a
+recomendação então registrada para
+`WORKSPACE-CONTENT-GSHEETS-PENDING-DISPLAY-HARNESS-CONTRACT-ARCHITECTURE-OFFLINE-V1`
+foram superados pelas etapas posteriores; não são instruções atuais. Consulte
+`docs/04_PHASE_STATUS.md` para o estado durável.
+
+### Entrada process-local de ID para um futuro gate real autorizado
+
+O procedimento abaixo é somente um padrão histórico para um gate futuro que
+exija o driver O1/P1; não faz parte do próximo gate e não foi executado neste
+trabalho. Não use Fixture ID nesta fase documental.
+Execute a partir da raiz do repositório, digite o ID no prompt mascarado e não
+inclua o valor no comando Python/Codex, em argumento CLI, arquivo ou ambiente
+User/Machine:
+
+```powershell
+$secureId = Read-Host -Prompt 'Fixture ID' -AsSecureString
+$idBuffer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureId)
+try {
+    $env:GSHEETS_VALIDATION_V1_FILE_ID = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($idBuffer)
+    uv run python -B validation\fixtures\run_gsheets_spill_restoration_controlled_v1.py --execute-controlled-test
+}
+finally {
+    Remove-Item Env:GSHEETS_VALIDATION_V1_FILE_ID -ErrorAction SilentlyContinue
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($idBuffer)
+    $secureId.Dispose()
+}
+```
+
+O valor fica somente na variável de processo herdada pelo filho e é limpo ao
+terminar; o driver também o remove do próprio `os.environ` assim que o ingere.
+Não use `setx` nem grave esse valor em config.toml, spec ou script.

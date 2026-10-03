@@ -7,7 +7,7 @@ Tests replace the credential loader and HTTP client factory with local fakes.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import json
 from urllib.parse import quote
 
@@ -15,8 +15,13 @@ import httpx
 
 from google_workspace_admin.content.auth.keyless import (
     KeylessContentTokenProvider,
+    KeylessControlledValidationTokenProvider,
     MAX_INTERNAL_TOKEN_LENGTH,
     OAUTH_TOKEN_AUDIENCE,
+)
+from google_workspace_admin.content.auth.scopes import (
+    _ControlledValidationScopeProfile,
+    _controlled_validation_scopes_for,
 )
 from google_workspace_admin.content.config import ContentConfig
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
@@ -67,6 +72,20 @@ def _valid_secret(value: object) -> bool:
     )
 
 
+def _valid_serialized_claims(value: object) -> bool:
+    """Validate compact claims JSON while permitting the scope separator."""
+
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and len(value) <= MAX_INTERNAL_TOKEN_LENGTH
+        and not any(
+            ord(character) < 32 or 0x7F <= ord(character) <= 0x9F
+            for character in value
+        )
+    )
+
+
 def _build_auth_http_client() -> httpx.Client:
     return httpx.Client(
         follow_redirects=False,
@@ -81,6 +100,39 @@ def _load_adc_credentials() -> tuple[object, str | None]:
         from google_workspace_admin.auth.adc import get_adc_credentials
 
         return get_adc_credentials()
+    except Exception:
+        raise _safe_failure("ADC_REFRESH") from None
+
+
+def _load_authorized_user_adc_credentials(
+    *,
+    environment: Mapping[str, str] | None = None,
+    request_factory: Callable[[], object] | None = None,
+) -> tuple[object, str | None]:
+    """Private load-and-refresh seam for explicitly selected Content runners.
+
+    The default Content path remains ``_load_adc_credentials``. A caller may
+    inject this helper as ``credentials_loader`` when it needs the explicit
+    authorized-user-only ADC source. Refresh is lazy and uses google-auth's
+    OAuth HTTP request transport only when the constructed credentials are
+    invalid.
+    """
+
+    try:
+        from google.auth.transport.requests import Request
+        from google_workspace_admin.auth.adc import (
+            load_local_authorized_user_adc_no_subprocess,
+        )
+
+        credentials, project_id = load_local_authorized_user_adc_no_subprocess(
+            environment
+        )
+        if not credentials.valid:
+            request = request_factory() if request_factory is not None else Request()
+            credentials.refresh(request)
+        if not credentials.valid:
+            raise ValueError("ADC credentials remain invalid after refresh")
+        return credentials, project_id
     except Exception:
         raise _safe_failure("ADC_REFRESH") from None
 
@@ -106,8 +158,9 @@ def _validate_claims(
     service_account: str,
     delegated_subject: str,
     serialized_claims: str,
+    expected_scope: str = _DRIVE_SCOPE,
 ) -> None:
-    if not _valid_secret(serialized_claims):
+    if not _valid_serialized_claims(serialized_claims):
         raise _safe_failure("IAM_SIGN_JWT")
     try:
         claims = json.loads(serialized_claims)
@@ -118,7 +171,15 @@ def _validate_claims(
     if (
         claims.get("iss") != service_account
         or claims.get("sub") != delegated_subject
-        or claims.get("scope") != _DRIVE_SCOPE
+        or expected_scope not in {
+            _DRIVE_SCOPE,
+            " ".join(
+                _controlled_validation_scopes_for(
+                    _ControlledValidationScopeProfile.GSHEETS_FIXTURE_WRITE
+                )
+            ),
+        }
+        or claims.get("scope") != expected_scope
         or claims.get("aud") != OAUTH_TOKEN_AUDIENCE
         or isinstance(claims.get("iat"), bool)
         or not isinstance(claims.get("iat"), int)
@@ -133,6 +194,8 @@ def _validate_claims(
 def _build_sign_jwt_adapter(
     config: ContentConfig,
     client_factory: _ClientFactory,
+    *,
+    expected_scope: str = _DRIVE_SCOPE,
 ) -> Callable[[str, str, str], str]:
     expected_service_account = config.service_account
     expected_subject = config.subject
@@ -153,6 +216,7 @@ def _build_sign_jwt_adapter(
             service_account=expected_service_account,
             delegated_subject=expected_subject,
             serialized_claims=serialized_claims,
+            expected_scope=expected_scope,
         )
         try:
             client = client_factory()
@@ -282,5 +346,41 @@ def build_content_token_provider(
     return KeylessContentTokenProvider(
         adc_token_loader=_build_adc_token_loader(config, loader),
         sign_jwt=_build_sign_jwt_adapter(config, factory),
+        exchange_token=_build_oauth_exchange_adapter(factory),
+    )
+
+
+def _build_controlled_validation_token_provider(
+    config: ContentConfig,
+    *,
+    credentials_loader: _CredentialsLoader | None = None,
+    client_factory: _ClientFactory | None = None,
+) -> KeylessControlledValidationTokenProvider:
+    """Build the internal fixed-scope provider for the controlled driver.
+
+    This builder is deliberately private and is not used by Content bootstrap
+    or any MCP tool. It adds no DWD/Admin Console configuration.
+    """
+
+    if type(config) is not ContentConfig:
+        raise _safe_failure("LOCAL_VALIDATION")
+    loader = credentials_loader or _load_adc_credentials
+    factory = client_factory or _build_auth_http_client
+    if not callable(loader) or not callable(factory):
+        raise _safe_failure("LOCAL_VALIDATION")
+    expected_scope = " ".join(
+        _controlled_validation_scopes_for(
+            _ControlledValidationScopeProfile.GSHEETS_FIXTURE_WRITE
+        )
+    )
+    return KeylessControlledValidationTokenProvider(
+        service_account=config.service_account,
+        delegated_subject=config.subject,
+        adc_token_loader=_build_adc_token_loader(config, loader),
+        sign_jwt=_build_sign_jwt_adapter(
+            config,
+            factory,
+            expected_scope=expected_scope,
+        ),
         exchange_token=_build_oauth_exchange_adapter(factory),
     )

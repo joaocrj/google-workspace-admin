@@ -160,7 +160,16 @@ class ProcessingOutcome:
             _reason(self.partial_reason, required=True)
             resumable = self.truncated or token is not None
             if resumable:
-                if self.chunk_count < 1 or not self.truncated or token is None:
+                empty_sheet_resume = (
+                    self.content_class is ContentClass.GOOGLE_SHEET
+                    and self.chunk_count == 0
+                    and self.result_count == 0
+                )
+                if (
+                    (self.chunk_count < 1 and not empty_sheet_resume)
+                    or not self.truncated
+                    or token is None
+                ):
                     raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)
             elif token is not None:
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_OUTCOME)

@@ -8,12 +8,15 @@ import json
 import threading
 import time
 from urllib.parse import quote
-import zlib
 
 import httpx
 
 from google_workspace_admin.content.auth.handles import AuthorizedOperationContext, _OperationAuthority
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
+from google_workspace_admin.content.bounded_http import (
+    BoundedBodyFailure,
+    read_bounded_response_body,
+)
 from google_workspace_admin.content.budgets import DEFAULT_CONTENT_READING_BUDGETS
 from google_workspace_admin.content.continuation import DocsContinuationManager
 from google_workspace_admin.content.errors import (
@@ -24,6 +27,9 @@ from google_workspace_admin.content.errors import (
 from google_workspace_admin.content.google_docs import (
     GOOGLE_DOC_MIME_TYPE,
     GOOGLE_DOCS_READER_VERSION,
+    DriveFileMetadata,
+    DriveFileMetadataReadResult,
+    _DriveFileMetadataReadFailure,
     build_bounded_docs_result,
     failure_result,
     parse_drive_file_metadata,
@@ -43,8 +49,6 @@ from google_workspace_admin.http_errors import WorkspaceApiError
 
 
 _DRIVE_METADATA_CAP = 64 * 1024
-_RAW_STREAM_CHUNK_BYTES = 64 * 1024
-_SUPPORTED_CONTENT_ENCODINGS = frozenset({"identity", "gzip", "deflate"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,60 +139,162 @@ def _bounded_response_body(
     raw_cap: int,
     decoded_cap: int,
 ) -> bytes | _FetchFailure:
-    """Read one response with independent encoded and decoded hard limits.
+    """Preserve the Docs adapter's closed failure type over the shared cap."""
 
-    ``iter_raw`` is the public HTTPX streaming API that yields the encoded
-    response representation before Content-Encoding decoding.  The adapter
-    counts that stream first and performs only allowlisted, output-limited
-    decompression locally.
-    """
+    received = read_bounded_response_body(
+        response,
+        raw_cap=raw_cap,
+        decoded_cap=decoded_cap,
+    )
+    if type(received) is BoundedBodyFailure:
+        return _FetchFailure(received.kind)
+    return received
 
-    content_length = response.headers.get("content-length")
-    if content_length is not None:
-        if not content_length.isascii() or not content_length.isdigit():
-            return _FetchFailure("response_malformed")
-        if int(content_length) > raw_cap:
-            return _FetchFailure("too_large")
 
-    raw_encoding = response.headers.get("content-encoding")
-    encoding = "identity" if raw_encoding is None else raw_encoding.strip().lower()
-    if encoding not in _SUPPORTED_CONTENT_ENCODINGS:
-        return _FetchFailure("unsupported_encoding")
+def _decode_drive_metadata(
+    raw: bytes,
+    *,
+    expected_file_id: str,
+) -> DriveFileMetadataReadResult:
+    class DuplicateKey(ValueError):
+        pass
 
-    if encoding == "gzip":
-        decoder: zlib.Decompress | None = zlib.decompressobj(16 + zlib.MAX_WBITS)
-    elif encoding == "deflate":
-        decoder = zlib.decompressobj(zlib.MAX_WBITS)
-    else:
-        decoder = None
+    def pairs(values: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in values:
+            if key in result:
+                raise DuplicateKey
+            result[key] = value
+        return result
 
-    raw_count = 0
-    decoded = bytearray()
     try:
-        for raw_chunk in response.iter_raw(chunk_size=_RAW_STREAM_CHUNK_BYTES):
-            raw_count += len(raw_chunk)
-            if raw_count > raw_cap:
-                return _FetchFailure("too_large")
+        payload = json.loads(
+            raw.decode("utf-8", "strict"),
+            object_pairs_hook=pairs,
+        )
+    except (UnicodeError, json.JSONDecodeError, DuplicateKey, ValueError):
+        return _DriveFileMetadataReadFailure("json")
+    if type(payload) is not dict:
+        return _DriveFileMetadataReadFailure("json")
+    try:
+        return parse_drive_file_metadata(payload, expected_file_id=expected_file_id)
+    except ContentSafeError:
+        return _DriveFileMetadataReadFailure("response_validation")
 
-            remaining = decoded_cap + 1 - len(decoded)
-            if remaining <= 0:
-                return _FetchFailure("too_large")
-            if decoder is None:
-                decoded.extend(raw_chunk[:remaining])
-            else:
-                decoded.extend(decoder.decompress(raw_chunk, remaining))
-            if len(decoded) > decoded_cap:
-                return _FetchFailure("too_large")
-            if decoder is not None and decoder.unconsumed_tail:
-                return _FetchFailure("too_large")
-    except (httpx.StreamError, zlib.error):
-        return _FetchFailure("response_malformed")
 
-    if decoder is not None and (
-        not decoder.eof or decoder.unconsumed_tail or decoder.unused_data
+def _build_google_drive_file_metadata_read_port(
+    *,
+    client: httpx.Client,
+    require_context: Callable[[object], object],
+    token_provider: Callable[[object, ApprovedScopeProfile], str],
+) -> Callable[[AuthorizedOperationContext, object], DriveFileMetadataReadResult]:
+    """Build a one-send, exact-ID Drive metadata GET with closed request policy."""
+
+    if (
+        type(client) is not httpx.Client
+        or not callable(require_context)
+        or not callable(token_provider)
     ):
-        return _FetchFailure("response_malformed")
-    return bytes(decoded)
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.TRANSPORT,
+        )
+
+    def read(
+        context: AuthorizedOperationContext,
+        file_id: object,
+    ) -> DriveFileMetadataReadResult:
+        try:
+            snapshot = InventorySnapshot(file_id, GOOGLE_DOC_MIME_TYPE)
+        except ContentSafeError:
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.DRIVE_FILE_METADATA_GET,
+            ) from None
+        try:
+            authority = require_context(context)
+        except ContentSafeError:
+            raise
+        except Exception:
+            raise ContentSafeError(
+                code="READ_ONLY_OPERATION_FORBIDDEN",
+                operation=ContentErrorOperation.AUTH_CONTEXT_PROVENANCE,
+            ) from None
+        if (
+            type(authority) is not _OperationAuthority
+            or authority.operation
+            not in {
+                ContentOperation.FILE_CONTENT_READ,
+                ContentOperation.SHEETS_WORKBOOK_METADATA,
+            }
+            or authority.approved_scope_profile is not ApprovedScopeProfile.DRIVE_DISCOVERY
+            or authority.admin_mode_authorized is not False
+        ):
+            raise ContentSafeError(
+                code="READ_ONLY_OPERATION_FORBIDDEN",
+                operation=ContentErrorOperation.CAPABILITY_MATRIX,
+            )
+        try:
+            access_token = token_provider(context, ApprovedScopeProfile.DRIVE_DISCOVERY)
+        except ContentSafeError:
+            raise
+        except Exception:
+            return _DriveFileMetadataReadFailure("transport")
+        if (
+            type(access_token) is not str
+            or not access_token
+            or len(access_token) > 8192
+            or any(
+                character.isspace()
+                or ord(character) < 32
+                or 0x7F <= ord(character) <= 0x9F
+                for character in access_token
+            )
+        ):
+            return _DriveFileMetadataReadFailure("transport")
+
+        response: httpx.Response | None = None
+        endpoint = f"https://www.googleapis.com/drive/v3/files/{_encoded_id(snapshot.file_id)}"
+        try:
+            request = client.build_request(
+                "GET",
+                endpoint,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept-Encoding": "gzip, deflate",
+                },
+                params={
+                    "fields": DRIVE_FILE_METADATA_FIELDS,
+                    "supportsAllDrives": True,
+                },
+            )
+            response = client.send(request, stream=True, follow_redirects=False)
+            if not 200 <= response.status_code < 300:
+                return _DriveFileMetadataReadFailure("http", response.status_code)
+            body = _bounded_response_body(
+                response,
+                raw_cap=_DRIVE_METADATA_CAP,
+                decoded_cap=_DRIVE_METADATA_CAP,
+            )
+            if type(body) is _FetchFailure:
+                return _DriveFileMetadataReadFailure(body.kind)
+            return _decode_drive_metadata(body, expected_file_id=snapshot.file_id)
+        except httpx.TimeoutException:
+            return _DriveFileMetadataReadFailure("timeout")
+        except httpx.RequestError:
+            return _DriveFileMetadataReadFailure("transport")
+        except ContentSafeError:
+            raise
+        except Exception:
+            return _DriveFileMetadataReadFailure("transport")
+        finally:
+            if response is not None:
+                try:
+                    response.close()
+                except Exception:
+                    pass
+
+    return read
 
 
 def _build_google_docs_read_port(
@@ -196,11 +302,55 @@ def _build_google_docs_read_port(
     client: httpx.Client,
     require_context: Callable[[object], object],
     token_provider: Callable[[object, ApprovedScopeProfile], str],
+    drive_file_metadata_read: Callable[
+        [AuthorizedOperationContext, object], DriveFileMetadataReadResult
+    ],
     retry_policy: RetryPolicy,
     sleeper: Callable[[float], None] = time.sleep,
     continuation_manager: DocsContinuationManager,
+    public_file_ref_provider: Callable[[str], str] | None = None,
 ) -> Callable[[AuthorizedOperationContext, _NormalizedOperationRequest], BoundedReadResult]:
     budgets = DEFAULT_CONTENT_READING_BUDGETS
+    if not callable(drive_file_metadata_read):
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.TRANSPORT,
+        )
+
+    def read_drive_metadata(
+        context: AuthorizedOperationContext,
+        file_id: str,
+    ) -> DriveFileMetadata | _FetchFailure:
+        for attempt in range(retry_policy.max_attempts):
+            result = drive_file_metadata_read(context, file_id)
+            if type(result) is DriveFileMetadata:
+                return result
+            if type(result) is not _DriveFileMetadataReadFailure:
+                return _FetchFailure("response_malformed")
+            failure = _FetchFailure(result.kind, result.status)
+            if result.kind == "response_validation":
+                return failure
+            if result.kind == "http":
+                category = "http_error"
+            elif result.kind == "timeout":
+                category = "timeout"
+            elif result.kind == "transport":
+                category = "transport_error"
+            else:
+                return failure
+            error = WorkspaceApiError(
+                ContentErrorOperation.DRIVE_FILE_METADATA_GET.value,
+                category,
+                result.status,
+            )
+            if not retry_policy._can_retry(
+                idempotent_read=True,
+                attempt_number=attempt,
+                error=error,
+            ):
+                return failure
+            _sleep_with_cancellation(retry_policy.delay_for(attempt + 1), None, sleeper)
+        return _FetchFailure("transport")
 
     def send_bounded(
         *,
@@ -308,6 +458,23 @@ def _build_google_docs_read_port(
             request.expected_mime_type,
             request.modified_time,
         )
+        if public_file_ref_provider is None:
+            return failure_result(
+                ProcessingStatus.EXTRACTION_FAILED,
+                SafeContentErrorCode.CONTENT_NOT_SUPPORTED,
+            )
+        try:
+            public_file_ref = public_file_ref_provider(snapshot.file_id)
+        except ContentSafeError:
+            return failure_result(
+                ProcessingStatus.EXTRACTION_FAILED,
+                SafeContentErrorCode.LOCAL_VALIDATION,
+            )
+        except Exception:
+            return failure_result(
+                ProcessingStatus.EXTRACTION_FAILED,
+                SafeContentErrorCode.LOCAL_VALIDATION,
+            )
         continuation_state = None
         if request.continuation_token is not None:
             continuation_state = continuation_manager.resolve(
@@ -329,30 +496,15 @@ def _build_google_docs_read_port(
         ):
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.AUTH_BROKER)
 
-        encoded = _encoded_id(snapshot.file_id)
-        metadata_endpoint = f"https://www.googleapis.com/drive/v3/files/{encoded}"
-        metadata_params: Mapping[str, str | bool] = {
-            "fields": DRIVE_FILE_METADATA_FIELDS,
-            "supportsAllDrives": True,
-        }
-        preflight_payload = send_bounded(
-            endpoint=metadata_endpoint,
-            params=metadata_params,
-            access_token=access_token,
-            raw_cap=_DRIVE_METADATA_CAP,
-            decoded_cap=_DRIVE_METADATA_CAP,
-            operation=ContentErrorOperation.DRIVE_FILE_METADATA_GET,
-        )
-        if type(preflight_payload) is _FetchFailure:
-            return _failure_result(preflight_payload, stage=FailureStage.PREFLIGHT_FETCH)
-        try:
-            preflight = parse_drive_file_metadata(preflight_payload, expected_file_id=snapshot.file_id)
-        except ContentSafeError:
-            return failure_result(
-                ProcessingStatus.EXTRACTION_FAILED,
-                SafeContentErrorCode.RESPONSE_VALIDATION,
-                FailureStage.PREFLIGHT_VALIDATION,
+        preflight_result = read_drive_metadata(context, snapshot.file_id)
+        if type(preflight_result) is _FetchFailure:
+            stage = (
+                FailureStage.PREFLIGHT_VALIDATION
+                if preflight_result.kind == "response_validation"
+                else FailureStage.PREFLIGHT_FETCH
             )
+            return _failure_result(preflight_result, stage=stage)
+        preflight = preflight_result
         if (
             preflight.trashed
             or preflight.mime_type != GOOGLE_DOC_MIME_TYPE
@@ -365,6 +517,7 @@ def _build_google_docs_read_port(
                 FailureStage.PREFLIGHT_VALIDATION,
             )
 
+        encoded = _encoded_id(snapshot.file_id)
         docs_endpoint = f"https://docs.googleapis.com/v1/documents/{encoded}"
         docs_payload = send_bounded(
             endpoint=docs_endpoint,
@@ -417,6 +570,7 @@ def _build_google_docs_read_port(
                 snapshot=snapshot,
                 budgets=budgets,
                 continuation_manager=continuation_manager,
+                public_file_ref=public_file_ref,
                 continuation_state=continuation_state,
             )
         except ContentSafeError as error:
@@ -430,24 +584,15 @@ def _build_google_docs_read_port(
                 )
             raise
 
-        postflight_payload = send_bounded(
-            endpoint=metadata_endpoint,
-            params=metadata_params,
-            access_token=access_token,
-            raw_cap=_DRIVE_METADATA_CAP,
-            decoded_cap=_DRIVE_METADATA_CAP,
-            operation=ContentErrorOperation.DRIVE_FILE_METADATA_GET,
-        )
-        if type(postflight_payload) is _FetchFailure:
-            return _failure_result(postflight_payload, stage=FailureStage.POSTFLIGHT_FETCH)
-        try:
-            postflight = parse_drive_file_metadata(postflight_payload, expected_file_id=snapshot.file_id)
-        except ContentSafeError:
-            return failure_result(
-                ProcessingStatus.EXTRACTION_FAILED,
-                SafeContentErrorCode.RESPONSE_VALIDATION,
-                FailureStage.POSTFLIGHT_VALIDATION,
+        postflight_result = read_drive_metadata(context, snapshot.file_id)
+        if type(postflight_result) is _FetchFailure:
+            stage = (
+                FailureStage.POSTFLIGHT_VALIDATION
+                if postflight_result.kind == "response_validation"
+                else FailureStage.POSTFLIGHT_FETCH
             )
+            return _failure_result(postflight_result, stage=stage)
+        postflight = postflight_result
         if postflight != preflight or postflight.trashed:
             return failure_result(
                 ProcessingStatus.CHANGED_DURING_AUDIT,

@@ -59,6 +59,7 @@ from content_runtime_harness import content_runtime_harness
 
 FILE_ID = "synthetic-doc-1"
 MODIFIED = "2026-09-16T10:00:00.000Z"
+TEST_PUBLIC_FILE_REF = "gdrv_v1_" + "A" * 43
 
 
 class _BytesStream(httpx.SyncByteStream):
@@ -531,6 +532,8 @@ def test_pre_rv_remediation_section_break_preserves_location_without_text():
         snapshot=InventorySnapshot(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED),
         budgets=ContentReadingBudgets(),
         continuation_manager=DocsContinuationManager(key=b"s" * 32),
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
     )
     assert result.outcome.processing_status is ProcessingStatus.PROCESSED
     assert result.outcome.failure_stage is None
@@ -569,6 +572,8 @@ def test_pre_rv_remediation_section_only_document_remains_empty_with_location():
         snapshot=InventorySnapshot(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED),
         budgets=ContentReadingBudgets(),
         continuation_manager=DocsContinuationManager(key=b"e" * 32),
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
     )
     assert result.outcome.processing_status is ProcessingStatus.EMPTY
     assert result.chunks == ()
@@ -1378,6 +1383,8 @@ def test_text_run_vertical_tab_is_normalized_after_original_span_validation(
         snapshot=snapshot,
         budgets=budgets,
         continuation_manager=DocsContinuationManager(key=b"v" * 32),
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
     )
     if expected:
         assert result.outcome.processing_status is ProcessingStatus.PROCESSED
@@ -1473,6 +1480,8 @@ def test_text_run_vertical_tab_and_u_e907_normalize_in_existing_order():
         snapshot=InventorySnapshot(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED),
         budgets=ContentReadingBudgets(),
         continuation_manager=DocsContinuationManager(key=b"e" * 32),
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
     )
     assert result.outcome.processing_status is ProcessingStatus.PARTIALLY_PROCESSED
     assert [chunk.payload.text for chunk in result.chunks] == ["A B"]
@@ -1512,6 +1521,8 @@ def test_text_run_vertical_tab_chunking_and_provenance_match_space_source():
             snapshot=snapshot,
             budgets=budgets,
             continuation_manager=manager,
+
+            public_file_ref=TEST_PUBLIC_FILE_REF,
         )
         assert first.outcome.continuation is not None
         state = manager.resolve(
@@ -1524,6 +1535,8 @@ def test_text_run_vertical_tab_chunking_and_provenance_match_space_source():
             snapshot=snapshot,
             budgets=budgets,
             continuation_manager=manager,
+
+            public_file_ref=TEST_PUBLIC_FILE_REF,
             continuation_state=state,
         )
         return first, second
@@ -1687,6 +1700,8 @@ def test_u_e907_remains_validated_then_handled_as_non_text_placeholder():
         snapshot=InventorySnapshot(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED),
         budgets=ContentReadingBudgets(),
         continuation_manager=DocsContinuationManager(key=b"u" * 32),
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
     )
     assert result.outcome.processing_status is ProcessingStatus.PARTIALLY_PROCESSED
     assert result.outcome.partial_reason == "UNSUPPORTED_KNOWN_COVERAGE_GAP"
@@ -1994,6 +2009,8 @@ def test_section_break_zero_start_index_regression_hardening(section_break, expe
         snapshot=InventorySnapshot(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED),
         budgets=ContentReadingBudgets(),
         continuation_manager=DocsContinuationManager(key=b"r" * 32),
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
     )
 
     assert result.outcome.processing_status is ProcessingStatus.EMPTY
@@ -2167,6 +2184,35 @@ def test_pre_rv_remediation_http_408_retries_then_maps_transient(monkeypatch):
     assert result.outcome.processing_status is ProcessingStatus.TRANSIENT_UPSTREAM
     assert result.outcome.failure_stage is FailureStage.DOCS_REQUEST
     assert result.outcome.safe_error_code.value == "TRANSIENT_UPSTREAM"
+
+
+def test_docs_reader_keeps_legacy_metadata_retry_outside_the_one_send_port(monkeypatch):
+    drive_calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal drive_calls
+        if request.url.host == "www.googleapis.com":
+            drive_calls += 1
+            if drive_calls == 1:
+                return _json_response(503, {"error": {"message": "synthetic"}})
+            return _json_response(200, _metadata())
+        return _json_response(
+            200,
+            _document(_tab("tab-main", "Safe", body=[_text_paragraph("Safe")])),
+        )
+
+    with content_runtime_harness(
+        monkeypatch,
+        handler,
+        retry_policy=RetryPolicy(max_attempts=3, initial_delay_seconds=0, max_delay_seconds=0),
+        sleeper=lambda _: None,
+    ) as (runtime, captured):
+        result = runtime.execute(_request())
+
+    assert result.outcome.processing_status is ProcessingStatus.PROCESSED
+    assert drive_calls == 3
+    assert sum(request.url.host == "www.googleapis.com" for request in captured) == 3
+    assert sum(request.url.host == "docs.googleapis.com" for request in captured) == 1
 
 
 def test_timeout_retries_only_within_foundation_policy(monkeypatch):
@@ -2571,7 +2617,7 @@ def test_output_budget_creates_resumable_partial_and_local_continuation():
     budgets = ContentReadingBudgets(max_extracted_content_bytes=4, max_text_chunk_bytes=4)
     manager = DocsContinuationManager(key=b"k" * 32)
     snapshot = InventorySnapshot(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED)
-    first = build_bounded_docs_result(document, snapshot=snapshot, budgets=budgets, continuation_manager=manager)
+    first = build_bounded_docs_result(document, snapshot=snapshot, budgets=budgets, continuation_manager=manager, public_file_ref=TEST_PUBLIC_FILE_REF)
     assert first.outcome.processing_status is ProcessingStatus.PARTIALLY_PROCESSED
     assert first.outcome.continuation is not None and first.chunks[-1].truncated
     state = manager.resolve(first.outcome.continuation, snapshot=snapshot, reader_version=GOOGLE_DOCS_READER_VERSION)
@@ -2580,6 +2626,8 @@ def test_output_budget_creates_resumable_partial_and_local_continuation():
         snapshot=snapshot,
         budgets=replace(budgets, max_extracted_content_bytes=16, max_text_chunk_bytes=16),
         continuation_manager=manager,
+
+        public_file_ref=TEST_PUBLIC_FILE_REF,
         continuation_state=state,
     )
     assert second.outcome.processing_status is ProcessingStatus.PROCESSED
@@ -2716,10 +2764,51 @@ def test_public_facade_serializes_docs_without_raw_response(monkeypatch):
     response = server.workspace_file_content_read(FILE_ID, GOOGLE_DOC_MIME_TYPE, MODIFIED)
     assert response["processing_status"] == "PROCESSED"
     assert response["structural_failure_kind"] is None
+    assert response["chunks"][0]["file_ref"].startswith("gdrv_v1_")
+    assert FILE_ID not in repr(response)
     assert response["chunks"][0]["provenance"]["tab_id"] == "tab-main"
     serialized = repr(response)
     assert "revision-synthetic" not in serialized
     assert "Authorization" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("file_id", "provider", "safe_error_code"),
+    [
+        (FILE_ID, None, "CONTENT_NOT_SUPPORTED"),
+        (TEST_PUBLIC_FILE_REF, "default", "LOCAL_VALIDATION"),
+    ],
+)
+def test_docs_public_read_fails_closed_without_raw_or_pseudonymous_input_requests(
+    monkeypatch,
+    file_id,
+    provider,
+    safe_error_code,
+):
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _json_response(200, _metadata())
+
+    harness_kwargs = {} if provider == "default" else {"public_file_ref_provider": None}
+    with content_runtime_harness(monkeypatch, handler, **harness_kwargs) as (runtime, captured):
+        monkeypatch.setattr(server, "_get_content_runtime", lambda: runtime)
+        monkeypatch.setattr(
+            server,
+            "_content_identity",
+            lambda: ("drive-discovery", "analyst@cevalente.com.br"),
+        )
+        response = server.workspace_file_content_read(
+            file_id,
+            GOOGLE_DOC_MIME_TYPE,
+            MODIFIED,
+        )
+
+    assert response["processing_status"] == "EXTRACTION_FAILED"
+    assert response["safe_error_code"] == safe_error_code
+    assert response["chunks"] == []
+    assert requests == captured == []
 
 
 def test_capability_scope_audit_and_static_write_isolation():

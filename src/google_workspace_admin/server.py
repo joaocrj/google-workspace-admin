@@ -76,7 +76,10 @@ from google_workspace_admin.content.outcomes import (
     ProcessingStatus,
     SafeContentErrorCode,
 )
-from google_workspace_admin.content.provenance import DocsProvenance
+from google_workspace_admin.content.provenance import (
+    DocsProvenance,
+    SheetsProvenance,
+)
 from google_workspace_admin.content.readers import BoundedReadResult
 from google_workspace_admin.content.routing import ContentClass, route_mime_type
 from google_workspace_admin.content.results import (
@@ -171,6 +174,23 @@ def _serialize_docs_provenance(value: object) -> dict:
     return {key: item for key, item in serialized.items() if item is not None and item != []}
 
 
+def _serialize_sheets_provenance(value: object) -> dict:
+    if type(value) is not SheetsProvenance or value.component is None:
+        raise ContentSafeError(
+            code="RESPONSE_VALIDATION",
+            operation=ContentErrorOperation.READING_PROVENANCE,
+        )
+    serialized = {
+        "sheet_ordinal": value.sheet_index,
+        "a1": value.range_a1,
+        "component": value.component.value,
+        "rich_text_run_ordinal": value.rich_text_run_ordinal,
+        "rich_text_start_utf16": value.rich_text_start_utf16,
+        "rich_text_end_utf16": value.rich_text_end_utf16,
+    }
+    return {key: item for key, item in serialized.items() if item is not None}
+
+
 def _serialize_content_read_result(result: object) -> dict:
     if type(result) is not BoundedReadResult:
         raise ContentSafeError(
@@ -179,11 +199,16 @@ def _serialize_content_read_result(result: object) -> dict:
         )
     chunks = []
     for chunk in result.chunks:
-        if (
-            chunk.content_class is not ContentClass.GOOGLE_DOC
-            or chunk.content_kind is not ContentKind.TEXT
-            or type(chunk.payload) is not TextPayload
-        ):
+        if chunk.content_kind is not ContentKind.TEXT or type(chunk.payload) is not TextPayload:
+            raise ContentSafeError(
+                code="RESPONSE_VALIDATION",
+                operation=ContentErrorOperation.FILE_CONTENT_READ,
+            )
+        if chunk.content_class is ContentClass.GOOGLE_DOC:
+            provenance = _serialize_docs_provenance(chunk.provenance)
+        elif chunk.content_class is ContentClass.GOOGLE_SHEET:
+            provenance = _serialize_sheets_provenance(chunk.provenance)
+        else:
             raise ContentSafeError(
                 code="RESPONSE_VALIDATION",
                 operation=ContentErrorOperation.FILE_CONTENT_READ,
@@ -194,7 +219,7 @@ def _serialize_content_read_result(result: object) -> dict:
                 "sequence": chunk.sequence,
                 "content_kind": chunk.content_kind.value,
                 "text": chunk.payload.text,
-                "provenance": _serialize_docs_provenance(chunk.provenance),
+                "provenance": provenance,
                 "truncated": chunk.truncated,
             }
         )
@@ -1986,7 +2011,7 @@ def workspace_file_content_read(
             modified_time=modified_time,
         )
         content_class = route_mime_type(snapshot.expected_mime_type)
-        if content_class is not ContentClass.GOOGLE_DOC:
+        if content_class not in {ContentClass.GOOGLE_DOC, ContentClass.GOOGLE_SHEET}:
             unsupported = BoundedReadResult(
                 (),
                 ProcessingOutcome(

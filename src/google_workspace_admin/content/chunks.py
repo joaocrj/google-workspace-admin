@@ -9,6 +9,7 @@ from typing import TypeAlias
 
 from google_workspace_admin.content.budgets import MAX_STRUCTURED_CHUNK_BYTES, MAX_TEXT_CHUNK_BYTES
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.public_file_ref import is_public_file_ref
 from google_workspace_admin.content.provenance import (
     DocsProvenance,
     ExcelProvenance,
@@ -190,8 +191,11 @@ class ContentChunk:
     continuation: str | None = None
 
     def __post_init__(self) -> None:
-        folded_file_ref = self.file_ref.casefold() if type(self.file_ref) is str else ""
-        if type(self.file_ref) is not str or not self.file_ref or len(self.file_ref) > MAX_FILE_REFERENCE_LENGTH or any(character.isspace() or ord(character) < 32 or 0x7F <= ord(character) <= 0x9F for character in self.file_ref) or "://" in self.file_ref or any(character in self.file_ref for character in ("/", "\\", "?", "#")) or folded_file_ref.startswith(("http:", "https:", "drive.google.com/", "www.googleapis.com/")):
+        if (
+            type(self.file_ref) is not str
+            or len(self.file_ref) > MAX_FILE_REFERENCE_LENGTH
+            or not is_public_file_ref(self.file_ref)
+        ):
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_CHUNK)
         if type(self.content_class) is not ContentClass:
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_CHUNK)

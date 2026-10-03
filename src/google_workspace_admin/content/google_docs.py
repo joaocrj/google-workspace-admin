@@ -450,6 +450,54 @@ class DriveFileMetadata:
     trashed: bool
 
 
+@dataclass(frozen=True, slots=True)
+class _DriveFileMetadataReadFailure:
+    """Closed, content-free failure returned by the private exact-ID port."""
+
+    kind: Literal[
+        "http",
+        "timeout",
+        "transport",
+        "too_large",
+        "json",
+        "response_validation",
+        "response_malformed",
+        "unsupported_encoding",
+    ]
+    status: int | None = None
+
+    def __post_init__(self) -> None:
+        allowed_kinds = {
+            "http",
+            "timeout",
+            "transport",
+            "too_large",
+            "json",
+            "response_validation",
+            "response_malformed",
+            "unsupported_encoding",
+        }
+        if (
+            type(self) is not _DriveFileMetadataReadFailure
+            or type(self.kind) is not str
+            or self.kind not in allowed_kinds
+        ):
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.RESPONSE_DRIVE_FILE_METADATA,
+            )
+        if self.status is not None and (
+            type(self.status) is not int or not 100 <= self.status <= 599
+        ):
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.RESPONSE_DRIVE_FILE_METADATA,
+            )
+
+
+DriveFileMetadataReadResult = DriveFileMetadata | _DriveFileMetadataReadFailure
+
+
 def parse_drive_file_metadata(
     payload: object,
     *,
@@ -1435,6 +1483,7 @@ def build_bounded_docs_result(
     snapshot: InventorySnapshot,
     budgets: ContentReadingBudgets,
     continuation_manager: DocsContinuationManager,
+    public_file_ref: str,
     continuation_state: DocsContinuationState | None = None,
 ) -> BoundedReadResult:
     if type(document) is not ParsedGoogleDocument or type(snapshot) is not InventorySnapshot:
@@ -1489,7 +1538,7 @@ def build_bounded_docs_result(
         piece = unit.text[current_offset : current_offset + count]
         chunks.append(
             ContentChunk(
-                file_ref=snapshot.file_id,
+                file_ref=public_file_ref,
                 content_class=ContentClass.GOOGLE_DOC,
                 sequence=len(chunks),
                 content_kind=ContentKind.TEXT,

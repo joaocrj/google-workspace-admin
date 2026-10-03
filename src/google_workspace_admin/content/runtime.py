@@ -14,6 +14,7 @@ from weakref import WeakKeyDictionary
 
 from google_workspace_admin.content.auth.capabilities import capability_rule
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
+from google_workspace_admin.content.google_docs import DriveFileMetadataReadResult
 from google_workspace_admin.content.http_adapter import (
     ContentTypedResult,
     _HttpAdapterPorts,
@@ -92,6 +93,20 @@ class ContentRuntime:
                 return services.adapter.drive_files_list(context, normalized)
             if operation is ContentOperation.FILE_CONTENT_READ:
                 return services.adapter.file_content_read(context, normalized)
+            if operation is ContentOperation.SHEETS_WORKBOOK_METADATA:
+                def authorize_griddata():
+                    return services.authorize(
+                        profile_handle,
+                        subject_handle,
+                        ContentOperation.SHEETS_GRIDDATA_WINDOW,
+                        False,
+                    )
+
+                return services.adapter.sheets_file_content_read(
+                    context,
+                    normalized,
+                    authorize_griddata,
+                )
         except ContentSafeError:
             raise
         except Exception:
@@ -103,6 +118,110 @@ class ContentRuntime:
             code="READ_ONLY_OPERATION_FORBIDDEN",
             operation=ContentErrorOperation.RUNTIME,
         )
+
+    def _read_drive_file_metadata(
+        self,
+        *,
+        profile_id: object,
+        user_key: object,
+        file_id: object,
+    ) -> DriveFileMetadataReadResult:
+        """Privately read exact-ID Drive metadata for trusted content composition."""
+
+        services = _RUNTIME_BINDINGS.get(self)
+        if services is None:
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.RUNTIME,
+            )
+        if (
+            type(profile_id) is not str
+            or not profile_id
+            or type(user_key) is not str
+            or not user_key
+            or type(file_id) is not str
+        ):
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.RUNTIME,
+            )
+        try:
+            operation = ContentOperation.SHEETS_WORKBOOK_METADATA
+            profile_handle = services.registry.select(profile_id)
+            rule = capability_rule(operation)
+            subject_handle = services.resolve_subject(
+                user_key,
+                profile_handle,
+                rule.subject_capability,
+            )
+            context = services.authorize(
+                profile_handle,
+                subject_handle,
+                operation,
+                False,
+            )
+            return services.adapter.drive_file_metadata_read(context, file_id)
+        except ContentSafeError:
+            raise
+        except Exception:
+            raise ContentSafeError(
+                code="UNEXPECTED_LOCAL",
+                operation=ContentErrorOperation.RUNTIME,
+            ) from None
+
+    def _read_sheets_rich(
+        self,
+        *,
+        profile_id: object,
+        user_key: object,
+        spreadsheet_id: object,
+        ranges: object,
+    ) -> object:
+        """Private, fixed-scope entry for trusted internal rich Sheets callers."""
+
+        services = _RUNTIME_BINDINGS.get(self)
+        if services is None:
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.RUNTIME,
+            )
+        if (
+            type(profile_id) is not str
+            or not profile_id
+            or type(user_key) is not str
+            or not user_key
+        ):
+            raise ContentSafeError(
+                code="LOCAL_VALIDATION",
+                operation=ContentErrorOperation.RUNTIME,
+            )
+        try:
+            operation = ContentOperation.SHEETS_GRIDDATA_WINDOW
+            profile_handle = services.registry.select(profile_id)
+            rule = capability_rule(operation)
+            subject_handle = services.resolve_subject(
+                user_key,
+                profile_handle,
+                rule.subject_capability,
+            )
+            context = services.authorize(
+                profile_handle,
+                subject_handle,
+                operation,
+                False,
+            )
+            return services.adapter.sheets_rich_read(
+                context,
+                spreadsheet_id,
+                ranges,
+            )
+        except ContentSafeError:
+            raise
+        except Exception:
+            raise ContentSafeError(
+                code="UNEXPECTED_LOCAL",
+                operation=ContentErrorOperation.RUNTIME,
+            ) from None
 
     def close(self) -> None:
         services = _RUNTIME_BINDINGS.pop(self, None)

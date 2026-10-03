@@ -36,6 +36,7 @@ from google_workspace_admin.content.operations import (
     _normalize_verified_operation_request,
 )
 from google_workspace_admin.content.policy import validate_subject_for_capability
+from google_workspace_admin.content.public_file_ref import PublicFileRefProvider
 from google_workspace_admin.content.runtime import (
     ContentRuntime,
     _RuntimeServices,
@@ -80,6 +81,14 @@ def _build_sleeper() -> Callable[[float], None]:
 def _build_token_provider() -> object:
     config = load_content_config()
     return build_content_token_provider(config)
+
+
+def _build_public_file_ref_provider() -> PublicFileRefProvider | None:
+    config = load_content_config()
+    key = config.public_file_ref_hmac_key
+    if key is None:
+        return None
+    return PublicFileRefProvider(config.customer_id, key)
 
 
 def create_content_runtime() -> ContentRuntime:
@@ -368,6 +377,7 @@ def create_content_runtime() -> ContentRuntime:
             require_context=kernel.require_context,
             token_provider=provide_token,
             continuation_manager=DocsContinuationManager(),
+            public_file_ref_provider=_build_public_file_ref_provider(),
             retry_policy=_build_retry_policy(),
             sleeper=_build_sleeper(),
         )

@@ -62,17 +62,25 @@ class BoundedReadResult:
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_READER)
         if self.outcome.is_partial:
             if self.outcome.continuation is not None and (
-                not chunks
-                or not chunks[-1].truncated
-                or chunks[-1].continuation != self.outcome.continuation
+                (
+                    not chunks
+                    and self.outcome.content_class is not ContentClass.GOOGLE_SHEET
+                )
+                or (
+                    chunks
+                    and (
+                        not chunks[-1].truncated
+                        or chunks[-1].continuation != self.outcome.continuation
+                    )
+                )
             ):
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_READER)
             if self.outcome.continuation is None and any(
                 chunk.truncated or chunk.continuation is not None for chunk in chunks
             ):
                 raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_READER)
-        if self.outcome.continuation is not None and (
-            not chunks or chunks[-1].continuation != self.outcome.continuation
+        if self.outcome.continuation is not None and chunks and (
+            chunks[-1].continuation != self.outcome.continuation
         ):
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_READER)
         object.__setattr__(self, "chunks", chunks)

@@ -21,7 +21,15 @@ from google_workspace_admin.content.auth.handles import (
 from google_workspace_admin.content.auth.scopes import ApprovedScopeProfile
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
 from google_workspace_admin.content.continuation import DocsContinuationManager
-from google_workspace_admin.content.google_docs_adapter import _build_google_docs_read_port
+from google_workspace_admin.content.google_docs_adapter import (
+    _build_google_docs_read_port,
+    _build_google_drive_file_metadata_read_port,
+)
+from google_workspace_admin.content.google_docs import DriveFileMetadataReadResult
+from google_workspace_admin.content.google_sheets_reader import (
+    _build_google_sheets_read_port,
+    _build_google_sheets_rich_read_port,
+)
 from google_workspace_admin.content.operations import (
     ContentOperation,
     _NormalizedOperationRequest,
@@ -53,6 +61,14 @@ class _HttpAdapterPorts:
     file_content_read: Callable[
         [AuthorizedOperationContext, _NormalizedOperationRequest], BoundedReadResult
     ]
+    sheets_file_content_read: Callable[
+        [AuthorizedOperationContext, _NormalizedOperationRequest, Callable[[], AuthorizedOperationContext]],
+        BoundedReadResult,
+    ]
+    sheets_rich_read: Callable[[AuthorizedOperationContext, object, object], object]
+    drive_file_metadata_read: Callable[
+        [AuthorizedOperationContext, object], DriveFileMetadataReadResult
+    ]
     close: Callable[[], None]
 
 
@@ -62,6 +78,7 @@ def _build_http_adapter(
     require_context: Callable[[object], object],
     token_provider: Callable[[object, ApprovedScopeProfile], str],
     continuation_manager: DocsContinuationManager,
+    public_file_ref_provider: Callable[[str], str] | None = None,
     timeout: float = 30.0,
     retry_policy: RetryPolicy | None = None,
     sleeper: Callable[[float], None] = time.sleep,
@@ -72,6 +89,11 @@ def _build_http_adapter(
         raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
     if not callable(token_provider):
         raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
+    if public_file_ref_provider is not None and not callable(public_file_ref_provider):
+        raise ContentSafeError(
+            code="LOCAL_VALIDATION",
+            operation=ContentErrorOperation.TRANSPORT,
+        )
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.TRANSPORT)
     if not math.isfinite(float(timeout)) or timeout <= 0 or not callable(sleeper):
@@ -293,13 +315,33 @@ def _build_http_adapter(
             ),
         )
 
+    drive_file_metadata_read = _build_google_drive_file_metadata_read_port(
+        client=client,
+        require_context=require_context,
+        token_provider=token_provider,
+    )
     file_content_read = _build_google_docs_read_port(
         client=client,
         require_context=require_context,
         token_provider=token_provider,
+        drive_file_metadata_read=drive_file_metadata_read,
         retry_policy=policy,
         sleeper=sleeper,
         continuation_manager=continuation_manager,
+        public_file_ref_provider=public_file_ref_provider,
+    )
+    sheets_file_content_read = _build_google_sheets_read_port(
+        client=client,
+        require_context=require_context,
+        token_provider=token_provider,
+        continuation_manager=continuation_manager,
+        public_file_ref_provider=public_file_ref_provider,
+        drive_file_metadata_read=drive_file_metadata_read,
+    )
+    sheets_rich_read = _build_google_sheets_rich_read_port(
+        client=client,
+        require_context=require_context,
+        token_provider=token_provider,
     )
 
     return _HttpAdapterPorts(
@@ -307,5 +349,8 @@ def _build_http_adapter(
         drive_get=drive_get,
         drive_files_list=drive_files_list,
         file_content_read=file_content_read,
+        sheets_file_content_read=sheets_file_content_read,
+        sheets_rich_read=sheets_rich_read,
+        drive_file_metadata_read=drive_file_metadata_read,
         close=client.close,
     )

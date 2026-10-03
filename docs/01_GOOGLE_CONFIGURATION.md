@@ -8,7 +8,7 @@
 | Service Account | `codex-workspace@codex-workspace-admin.iam.gserviceaccount.com` |
 | Modelo de autenticação | ADC local + IAM `signJwt` + DWD + OAuth 2.0 |
 | Chave privada de Service Account | Não utilizada nem permitida |
-| APIs de recursos Workspace | Admin SDK Directory API e Reports API (`admin.googleapis.com`), incluindo recursos corporativos de Calendar e Admin Audit |
+| APIs de recursos Workspace | Admin SDK Directory API e Reports API (`admin.googleapis.com`), Drive API e Google Sheets API; recursos corporativos de Calendar e Admin Audit permanecem na Directory/Reports API |
 | Assinatura JWT | Service Account Credentials API (`iamcredentials.googleapis.com`) |
 | Token Workspace | Curta duração, cache somente em memória |
 | Sujeito delegado | Controlado por `config.py`; não é parâmetro de ferramenta MCP |
@@ -16,6 +16,30 @@
 O código é deliberadamente **keyless**. A chave gerenciada pelo Google assina o
 JWT via `projects.serviceAccounts.signJwt`; nenhuma chave privada passa pela
 máquina local ou pelo Git.
+
+## Perfil de implantação e perfil regional do MVP
+
+O primeiro produto é local e somente de leitura: um operador técnico/IT, uma
+organização Google Workspace por runtime e um host MCP conversacional externo
+via `stdio`. O catálogo público tem 24 ferramentas e zero ferramentas de
+escrita. Um dashboard próprio, serviço remoto e multi-tenant não são requisitos
+desta etapa.
+
+Para a implantação brasileira, a fixture padrão usa `locale=pt_BR` e
+`timeZone=America/Sao_Paulo`. A validação real final de 02/10/2026 confirmou
+ambos os valores como `MATCH`, além do contrato numérico/formato K1/L1, fórmula
+O1 e omissão trailing válida em P1. O reader de produção permanece
+locale-agnostic e timezone-agnostic: o perfil regional é um default de
+fixture/deployment, não uma restrição para planilhas que podem ser lidas.
+
+Google Sheets 1.5.5, o contrato regional e o reparo canônico da fixture estão
+completos; a validação real final confirmou `PRODUCT DEFECT = NO` e
+`PRODUCTION_READER_DEFECT = NO`. A reconciliação offline final também está
+concluída; nenhum gate Sheets de implementação ou validação real está pendente.
+O checkpoint Git local está **STAGED / COMMIT PENDING**, com 49 caminhos
+aprovados staged. O commit não foi criado e a sincronização remota não ocorreu.
+Esta documentação registra o estado e não autoriza o commit; a autorização
+exata de continuação é externa e vinculada à conversa atual.
 
 ## Fluxo de autenticação que já foi implementado
 
@@ -576,3 +600,65 @@ ausente ou subdeclara o corpo. `identity`, `gzip` e `deflate` são os únicos
 encodings aceitos; gzip/deflate usam descompressão incremental com limite de
 saída e qualquer outro encoding falha fechado. Isso não altera API, scope,
 DWD, IAM, Service Account, variável de ambiente ou credencial.
+
+## Histórico — profile interno de validação Sheets — escopo de escrita (estado V2)
+
+O caminho MCP público de leitura permanece no profile `DRIVE_DISCOVERY`, com
+`https://www.googleapis.com/auth/drive.readonly` exatamente como antes. Para
+futuras operações do driver controlado da fixture, o código define um profile
+interno fixo com estes dois scopes, nessa ordem:
+
+```text
+https://www.googleapis.com/auth/drive.readonly
+https://www.googleapis.com/auth/spreadsheets
+```
+
+Esse profile não pertence a `ApprovedScopeProfile`, não é exportado pelo
+package público de auth, não é selecionável por configuração ou parâmetro MCP e
+não é usado pelo bootstrap público. O builder de token correspondente é
+privado e recebe identidade fixa de `ContentConfig`; seu método de emissão não
+aceita scope, sujeito ou operação como argumentos. A implementação não adiciona
+tool MCP nem altera a autorização de leitura pública.
+
+O scope `spreadsheets` permite ver, editar, criar e excluir todas as planilhas
+Google do sujeito delegado. Ele está no código somente para o driver
+controlado. O texto abaixo registra o perfil e seu alcance; qualquer mudança
+administrativa continua sendo executada manualmente pelo usuário após
+autorização direta. A recomendação antiga de fazer da verificação/provisionamento
+DWD um gate independente foi **SUPERSEDED**: o próximo gate do roadmap é o
+diagnóstico metadata-only regional, ainda não autorizado. Se uma precondição de
+scope impedir esse diagnóstico, ela deverá ser tratada como bloqueio e encaminhada
+em gate próprio. A documentação oficial lista esse scope e seu alcance em
+<https://developers.google.com/workspace/sheets/api/scopes>.
+
+Naquele estado documental V2, o profile ainda não havia executado leitura ou
+escrita Google; essa descrição é histórica. Os gates reais posteriores
+confirmaram authorized-user ADC, IAM `signJwt`, DWD OAuth e as chamadas de
+conteúdo autorizadas; a validação real final está concluída. Nenhuma mudança de
+IAM, DWD ou scope foi feita pelo gate de reconciliação offline.
+
+### Driver controlado repo-local — implementação V2
+
+O driver repo-local está implementado em
+`validation/fixtures/run_gsheets_spill_restoration_controlled_v1.py`; o
+transporte fechado fica em `validation/fixtures/gsheets_controlled_write.py`.
+O driver reutiliza `_build_controlled_validation_token_provider()` e o perfil
+interno já auditado (`drive.readonly` + `spreadsheets`), sem alterar os módulos
+de auth, bootstrap, runtime ou servidor. O builder interno continua fora do
+bootstrap e do catálogo MCP público.
+
+O modo `--local-preflight` é offline e não lê ID, config.toml, ADC nem cria
+cliente HTTP. O modo `--execute-controlled-test` existe para um futuro gate
+separadamente autorizado; antes de config/auth, lê o ID somente de
+`GSHEETS_VALIDATION_V1_FILE_ID`, remove a variável do processo e compara o
+SHA-256 em memória. Nenhum ID de fixture está no repositório ou nesta
+documentação.
+
+Esta implementação V2 não verificou nem provisionou o scope `spreadsheets` no
+DWD e não executou autenticação, HTTP, Google, gcloud ou operação de fixture;
+esse registro é histórico. O ponteiro para diagnóstico regional metadata-only
+e o plano O1/P1 foram superados pelas etapas posteriores. A validação real
+final de 02/10/2026 confirmou o contrato brasileiro e concluiu a fase Sheets.
+O checkpoint Git atual está **STAGED / COMMIT PENDING**; o staging está
+concluído e o commit aguarda autorização explícita externa, vinculada à conversa
+atual. Esta documentação não autoriza sua execução.

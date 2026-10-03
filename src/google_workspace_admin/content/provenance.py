@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import TypeAlias
 
 from google_workspace_admin.content.errors import ContentErrorOperation, ContentSafeError
@@ -102,10 +103,16 @@ class DocsProvenance:
 
 @dataclass(frozen=True, slots=True)
 class SheetsProvenance:
-    sheet_id: str
+    sheet_id: str = field(repr=False)
     range_a1: str
     row: int | None = None
     column: int | None = None
+    sheet_index: int | None = None
+    sheet_title: str | None = field(default=None, repr=False)
+    component: "SheetsContentComponent | None" = None
+    rich_text_run_ordinal: int | None = None
+    rich_text_start_utf16: int | None = None
+    rich_text_end_utf16: int | None = None
 
     def __post_init__(self) -> None:
         if type(self) is not SheetsProvenance:
@@ -116,6 +123,52 @@ class SheetsProvenance:
         column = _index(self.column, optional=True)
         if (row is None) != (column is None):
             raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+        sheet_index = _index(self.sheet_index, optional=True)
+        title = _sheet_title_optional(self.sheet_title)
+        component = self.component
+        if component is not None and type(component) is not SheetsContentComponent:
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+        if any(value is not None for value in (sheet_index, title, component)) and any(
+            value is None for value in (sheet_index, title, component)
+        ):
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+
+        run_values = (
+            _index(self.rich_text_run_ordinal, optional=True),
+            _index(self.rich_text_start_utf16, optional=True),
+            _index(self.rich_text_end_utf16, optional=True),
+        )
+        if any(value is not None for value in run_values):
+            if (
+                component is not SheetsContentComponent.CELL_RICH_TEXT_LINK
+                or any(value is None for value in run_values)
+                or run_values[2] <= run_values[1]
+            ):
+                raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+        elif component is SheetsContentComponent.CELL_RICH_TEXT_LINK:
+            raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+
+
+def _sheet_title_optional(value: object) -> str | None:
+    if value is None:
+        return None
+    if type(value) is not str or not value or len(value) > 100:
+        raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+    try:
+        value.encode("utf-8", "strict")
+    except UnicodeEncodeError:
+        raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE) from None
+    if any(ord(character) < 32 or 0x7F <= ord(character) <= 0x9F for character in value):
+        raise ContentSafeError(code="LOCAL_VALIDATION", operation=ContentErrorOperation.READING_PROVENANCE)
+    return value
+
+
+class SheetsContentComponent(str, Enum):
+    CELL_DISPLAY = "CELL_DISPLAY"
+    CELL_FORMULA = "CELL_FORMULA"
+    CELL_NOTE = "CELL_NOTE"
+    CELL_HYPERLINK = "CELL_HYPERLINK"
+    CELL_RICH_TEXT_LINK = "CELL_RICH_TEXT_LINK"
 
 
 @dataclass(frozen=True, slots=True)

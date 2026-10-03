@@ -16,28 +16,62 @@ Leia nesta ordem antes de alterar ou operar o projeto:
 5. [Andamento das fases](docs/04_PHASE_STATUS.md)
 6. [Histórico de marcos](docs/05_CHANGE_HISTORY.md)
 
+O spec atual da fixture Sheets está em
+[`validation/fixtures/gsheets_validation_v1.json`](validation/fixtures/gsheets_validation_v1.json).
+Seu contrato regional `pt_BR` / `America/Sao_Paulo`, o reparo canônico e a
+validação real final estão completos. Procedimentos anteriores que pediam
+rebase regional ou nova validação real são históricos. O checkpoint Git local
+está **STAGED / COMMIT PENDING**: os 49 caminhos aprovados estão staged, mas
+nenhum commit foi criado e a sincronização remota não ocorreu. A documentação
+registra o estado e não autoriza o commit; a autorização exata de continuação
+vem do operador na conversa atual. Nomes de gates anteriores são históricos,
+não instruções executáveis.
+
 As informações operacionais documentadas não incluem chaves privadas, tokens,
 cookies nem credenciais ADC. O código e os testes são a fonte de verdade para o
 comportamento em execução; o documento de fases registra a evidência histórica
 e a próxima entrega.
 
-## Estado atual
+## Contrato do MVP
 
-A Fase 1.5.1 — Shared Drive Discovery está implementada e validada com
-`workspace_drives_list` e `workspace_drive_get`. A Fase 1.5.2 — Drive File
-Inventory está implementada localmente e validada em RV2 pelo MCP hospedado,
-com
-`workspace_drive_files_list`. A Fase 1.5.4 adiciona o primeiro reader concreto,
-`workspace_file_content_read`, exclusivamente para Google Docs estruturados.
-O catálogo possui 24 tools read-only: 20 Read, 4 Content e 0 Write. O
-binding operacional Content usa as cinco variáveis process-only configuradas
-na tabela MCP e o bootstrap é lazy/fail-closed. A REAL VALIDATION RV2 foi
-executada uma única vez pelo MCP hospedado: a cadeia keyless alcançou a Drive
-API, retornou uma página limitada e não expôs valores sensíveis. O FINAL REVIEW
-V1 de 1.5.1 passou e o CHECKPOINT V1 está preservado. Para 1.5.2, PLAN V1,
-IMPLEMENT V1, REAL VALIDATION RV2, FINAL REVIEW V1 e CHECKPOINT V1 estão
-completos; a etapa 1.5.2 está encerrada e o próximo gate exige autorização
-explícita para o próximo estágio de Content.
+O produto em escopo é um **MCP local, somente de leitura**, para um operador técnico ou administrador de TI, com uma organização Google Workspace por runtime configurado. A interação ocorre por um host MCP conversacional externo via `stdio`. O catálogo público tem 24 ferramentas e zero ferramentas de escrita.
+
+O MVP cobre leitura administrativa selecionada, Reports, descoberta/inventário de Shared Drives, Google Docs Content e Google Sheets Content após sua validação final. Uma UI gráfica própria não é requisito. Multi-tenant, serviço remoto, self-service de funcionários, edição pública de documentos, Gmail send, gerenciamento de eventos Calendar, API Google genérica e ferramentas públicas de escrita ficam fora do MVP.
+
+Google Docs 1.5.4 está checkpointed e validado com Google real. Google Sheets
+1.5.5 está implementado, validado offline e validado com Google real. A última
+reconciliação offline passou; a regressão completa atual é **1433 passed / 0
+failed / 0 skipped**. O checkpoint Git está **STAGED / COMMIT PENDING**; não há
+commit nem sincronização remota. A documentação do repositório não autoriza a
+execução do commit.
+
+## Perfil regional e checkpoint
+
+O perfil padrão brasileiro da fixture é `locale=pt_BR` e
+`timeZone=America/Sao_Paulo`; a validação real confirmou ambos como MATCH. K1 e
+L1 correspondem aos números e formatos canônicos; O1 é a fórmula esperada e P1
+é uma omissão trailing válida, sem padding. O reader de produção permanece
+locale-agnostic e timezone-agnostic. Registros antigos com `en_US` permanecem
+históricos.
+
+O checkpoint local está **STAGED / COMMIT PENDING**. O staging e as validações
+documentadas estão concluídos; a criação do commit exige autorização explícita
+externa, vinculada à conversa atual. Este README não autoriza a execução.
+
+## Roadmap e ambientes futuros
+
+A Phase A de alinhamento está concluída. A Phase B de Sheets 1.5.5 e a
+reconciliação offline da Phase C estão concluídas; o checkpoint Git está
+STAGED / COMMIT PENDING e o commit ainda depende de autorização explícita
+externa/conversa atual. A migração para VS Code + Codex
+está `DEFERRED_UNTIL_POST_CHECKPOINT`; Codex CLI continua disponível para gates
+controlados.
+
+Antigravity é apenas um ambiente secundário futuro opcional (`OPTIONAL_FUTURE_SECONDARY_ENVIRONMENT`). Não há migração nem configuração Antigravity agora; uma avaliação futura verificará configuração MCP, stdio, herança de ambiente, permissões/sandbox e descoberta de instruções. Para uso simultâneo, prefira branch ou worktree isolada.
+
+Consulte [docs/04_PHASE_STATUS.md](docs/04_PHASE_STATUS.md) para o roadmap
+canônico e o estado durável do checkpoint; o histórico detalhado está em
+[docs/05_CHANGE_HISTORY.md](docs/05_CHANGE_HISTORY.md).
 
 ## Comandos de rotina
 
@@ -47,38 +81,4 @@ uv run pytest -v
 uv run python -m google_workspace_admin.server
 ```
 
-O último comando inicia o servidor por `stdio`; não use sua saída para logs de
-diagnóstico. Consulte o runbook antes de executar testes de integração ou
-alterar permissões no Google Cloud/Admin Console.
-
-A etapa 1.5.3 — Content Reading Architecture & Safety implementa o
-substrate interno comum: routing MIME fechado, budgets finitos, snapshots de
-inventário, chunks normalizados, provenance, outcomes explícitos, preflight e
-políticas contra conteúdo ativo. Todo arquivo inventariado deverá futuramente
-resultar em conteúdo processado ou em estado terminal explícito.
-PLAN V1 e IMPLEMENT V1 estão completos. Como 1.5.3 não adiciona operação
-Google nem tool Content executável, FINAL REVIEW V1 = COMPLETE; REAL GOOGLE
-VALIDATION = NOT APPLICABLE / NOT EXECUTED; CHECKPOINT V1 = COMPLETE. A
-etapa 1.5.4 — Google Docs Content reutiliza esse substrate com Docs API
-estruturada, tabs recursivas, body/tabelas/headers/footers/footnotes, chunking
-local e continuation opaca. O fluxo faz Drive metadata preflight e postflight
-antes de liberar chunks; imagens, drawings, charts e equations não lidos
-produzem `PARTIALLY_PROCESSED`, nunca sucesso silencioso. Comentários e comment
-threads Developer Preview estão explicitamente fora da V1. A recepção usa o
-stream codificado do HTTPX, limita separadamente bytes raw/wire e bytes
-decodificados a 32 MiB e só então materializa o JSON; `Content-Length` é apenas
-uma otimização de rejeição antecipada. `identity`, `gzip` e `deflate` possuem
-decodificação incremental limitada; outros encodings falham fechados.
-
-PLAN V1 e IMPLEMENT V1 estão completos somente localmente. PRE-RV REVIEW V1 =
-BLOCKED registrou seis findings e PRE-RV REMEDIATION V1/V2 = COMPLETE corrigiu
-e reconfirmou os seis. O PRE-RV RE-REVIEW V1 permaneceu BLOCKED exclusivamente
-pelo finding de cobertura RR-P2-01; RR-P2-01 REMEDIATION V1 = COMPLETE adicionou
-12 testes adversariais permanentes, elevando Google Docs a 59 casos e a regressão
-local a 897 casos aprovados, sem mudança em source. PRE-RV FINAL RE-REVIEW V1 =
-PASS. Real auth, discovery e target resolution = PASS. REAL CONTENT VALIDATION
-V2 = BLOCKED com `EXTRACTION_FAILED`; FAILURE OBSERVABILITY IMPLEMENT V1 e
-REMEDIATION V2 = COMPLETE / LOCAL VALIDATION. A validação real de conteúdo
-pós-remediação permanece PENDING; 1.5.4 ainda NÃO está completa e não há
-checkpoint desta etapa. A Docs API (`docs.googleapis.com`) foi habilitada para
-a validação manual, sem alterar o escopo read-only.
+O último comando inicia o servidor por `stdio`; não use sua saída para logs de diagnóstico. Consulte o runbook antes de executar testes de integração ou alterar permissões no Google Cloud/Admin Console.
