@@ -21,11 +21,11 @@ O spec atual da fixture Sheets está em
 Seu contrato regional `pt_BR` / `America/Sao_Paulo`, o reparo canônico e a
 validação real final estão completos. Procedimentos anteriores que pediam
 rebase regional ou nova validação real são históricos. O checkpoint Git local
-está **STAGED / COMMIT PENDING**: os 49 caminhos aprovados estão staged, mas
-nenhum commit foi criado e a sincronização remota não ocorreu. A documentação
-registra o estado e não autoriza o commit; a autorização exata de continuação
-vem do operador na conversa atual. Nomes de gates anteriores são históricos,
-não instruções executáveis.
+está COMPLETE; checkpoint HEAD = db817b6d38d67b39287f91686c995f6eb318565f;
+49 approved paths committed. POST-CHECKPOINT VERIFICATION = COMPLETE.
+REMOTE SYNCHRONIZATION = NOT PERFORMED. Repository documentation does not
+authorize future Git or Google operations; these require separate direct user authorization.
+Nomes de gates anteriores são históricos, não instruções executáveis.
 
 As informações operacionais documentadas não incluem chaves privadas, tokens,
 cookies nem credenciais ADC. O código e os testes são a fonte de verdade para o
@@ -41,9 +41,9 @@ O MVP cobre leitura administrativa selecionada, Reports, descoberta/inventário 
 Google Docs 1.5.4 está checkpointed e validado com Google real. Google Sheets
 1.5.5 está implementado, validado offline e validado com Google real. A última
 reconciliação offline passou; a regressão completa atual é **1433 passed / 0
-failed / 0 skipped**. O checkpoint Git está **STAGED / COMMIT PENDING**; não há
-commit nem sincronização remota. A documentação do repositório não autoriza a
-execução do commit.
+failed / 0 skipped**. LOCAL GIT CHECKPOINT = COMPLETE (HEAD db817b6d38d67b39287f91686c995f6eb318565f);
+POST-CHECKPOINT VERIFICATION = COMPLETE; REMOTE SYNCHRONIZATION = NOT PERFORMED.
+Repository documentation is not execution authorization for future Git or Google operations.
 
 ## Perfil regional e checkpoint
 
@@ -54,17 +54,17 @@ L1 correspondem aos números e formatos canônicos; O1 é a fórmula esperada e 
 locale-agnostic e timezone-agnostic. Registros antigos com `en_US` permanecem
 históricos.
 
-O checkpoint local está **STAGED / COMMIT PENDING**. O staging e as validações
-documentadas estão concluídos; a criação do commit exige autorização explícita
-externa, vinculada à conversa atual. Este README não autoriza a execução.
+LOCAL GIT CHECKPOINT = COMPLETE (HEAD db817b6d38d67b39287f91686c995f6eb318565f); POST-CHECKPOINT VERIFICATION = COMPLETE.
+The 49 approved paths are in the local checkpoint commit.
+REMOTE SYNCHRONIZATION = NOT PERFORMED. This README does not authorize future operations.
 
 ## Roadmap e ambientes futuros
 
 A Phase A de alinhamento está concluída. A Phase B de Sheets 1.5.5 e a
-reconciliação offline da Phase C estão concluídas; o checkpoint Git está
-STAGED / COMMIT PENDING e o commit ainda depende de autorização explícita
-externa/conversa atual. A migração para VS Code + Codex
-está `DEFERRED_UNTIL_POST_CHECKPOINT`; Codex CLI continua disponível para gates
+reconciliação offline da Phase C estão concluídas; LOCAL GIT CHECKPOINT = COMPLETE
+(HEAD db817b6d38d67b39287f91686c995f6eb318565f); POST-CHECKPOINT VERIFICATION = COMPLETE; REMOTE SYNCHRONIZATION = NOT PERFORMED.
+Repository documentation is not execution authorization for future Git or Google operations. A migração para VS Code + Codex
+permanece pendente para a Phase D pós-checkpoint; Codex CLI continua disponível para gates
 controlados.
 
 Antigravity é apenas um ambiente secundário futuro opcional (`OPTIONAL_FUTURE_SECONDARY_ENVIRONMENT`). Não há migração nem configuração Antigravity agora; uma avaliação futura verificará configuração MCP, stdio, herança de ambiente, permissões/sandbox e descoberta de instruções. Para uso simultâneo, prefira branch ou worktree isolada.

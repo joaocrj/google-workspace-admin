@@ -1,37 +1,37 @@
 # Andamento das fases
 
-Última consolidação documental: 03/10/2026 — WORKSPACE-CONTENT-GSHEETS-BRAZILIAN-PRE-REBASE-GIT-CHECKPOINT-POST-CLASSIFICATION-DOCUMENTATION-SYNC-OFFLINE-V1 / PASS — A — GIT_CHECKPOINT_POST_CLASSIFICATION_DOCUMENTATION_SYNC_COMPLETE.
-Google Sheets implementation = COMPLETE; contrato brasileiro = COMPLETE; REAL FIXTURE REPAIR = COMPLETE; REAL FINAL SHEETS VALIDATION = COMPLETE; final reconciliation = COMPLETE.
-Checkpoint path reconciliation = COMPLETE; exact staging = COMPLETE; whitespace remediation = COMPLETE; documentation recommendation remediation = COMPLETE.
-Bearer-shaped staged-literal classification = COMPLETE — findings 5; known synthetic placeholder 1; deterministic test fixtures 4; derived test values 0; ambiguous findings 0; real credential findings 0.
-Security outcome = SAFE_SYNTHETIC_ONLY; live credential sources consulted = 0; value disclosure = NONE; literal remediation required = NO; secret blocker = RESOLVED.
-Validações preservadas sem rerun: focados 624/0/0; regressão completa 1433/0/0; sintaxe 26/0; MCP 24 / Read20 / Content4 / Write0 / duplicates0; whitespace-remediated harness AST = PASS.
-Allow-list corrigido: exatamente 49 caminhos staged; missing / extra / duplicates = 0 / 0 / 0. src/google_workspace_admin/server.py permanece staged; src/google_workspace_admin/content/server.py não existe nem está staged; fixture operacional ignored não foi staged.
-Este gate modificou somente docs/04_PHASE_STATUS.md e docs/05_CHANGE_HISTORY.md, nessa ordem; 47 non-target staged blobs permaneceram idênticos e somente os dois blobs documentais foram atualizados.
-Estado Git: HEAD a88110730db23ccd43e8c4ac030e113945f20114 inalterado; staged paths antes/depois = 49/49; GIT CHECKPOINT = STAGED / COMMIT PENDING; commit criado = 0; sincronização remota = NOT PERFORMED.
+Última consolidação documental: 04/10/2026 — WORKSPACE-CONTENT-GSHEETS-BRAZILIAN-PRE-REBASE-POST-CHECKPOINT-DOCUMENTATION-SYNC-OFFLINE-V1 / PASS — A — GSHEETS_PRE_REBASE_POST_CHECKPOINT_DOCUMENTATION_SYNC_COMPLETE.
+Google Sheets Workspace Content implementation = COMPLETE; REAL FIXTURE REPAIR = COMPLETE; REAL FINAL SHEETS VALIDATION = COMPLETE.
+LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; exactly 49 approved paths committed.
+POST-CHECKPOINT VERIFICATION = COMPLETE — commit identity, parent, subject/body, 49-path tree, required/excluded paths, whitespace and no bulk line-ending rewrite = PASS.
+Bearer security classification = SAFE_SYNTHETIC_ONLY — 5 findings; 1 known synthetic; 4 deterministic fixtures; 0 ambiguous; 0 real; value disclosure = NONE.
+Validações preservadas sem rerun: focados 624/0/0; regressão completa 1433/0/0; sintaxe 26/0; MCP 24 / Read20 / Content4 / Write0 / duplicates0.
+Initial post-checkpoint repository state (before documentation sync):
+POST-CHECKPOINT DOCUMENTATION SYNC = COMPLETE — exactly seven authorized docs changed and staged; no commit created in this gate.
+REMOTE SYNCHRONIZATION = NOT PERFORMED; no push, rebase or merge occurred. Repository documentation is not execution authorization.
 PHASE STATUS = SYNCHRONIZED.
-Checkpoint commit eligibility após esta sincronização = READY FOR SEPARATELY AUTHORIZED FINAL COMMIT GATE. A execução exata do commit exige autorização EXTERNAL / CURRENT CONVERSATION; a documentação do repositório NÃO É AUTORIZAÇÃO DE EXECUÇÃO. Não há ponteiro transitório ativo.
+Active CONTINUE-n next-gate pointers = 0. Repository-authorized commit/push/rebase/runner/Google operations = NO; future actions require separate direct user authorization.
 
 ```text
 GIT CHECKPOINT
-├── corrected exact allow-list = 49 / YES
-├── staging = COMPLETE; staged paths = 49
-├── checkpoint path reconciliation = COMPLETE
-├── whitespace remediation = COMPLETE
-├── transient CONTINUE pointer remediation = COMPLETE
-├── documentation recommendation remediation = COMPLETE
-├── Bearer-shaped staged-literal classification = COMPLETE
+├── committed checkpoint path set = 49 / EXACT APPROVED LIST
+├── checkpoint-time worktree = CLEAN; checkpoint-time staging = EMPTY
+├── commit identity / parent / subject = VERIFIED
+├── required/excluded paths and commit whitespace = PASS; bulk line-ending rewrite = NO
+├── Bearer security classification = SAFE_SYNTHETIC_ONLY
+├── post-checkpoint documentation sync = COMPLETE — exactly seven authorized documents staged
+├── focused 624/0/0; regression 1433/0/0; syntax 26/0; MCP 24 / Read20 / Content4 / Write0 / duplicates0 preserved without rerun
 │   ├── findings = 5; known synthetic placeholder = 1; deterministic test fixtures = 4
 │   ├── derived test values = 0; ambiguous findings = 0; real credential findings = 0
 │   ├── security outcome = SAFE_SYNTHETIC_ONLY; live credential sources = 0
 │   ├── value disclosure = NONE; literal remediation required = NO
 │   └── secret blocker = RESOLVED
-├── staged non-target blobs = 47 UNCHANGED; two target docs = REFRESHED
-├── staged/worktree whitespace checks = PASS / PASS
-├── local commit eligibility = READY FOR SEPARATELY AUTHORIZED FINAL COMMIT GATE
-├── commit execution authorization = EXTERNAL / CURRENT CONVERSATION
-├── repository documentation authorizes commit = NO
-├── local commit = PENDING
+├── remote operations = 0; remote synchronization = NOT PERFORMED
+├── post-checkpoint verification = COMPLETE
+├── local checkpoint = COMPLETE — db817b6d38d67b39287f91686c995f6eb318565f
+├── post-checkpoint documentation sync = COMPLETE
+├── repository-authorized commit/push/rebase/runner/Google operations = NO
+├── staged paths = exactly 7 authorized docs; unstaged tracked = 0; untracked nonignored = 0; ignored fixture staged = NO
 └── remote synchronization = NOT PERFORMED
 ```
 
@@ -112,7 +112,7 @@ PHASE B — CLOSE GOOGLE SHEETS 1.5.5                ✅ CONCLUÍDA
 │   └── writes/retries/polling/public MCP = 0; PRODUCT DEFECT = NO; PRODUCTION_READER_DEFECT = NO
 └── 13. full offline regression                    ✅ CONCLUÍDO — baseline 1433/0/0 preservada e repetida na reconciliação final; 0 skips
 
-PHASE C — REPOSITORY RECONCILIATION                ✅ CONCLUÍDA — offline final reconciliation, allow-list correction and staged documentation-pointer remediation PASS
+PHASE C — REPOSITORY RECONCILIATION                ✅ CONCLUÍDA — checkpoint commit, post-checkpoint verification and documentation sync complete
 ├── review/fix pyproject console-script entry       ✅ CONCLUÍDO — package main() resolves; server entry starts only when called
 ├── reconcile README and docs against actual state  ✅ CONCLUÍDO — active documentation synchronized
 ├── inspect ignored canonical fixture JSON          ✅ CONCLUÍDO — one ignored operational JSON, sanitized/identity-free
@@ -125,7 +125,7 @@ PHASE C — REPOSITORY RECONCILIATION                ✅ CONCLUÍDA — offline 
 ├── staged documentation recommendation remediation ✅ CONCLUÍDO — docs/04 updated first; six documents synchronized; stale active recommendations = 0
 ├── staged Bearer-literal classification              ✅ CONCLUÍDO — read-only; 5 findings; 1 known synthetic placeholder; 4 deterministic test fixtures; ambiguous/real credential findings = 0; SAFE_SYNTHETIC_ONLY; blocker RESOLVED
 ├── post-classification documentation sync            ✅ CONCLUÍDO — docs/04 changed first, docs/05 second; only those 2 paths changed; 47 non-target staged blobs unchanged; exact 49-path allow-list retained
-└── GIT CHECKPOINT = STAGED / COMMIT PENDING           ⬜ PENDENTE — commit eligibility READY after this sync; exact commit requires separate external/current-conversation authorization; repository documentation does not authorize it
+└── LOCAL GIT CHECKPOINT = COMPLETE                       ✅ CONCLUÍDO — HEAD db817b6d38d67b39287f91686c995f6eb318565f; POST-CHECKPOINT VERIFICATION = COMPLETE; DOC SYNC = COMPLETE (7 docs staged); REMOTE SYNC = NOT PERFORMED
 
 PHASE D — DEVELOPMENT ENVIRONMENT                  ⬜ PENDENTE — AFTER CHECKPOINT
 ├── evaluate primary development experience: VS Code + Codex
@@ -246,10 +246,10 @@ recomendado exatamente
 **NOT AUTHORIZED**: resolver estaticamente um loader ADC sem subprocesso nem
 metadata lookup antes do gate de implementação do port.
 
-### Pré-requisitos e estado atual do checkpoint — reconciliados em 03/10/2026
+### Estado pós-checkpoint e verificação — 04/10/2026
 
-Todos os pré-requisitos offline para a revisão separada de checkpoint foram
-concluídos. Readiness não autoriza staging, commit ou push.
+Os pré-requisitos offline para o checkpoint local foram concluídos antes da criação do commit.
+Esta documentação registra o estado e não autoriza operações Git ou Google futuras.
 
 1. Evidência real brasileira de locale e timezone completa — ✅ CONCLUÍDO; reconfirmada neste gate.
 2. Contrato canônico regional da fixture rebaselined offline — ✅ CONCLUÍDO.
@@ -262,16 +262,16 @@ concluídos. Readiness não autoriza staging, commit ou push.
 9. JSON canônico ignorado revisado para privacidade/tracking — ✅ CONCLUÍDO; um arquivo ignorado, sem identidade canônica ou segredo.
 10. Revisão integral de diff/integridade = ✅ PASS; unexpected paths = 0.
 
-Os pré-requisitos técnicos estão concluídos. Estado durável atual: GIT
-CHECKPOINT = STAGED / COMMIT PENDING; exatamente 49 caminhos aprovados staged;
-staged safety até este ponto = PASS; trailing-whitespace remediation =
-COMPLETE; commit = PENDING; remote push = NOT PERFORMED. HEAD
-a88110730db23ccd43e8c4ac030e113945f20114 permanece inalterado.
+Os pré-requisitos técnicos estão concluídos. Estado atual: LOCAL GIT CHECKPOINT = COMPLETE; HEAD
+db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; exatamente 49 caminhos aprovados commitados.
+POST-CHECKPOINT VERIFICATION = COMPLETE; commit identity/parent/subject, tree, required/excluded paths and whitespace = PASS.
+Bearer classification = SAFE_SYNTHETIC_ONLY; staging = EMPTY; post-checkpoint worktree = CLEAN.
+REMOTE SYNCHRONIZATION = NOT PERFORMED; no push/rebase/merge occurred.
 
-A continuação exige autorização explícita externa à documentação do repositório,
-vinculada à conversa do operador. A documentação registra estado e histórico;
-NÃO É AUTORIZAÇÃO DE EXECUÇÃO para continuação, runner, operação Google ou
-commit. `PHASE STATUS = SYNCHRONIZED`.
+POST-CHECKPOINT DOCUMENTATION SYNC = COMPLETE — exactly seven authorized documentation files staged.
+Repository documentation is not authorization for future Git or Google operations; no next-gate pointer is active.
+PHASE STATUS = SYNCHRONIZED.
+Exact seven-document staged set; git diff --cached --check = PASS; git diff --check = PASS; commit created in this gate = 0.
 
 ```text
 WORKSPACE CONTENT 1.5.5 — BRAZILIAN PRE-REBASE READ PORT ARCHITECTURE OFFLINE V1

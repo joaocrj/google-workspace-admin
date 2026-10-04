@@ -36,10 +36,10 @@ Google Sheets 1.5.5, o contrato regional e o reparo canônico da fixture estão
 completos; a validação real final confirmou `PRODUCT DEFECT = NO` e
 `PRODUCTION_READER_DEFECT = NO`. A reconciliação offline final também está
 concluída; nenhum gate Sheets de implementação ou validação real está pendente.
-O checkpoint Git local está **STAGED / COMMIT PENDING**, com 49 caminhos
-aprovados staged. O commit não foi criado e a sincronização remota não ocorreu.
-Esta documentação registra o estado e não autoriza o commit; a autorização
-exata de continuação é externa e vinculada à conversa atual.
+LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114;
+exactly 49 approved paths committed. POST-CHECKPOINT VERIFICATION = COMPLETE;
+immediately after commit, worktree = CLEAN and staging = EMPTY.
+Repository documentation is not execution authorization for future Git or Google operations.
 
 ## Fluxo de autenticação que já foi implementado
 
@@ -659,6 +659,6 @@ DWD e não executou autenticação, HTTP, Google, gcloud ou operação de fixtur
 esse registro é histórico. O ponteiro para diagnóstico regional metadata-only
 e o plano O1/P1 foram superados pelas etapas posteriores. A validação real
 final de 02/10/2026 confirmou o contrato brasileiro e concluiu a fase Sheets.
-O checkpoint Git atual está **STAGED / COMMIT PENDING**; o staging está
-concluído e o commit aguarda autorização explícita externa, vinculada à conversa
-atual. Esta documentação não autoriza sua execução.
+LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f; exactly 49 approved paths committed.
+POST-CHECKPOINT VERIFICATION = COMPLETE; REMOTE SYNCHRONIZATION = NOT PERFORMED.
+Repository documentation is not execution authorization for future Git or Google operations.

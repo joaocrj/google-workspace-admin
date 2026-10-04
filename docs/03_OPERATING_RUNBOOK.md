@@ -849,12 +849,12 @@ validação real final estão completos; `PRODUCT DEFECT = NO` e
 `PRODUCTION_READER_DEFECT = NO`.
 
 Nenhum gate Sheets de implementação ou validação real está pendente. O
-checkpoint Git atual está **STAGED / COMMIT PENDING**: 49 caminhos aprovados
-staged, commit não criado e sincronização remota não realizada. Este runbook
-descreve procedimentos; não autoriza commit, runner, operação Google ou outra
-operação futura. A autorização específica é externa e vinculada à conversa
-atual com o operador. Os ponteiros nas subseções históricas abaixo são
-referências históricas, não instruções atuais.
+LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; 49 approved paths committed.
+POST-CHECKPOINT VERIFICATION = COMPLETE; immediately after commit the worktree was clean and staging was empty.
+REMOTE SYNCHRONIZATION = NOT PERFORMED. Procedures in this runbook remain conditional;
+repository procedure text is not execution authorization for future Git or Google operations.
+Future operations require separate direct authorization. Pointers in the subsections below are
+historical references, not current instructions.
 
 ### Histórico — direção operacional pré-rebase e limite do gate
 
@@ -967,8 +967,8 @@ continuation e sem reproduzir conteúdo em terminal, audit, fixtures ou Git.
 Estado consolidado aceito para Docs 1.5.4: **checkpointed e real-validated**.
 Os estados de bloqueios e remediações intermediários acima permanecem nos
 registros históricos, mas não representam o estado atual da entrega. Sheets
-1.5.5 está implementado e validado offline; a validação real final segue
-**PENDING**.
+1.5.5 está implementado e validado offline; REAL FINAL SHEETS
+VALIDATION = COMPLETE.
 
 ## Google Docs/Sheets: pseudônimo público de `file_ref`
 

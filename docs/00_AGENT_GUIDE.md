@@ -21,18 +21,18 @@ Google Sheets 1.5.5 está completa; o contrato regional, o reparo canônico da
 fixture e a validação real final foram concluídos. A evidência confirmou
 `locale=pt_BR`, `timeZone=America/Sao_Paulo`, K1/L1 canônicos, fórmula O1 e
 omissão trailing válida em P1; `PRODUCT DEFECT = NO` e
-`PRODUCTION_READER_DEFECT = NO`. Nenhum gate Sheets de implementação ou
-validação real é necessário antes do checkpoint.
+`PRODUCTION_READER_DEFECT = NO`. Nenhum gate Sheets de implementação ou validação real está pendente.
+LOCAL GIT CHECKPOINT = COMPLETE; POST-CHECKPOINT VERIFICATION = COMPLETE.
 
 A implementação técnica e a validação real do Workspace Content Google Sheets
-1.5.5 estão concluídas. O checkpoint Git está staged, mas ainda não foi
-commitado; a correção do allow-list confirmou
-src/google_workspace_admin/server.py como caminho canônico, enquanto
-src/google_workspace_admin/content/server.py não existe no repositório. A
-continuação exata do checkpoint depende de autorização externa, fornecida pelo
-operador na conversa atual. A documentação do repositório registra estado e
-histórico do projeto; não autoriza execução de continuação, runner, operação
-Google ou commit. Identificadores de gates anteriores são somente históricos.
+1.5.5 estão concluídas. LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f;
+parent a88110730db23ccd43e8c4ac030e113945f20114; exatamente 49 caminhos aprovados commitados.
+A correção histórica do allow-list confirmou src/google_workspace_admin/server.py como canônico;
+src/google_workspace_admin/content/server.py não existe no repositório. POST-CHECKPOINT VERIFICATION = COMPLETE;
+immediately after commit, worktree = CLEAN and staging = EMPTY.
+REMOTE SYNCHRONIZATION = NOT PERFORMED; no push/rebase/merge occurred. Repository documentation
+registra estado e histórico, mas não é autorização para futuras operações Git, Google, runner
+ou operação administrativa. Gates anteriores são históricos, não ponteiros ativos.
 
 Antes de atuar, leia:
 

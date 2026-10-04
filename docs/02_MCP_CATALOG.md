@@ -24,11 +24,11 @@ Docs 1.5.4 está checkpointed e real-validated. Sheets 1.5.5 está implementado,
 validado offline e validado com Google real. O contrato regional e o reparo
 canônico da fixture estão concluídos; `PRODUCT DEFECT = NO` e
 `PRODUCTION_READER_DEFECT = NO`. Nenhum gate Sheets de implementação ou
-validação real está pendente. O checkpoint Git está **STAGED / COMMIT
-PENDING**: staging = COMPLETE, commit = PENDING e sincronização remota = NOT
-PERFORMED. Este catálogo registra o estado, mas não autoriza o commit; a
-autorização de execução é externa e vinculada à conversa atual. Veja o roadmap
-A–F em `docs/04_PHASE_STATUS.md`.
+validação real está pendente. LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f;
+parent a88110730db23ccd43e8c4ac030e113945f20114; exactly 49 approved paths committed.
+POST-CHECKPOINT VERIFICATION = COMPLETE; REMOTE SYNCHRONIZATION = NOT PERFORMED.
+Immediately after commit the worktree was clean and staging was empty. Repository documentation
+does not authorize future Git or Google operations. Veja o roadmap A–F em `docs/04_PHASE_STATUS.md`.
 
 ## Fase 1.5 — Foundation Content e Shared Drive Discovery
 
@@ -652,9 +652,9 @@ autenticação nem mutação. Registros sobre o estado do scope DWD serão
 reconciliados na Phase C; a recomendação de verificar/provisionar DWD como gate
 independente está **SUPERSEDED**. A recomendação de diagnóstico regional
 metadata-only acima pertence ao plano histórico e foi superada pela validação
-real concluída em 02/10/2026. O checkpoint Git atual está **STAGED / COMMIT
-PENDING**: staging = COMPLETE e commit = PENDING. A autorização de commit é
-externa e vinculada à conversa atual; este catálogo não autoriza sua execução.
+real concluída em 02/10/2026. LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f;
+POST-CHECKPOINT VERIFICATION = COMPLETE; REMOTE SYNCHRONIZATION = NOT PERFORMED.
+Repository documentation is not execution authorization for future Git or Google operations.
 
 ## Sheets 1.5.5 — estado final e primitive de reparo de validação
 
