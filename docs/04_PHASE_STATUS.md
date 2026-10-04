@@ -2,14 +2,14 @@
 
 Última consolidação documental: 04/10/2026 — WORKSPACE-CONTENT-GSHEETS-BRAZILIAN-PRE-REBASE-POST-CHECKPOINT-DOCUMENTATION-SYNC-OFFLINE-V1 / PASS — A — GSHEETS_PRE_REBASE_POST_CHECKPOINT_DOCUMENTATION_SYNC_COMPLETE.
 Google Sheets Workspace Content implementation = COMPLETE; REAL FIXTURE REPAIR = COMPLETE; REAL FINAL SHEETS VALIDATION = COMPLETE.
-LOCAL GIT CHECKPOINT = COMPLETE — HEAD db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; exactly 49 approved paths committed.
+IMPLEMENTATION CHECKPOINT = COMPLETE / VERIFIED — db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; exactly 49 approved paths committed.
 POST-CHECKPOINT VERIFICATION = COMPLETE — commit identity, parent, subject/body, 49-path tree, required/excluded paths, whitespace and no bulk line-ending rewrite = PASS.
 Bearer security classification = SAFE_SYNTHETIC_ONLY — 5 findings; 1 known synthetic; 4 deterministic fixtures; 0 ambiguous; 0 real; value disclosure = NONE.
 Validações preservadas sem rerun: focados 624/0/0; regressão completa 1433/0/0; sintaxe 26/0; MCP 24 / Read20 / Content4 / Write0 / duplicates0.
 Initial post-checkpoint repository state (before documentation sync):
-POST-CHECKPOINT DOCUMENTATION SYNC = COMPLETE — exactly seven authorized docs changed and staged; no commit created in this gate.
+POST-CHECKPOINT DOCUMENTATION SYNC = COMPLETE — seven authorized documents updated; DOCUMENTATION CHECKPOINT = COMPLETE / VERIFIED.
 REMOTE SYNCHRONIZATION = NOT PERFORMED; no push, rebase or merge occurred. Repository documentation is not execution authorization.
-PHASE STATUS = SYNCHRONIZED.
+PHASE STATUS = SYNCHRONIZED TO DURABLE PROJECT STATE.
 Active CONTINUE-n next-gate pointers = 0. Repository-authorized commit/push/rebase/runner/Google operations = NO; future actions require separate direct user authorization.
 
 ```text
@@ -19,7 +19,7 @@ GIT CHECKPOINT
 ├── commit identity / parent / subject = VERIFIED
 ├── required/excluded paths and commit whitespace = PASS; bulk line-ending rewrite = NO
 ├── Bearer security classification = SAFE_SYNTHETIC_ONLY
-├── post-checkpoint documentation sync = COMPLETE — exactly seven authorized documents staged
+├── post-checkpoint documentation sync = COMPLETE — seven authorized documents included in the verified documentation checkpoint
 ├── focused 624/0/0; regression 1433/0/0; syntax 26/0; MCP 24 / Read20 / Content4 / Write0 / duplicates0 preserved without rerun
 │   ├── findings = 5; known synthetic placeholder = 1; deterministic test fixtures = 4
 │   ├── derived test values = 0; ambiguous findings = 0; real credential findings = 0
@@ -31,7 +31,7 @@ GIT CHECKPOINT
 ├── local checkpoint = COMPLETE — db817b6d38d67b39287f91686c995f6eb318565f
 ├── post-checkpoint documentation sync = COMPLETE
 ├── repository-authorized commit/push/rebase/runner/Google operations = NO
-├── staged paths = exactly 7 authorized docs; unstaged tracked = 0; untracked nonignored = 0; ignored fixture staged = NO
+├── live Git operational state = VERIFY DIRECTLY FROM GIT WHEN REQUIRED
 └── remote synchronization = NOT PERFORMED
 ```
 
@@ -125,7 +125,7 @@ PHASE C — REPOSITORY RECONCILIATION                ✅ CONCLUÍDA — checkpoi
 ├── staged documentation recommendation remediation ✅ CONCLUÍDO — docs/04 updated first; six documents synchronized; stale active recommendations = 0
 ├── staged Bearer-literal classification              ✅ CONCLUÍDO — read-only; 5 findings; 1 known synthetic placeholder; 4 deterministic test fixtures; ambiguous/real credential findings = 0; SAFE_SYNTHETIC_ONLY; blocker RESOLVED
 ├── post-classification documentation sync            ✅ CONCLUÍDO — docs/04 changed first, docs/05 second; only those 2 paths changed; 47 non-target staged blobs unchanged; exact 49-path allow-list retained
-└── LOCAL GIT CHECKPOINT = COMPLETE                       ✅ CONCLUÍDO — HEAD db817b6d38d67b39287f91686c995f6eb318565f; POST-CHECKPOINT VERIFICATION = COMPLETE; DOC SYNC = COMPLETE (7 docs staged); REMOTE SYNC = NOT PERFORMED
+└── LOCAL GIT CHECKPOINT = COMPLETE                       ✅ CONCLUÍDO — implementation checkpoint db817b6d38d67b39287f91686c995f6eb318565f; POST-CHECKPOINT VERIFICATION = COMPLETE; DOC SYNC = COMPLETE (7 docs included in documentation checkpoint); REMOTE SYNC = NOT PERFORMED
 
 PHASE D — DEVELOPMENT ENVIRONMENT                  ⬜ PENDENTE — AFTER CHECKPOINT
 ├── evaluate primary development experience: VS Code + Codex
@@ -262,16 +262,16 @@ Esta documentação registra o estado e não autoriza operações Git ou Google 
 9. JSON canônico ignorado revisado para privacidade/tracking — ✅ CONCLUÍDO; um arquivo ignorado, sem identidade canônica ou segredo.
 10. Revisão integral de diff/integridade = ✅ PASS; unexpected paths = 0.
 
-Os pré-requisitos técnicos estão concluídos. Estado atual: LOCAL GIT CHECKPOINT = COMPLETE; HEAD
+Os pré-requisitos técnicos estão concluídos. O checkpoint de implementação está COMPLETE / VERIFIED:
 db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; exatamente 49 caminhos aprovados commitados.
 POST-CHECKPOINT VERIFICATION = COMPLETE; commit identity/parent/subject, tree, required/excluded paths and whitespace = PASS.
-Bearer classification = SAFE_SYNTHETIC_ONLY; staging = EMPTY; post-checkpoint worktree = CLEAN.
+Bearer classification = SAFE_SYNTHETIC_ONLY.
 REMOTE SYNCHRONIZATION = NOT PERFORMED; no push/rebase/merge occurred.
 
-POST-CHECKPOINT DOCUMENTATION SYNC = COMPLETE — exactly seven authorized documentation files staged.
+POST-CHECKPOINT DOCUMENTATION SYNCHRONIZATION = COMPLETE — seven authorized documentation files updated; DOCUMENTATION CHECKPOINT = COMPLETE / VERIFIED.
 Repository documentation is not authorization for future Git or Google operations; no next-gate pointer is active.
-PHASE STATUS = SYNCHRONIZED.
-Exact seven-document staged set; git diff --cached --check = PASS; git diff --check = PASS; commit created in this gate = 0.
+PHASE STATUS = SYNCHRONIZED TO DURABLE PROJECT STATE.
+Historical documentation-sync gate: the seven-document staged set passed git diff --cached --check and git diff --check; no commit was created in that gate.
 
 ```text
 WORKSPACE CONTENT 1.5.5 — BRAZILIAN PRE-REBASE READ PORT ARCHITECTURE OFFLINE V1
