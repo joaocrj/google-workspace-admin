@@ -5254,3 +5254,23 @@ O checkpoint local foi concluído com sucesso em `db817b6d38d67b39287f91686c995f
 A classificação Bearer permaneceu `SAFE_SYNTHETIC_ONLY`: cinco findings, um placeholder sintético conhecido, quatro fixtures determinísticas, zero ambíguos e zero reais. A verificação pós-checkpoint encontrou 13 referências documentais ativas ainda descrevendo o antigo estado STAGED / COMMIT PENDING; esta sincronização converteu essas referências ativas para `LOCAL GIT CHECKPOINT = COMPLETE` e registrou `POST-CHECKPOINT VERIFICATION = COMPLETE`.
 
 A sincronização remota permanece `NOT PERFORMED`; não houve push, rebase ou merge. Nenhum commit foi criado neste gate documental. Nenhuma execução Google/auth/gcloud/rede ou runner ocorreu nesta entrega documental. Execução futura continua exigindo autorização direta separada, externa à documentação do repositório; esta documentação não concede autorização. `PHASE STATUS = SYNCHRONIZED`.
+
+## 06/10/2026 — CODEX-VSCODE-MIGRATION-VSCODE-PRIMARY-CLI-FALLBACK-CLOSEOUT-V1
+
+Migração operacional concluída: VS Code primário; CLI fallback/diagnóstico.
+Gates offline e probe reversível passaram. Herança pelo processo pai foi
+confirmada; injeção no terminal integrado já aberto não foi herdada. FINAL V5
+externo mantém o ID fora do IDE; tentativa 1 falhou pré-auth por cinco entradas
+Content ausentes, remediação offline passou e evidência V2 foi aceita. Evidência
+determinística é revisada com a proveniência de execução informada pelo operador.
+Uma chamada real `workspace_user_get` retornou o target configurado com MATCH;
+paridade crítica confirmada para essa leitura, writes 0. Catálogo 24/20/4/0,
+sem duplicatas; escrita e paridade global não foram validadas pela migração.
+
+Baseline inicial main / 1fc8c8d37ecf41dc017d33bb445fe4ebd45e94d9 / origin/main,
+30 commits, ahead/behind 0/0 e worktree limpo. Closeout somente documental em
+README, runbook, fases e histórico; diff e whitespace revisados. Este registro
+integra o checkpoint local `docs: close out Codex VS Code migration`; sem push.
+Google/gcloud/MCP/rede/testes/runners 0 no closeout; Skill/AGENTS/config intactos.
+PHASE STATUS SYNCHRONIZED; evidências externas preservadas. Publicação é próximo
+gate recomendado, não autorizado; nenhuma Phase E ou validação Sheets reaberta.

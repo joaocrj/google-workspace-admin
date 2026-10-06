@@ -63,9 +63,11 @@ REMOTE SYNCHRONIZATION = NOT PERFORMED. This README does not authorize future op
 A Phase A de alinhamento está concluída. A Phase B de Sheets 1.5.5 e a
 reconciliação offline da Phase C estão concluídas; LOCAL GIT CHECKPOINT = COMPLETE
 (HEAD db817b6d38d67b39287f91686c995f6eb318565f); POST-CHECKPOINT VERIFICATION = COMPLETE; REMOTE SYNCHRONIZATION = NOT PERFORMED.
-Repository documentation is not execution authorization for future Git or Google operations. A migração para VS Code + Codex
-permanece pendente para a Phase D pós-checkpoint; Codex CLI continua disponível para gates
-controlados.
+Repository documentation is not execution authorization for future Git or Google operations. A migração para VS Code + Codex foi concluída: Codex VS Code é o executor
+primário; Codex CLI (`codex.cmd` no Windows) é fallback/diagnóstico. A paridade
+MCP real foi confirmada para uma leitura representativa `workspace_user_get`;
+paridade de escrita não foi validada. Herança de ambiente e validação FINAL
+Sheets com segredo fora do IDE seguem o [runbook](docs/03_OPERATING_RUNBOOK.md#codex-vs-code-primário-e-cli-fallback). Cada gate exige autorização direta e escopada.
 
 Antigravity é apenas um ambiente secundário futuro opcional (`OPTIONAL_FUTURE_SECONDARY_ENVIRONMENT`). Não há migração nem configuração Antigravity agora; uma avaliação futura verificará configuração MCP, stdio, herança de ambiente, permissões/sandbox e descoberta de instruções. Para uso simultâneo, prefira branch ou worktree isolada.
 

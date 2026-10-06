@@ -1,5 +1,49 @@
 # Runbook de operação e desenvolvimento
 
+## Codex VS Code primário e CLI fallback
+
+Desde 06/10/2026, Codex VS Code é o executor primário. Codex CLI permanece
+instalado como fallback/diagnóstico: comparação, reprodução de problema do IDE,
+recuperação da integração indisponível e investigação de divergência de runtime
+ou compatibilidade dirigida pelo operador. No Windows, usar `codex.cmd`.
+A migração confirmou uma leitura real `workspace_user_get` no MCP crítico;
+não confirma todas as tools/servidores/serviços nem paridade de escrita.
+Catálogo público permanece 24 total / 20 Read / 4 Content / 0 Write / 0 duplicatas.
+Documentos e comandos de exemplo não concedem autorização para executar gates.
+
+Variáveis criadas só no PowerShell integrado já aberto não são garantidamente
+herdadas pelo Codex IDE existente. Quando um gate exige herança process-local:
+fechar todos os processos VS Code, preparar somente as variáveis necessárias
+em PowerShell externo e iniciar uma instância nova a partir dele. Remover as
+variáveis efêmeras antes de um lançamento limpo posterior. Gates comuns sem
+esse requisito não precisam desse procedimento.
+
+Para REAL FINAL Sheets, `GSHEETS_VALIDATION_V1_FILE_ID` fica fora do IDE:
+PowerShell/processo de validação externo → FINAL V5 read-only → evidência
+allowlisted → remoção do ID do pai → VS Code novo → revisão apenas da evidência.
+Não gravar o ID em repositório, `.env`, settings, docs, Skill ou AGENTS.
+O V5 congelado exige cinco entradas transitórias `GOOGLE_WORKSPACE_CONTENT_`:
+`PROJECT_ID`, `SERVICE_ACCOUNT`, `SUBJECT`, `CUSTOMER_ID`, `DOMAIN`; não faz
+fallback para config.toml. O operador pode obter as cinco entradas existentes
+da configuração local sem exibir valores; não persistir em User/Machine.
+O wrapper verifica a identidade SHA-256 canônica antes da execução: V5 valida
+somente sintaxe do ID. A aceitação exige exit 0 e JSON V5 final
+`OBSERVATION_COMPLETE` / `SUCCEEDED` / `failure_category=null`, contrato de
+observação/sanitização válido e ausência de sibling `.tmp`. Remover ID,
+marcadores LOCAL/ADC e as cinco entradas Content antes do lançamento final.
+`WSAE_FINAL_READY=1` e `WSAE_SANITIZED_EVIDENCE_PATH` são metadados seguros de
+orquestração externa após essas verificações; marcador não substitui revisão
+independente. Evidência determinística não comprova sozinha nova execução.
+
+Preflight ADC do operador usa `gcloud.cmd auth application-default print-access-token`,
+sem exibir/exportar o token. Somente se falhar, usar
+`gcloud.cmd auth application-default login`; autenticação interativa esperada
+fica fora de scriptblocks estritos fail-closed. Não usar `gcloud auth login`
+como rotina deste fluxo. Não imprimir PASS após falha; retornar STOP/FAIL
+controlado. Usar `@(...)` antes de `.Count`/indexação de pipeline, manter
+`else` junto do bloco correspondente ao colar procedimentos e não alterar
+ExecutionPolicy. Execuções Google e MCP continuam sujeitas à autorização exata.
+
 ## Pré-requisitos locais
 
 - Windows e PowerShell, com `uv` disponível;

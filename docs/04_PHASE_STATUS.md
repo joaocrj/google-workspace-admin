@@ -1,5 +1,35 @@
 # Andamento das fases
 
+## Migração Codex VS Code — estado atual em 06/10/2026
+
+`MIGRATION_CUTOVER = APPROVED`; `PRIMARY_CODEX_SURFACE = VS_CODE`;
+`CLI_ROLE = FALLBACK_DIAGNOSTIC`. A migração confirmou gates offline, escrita
+sintética reversível, herança pelo processo pai, validação FINAL V5 externa com
+segredo fora do IDE e uma leitura MCP real `workspace_user_get` para o target
+configurado. `REAL_PHASE_C = COMPLETE`; `GOOGLE_WORKSPACE_ADMIN_VSCODE = OPERATIONAL`.
+`PROJECT_CRITICAL_MCP_PARITY = CONFIRMED_FOR_REAL_READONLY_OPERATION`;
+`WRITE_PARITY = NOT_VALIDATED_AND_NOT_REQUIRED_FOR_CUTOVER`. Catálogo preservado:
+24 total / Read20 / Content4 / Write0 / duplicates0.
+
+```text
+MIGRAÇÃO CODEX CLI → CODEX VS CODE
+├── baseline/capacidades e equivalência offline       ✅ CONCLUÍDO
+├── escrita sintética e cleanup controlados           ✅ CONCLUÍDO
+├── herança externa e readiness sintética/ADC          ✅ CONCLUÍDO
+├── FINAL V5 externo e revisão sanitizada              ✅ CONCLUÍDO
+│   ├── tentativa 1: CONFIGURATION_FAILURE pré-auth; cinco Content vars ausentes
+│   └── remediação offline PASS; tentativa V2 ACCEPTED; ID fora do IDE
+├── MCP real readonly                                 ✅ CONCLUÍDO — workspace_user_get, uma chamada, target MATCH; writes 0
+├── cutover e documentação operacional                ✅ CONCLUÍDO — VS Code primário; CLI fallback
+├── checkpoint documental local                       ✅ CONCLUÍDO — incluído no commit docs: close out Codex VS Code migration; identidade consultável no Git
+└── publicação deste checkpoint                       ⬜ PENDENTE — push não autorizado
+```
+
+`PHASE STATUS = SYNCHRONIZED`. Próximo gate recomendado:
+`CODEX-VSCODE-MIGRATION-CLOSEOUT-PUBLICATION-V1`, NOT AUTHORIZED; não inicia
+Phase E nem reabre Sheets 1.5.5. Regras duráveis no runbook; marcos no histórico.
+Estados de checkpoint/sincronização remota de 04/10 abaixo são históricos.
+
 Última consolidação documental: 04/10/2026 — WORKSPACE-CONTENT-GSHEETS-BRAZILIAN-PRE-REBASE-POST-CHECKPOINT-DOCUMENTATION-SYNC-OFFLINE-V1 / PASS — A — GSHEETS_PRE_REBASE_POST_CHECKPOINT_DOCUMENTATION_SYNC_COMPLETE.
 Google Sheets Workspace Content implementation = COMPLETE; REAL FIXTURE REPAIR = COMPLETE; REAL FINAL SHEETS VALIDATION = COMPLETE.
 IMPLEMENTATION CHECKPOINT = COMPLETE / VERIFIED — db817b6d38d67b39287f91686c995f6eb318565f; parent a88110730db23ccd43e8c4ac030e113945f20114; exactly 49 approved paths committed.
@@ -127,10 +157,10 @@ PHASE C — REPOSITORY RECONCILIATION                ✅ CONCLUÍDA — checkpoi
 ├── post-classification documentation sync            ✅ CONCLUÍDO — docs/04 changed first, docs/05 second; only those 2 paths changed; 47 non-target staged blobs unchanged; exact 49-path allow-list retained
 └── LOCAL GIT CHECKPOINT = COMPLETE                       ✅ CONCLUÍDO — implementation checkpoint db817b6d38d67b39287f91686c995f6eb318565f; POST-CHECKPOINT VERIFICATION = COMPLETE; DOC SYNC = COMPLETE (7 docs included in documentation checkpoint); REMOTE SYNC = NOT PERFORMED
 
-PHASE D — DEVELOPMENT ENVIRONMENT                  ⬜ PENDENTE — AFTER CHECKPOINT
-├── evaluate primary development experience: VS Code + Codex
-├── keep Codex CLI available for controlled gates
-└── evaluate Antigravity only as optional secondary environment
+PHASE D — DEVELOPMENT ENVIRONMENT
+├── VS Code + Codex primary cutover                  ✅ CONCLUÍDO — migração validada em 06/10/2026
+├── Codex CLI fallback/diagnostic                    ✅ CONCLUÍDO — codex.cmd; sem remoção
+└── Antigravity optional secondary environment       ⬜ PENDENTE — avaliação opcional, não autorizada
 
 PHASE E — MVP LOCAL READ-ONLY                      ⬜ PENDENTE
 └── stabilize installation, configuration, host permissions, operator docs,
@@ -312,15 +342,12 @@ preservada sem rerun; `PHASE STATUS = SYNCHRONIZED`.
 
 ### Ambientes de desenvolvimento após o checkpoint
 
-`VS_CODE_MIGRATION_STATUS = DEFERRED_UNTIL_POST_CHECKPOINT`. O ponto recomendado
-de decisão é: Sheets 1.5.5 final validation PASS + full regression PASS + docs
-reconciled + Git checkpoint completed. A avaliação comparará benefícios de
-migração com o custo de transição do host e configuração; migração não é
-obrigatória. Python source, tests, `uv.lock`, Git history e instruções do
-repositório são portáveis. Configuração MCP, herança de ambiente,
-approval/sandbox, instruções específicas do agente e segredos/config local são
-dependentes do host. Nenhuma configuração VS Code será criada agora; Codex CLI
-permanece disponível para gates controlados.
+`VS_CODE_MIGRATION_STATUS = COMPLETE` em 06/10/2026. VS Code + Codex é o
+executor primário; Codex CLI permanece fallback/diagnóstico. O estado anterior
+DEFERRED_UNTIL_POST_CHECKPOINT foi superado após os checkpoints e a migração
+controlada. Herança de ambiente e a boundary de segredos seguem o runbook;
+nenhuma configuração do host foi alterada pelo closeout. A paridade MCP real
+confirmada é somente a leitura representativa do servidor crítico do projeto.
 
 `ANTIGRAVITY_STATUS = OPTIONAL_FUTURE_SECONDARY_ENVIRONMENT`. Não migrar nem
 criar configuração agora. Antes de eventual uso, verificar o produto atual:
