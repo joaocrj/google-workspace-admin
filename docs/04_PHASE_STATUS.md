@@ -2,7 +2,12 @@
 
 ## Migração Codex VS Code — estado atual em 06/10/2026
 
-`MIGRATION_CUTOVER = APPROVED`; `PRIMARY_CODEX_SURFACE = VS_CODE`;
+`MIGRATION_STATUS = COMPLETE`; `MIGRATION_CUTOVER = APPROVED`;
+`PRIMARY_CODEX_SURFACE = VS_CODE`; `CODEX_VSCODE_PRIMARY = YES`;
+`CODEX_CLI_FALLBACK = YES`; `CLI_REMOVAL = NOT_REQUIRED`;
+`REAL_GOOGLE_EXTERNAL_VALIDATION = CONFIRMED`;
+`SECRET_OUTSIDE_IDE_MODEL = CONFIRMED`;
+`REAL_MCP_READONLY_COMPATIBILITY = CONFIRMED`;
 `CLI_ROLE = FALLBACK_DIAGNOSTIC`. A migração confirmou gates offline, escrita
 sintética reversível, herança pelo processo pai, validação FINAL V5 externa com
 segredo fora do IDE e uma leitura MCP real `workspace_user_get` para o target
@@ -22,11 +27,20 @@ MIGRAÇÃO CODEX CLI → CODEX VS CODE
 ├── MCP real readonly                                 ✅ CONCLUÍDO — workspace_user_get, uma chamada, target MATCH; writes 0
 ├── cutover e documentação operacional                ✅ CONCLUÍDO — VS Code primário; CLI fallback
 ├── checkpoint documental local                       ✅ CONCLUÍDO — incluído no commit docs: close out Codex VS Code migration; identidade consultável no Git
-└── publicação deste checkpoint                       ⬜ PENDENTE — push não autorizado
+└── publicação do closeout                            ✅ CONCLUÍDO — commit 67cda9bb631680db024309004e9c29f79d2b552a publicado em origin/main
 ```
 
-`PHASE STATUS = SYNCHRONIZED`. Próximo gate recomendado:
-`CODEX-VSCODE-MIGRATION-CLOSEOUT-PUBLICATION-V1`, NOT AUTHORIZED; não inicia
+`CLOSEOUT_PUBLICATION = COMPLETE`. O commit acima é o marco histórico do
+closeout publicado, não um requisito de HEAD atual. A migração controlada
+CODEX CLI → CODEX VS CODE está COMPLETE, sem gates obrigatórios restantes.
+Implementações futuras do MCP pertencem a objetivos/gates separados; limpeza
+de evidências temporárias é housekeeping opcional, não bloqueia a migração.
+
+`PHASE STATUS = SYNCHRONIZED`; `PHASE_STATUS_SYNC = COMPLETE`;
+`PUBLICATION_STATUS_DOCUMENTED = COMPLETE`;
+`SELF_REFERENTIAL_HEAD_TRACKING = AVOIDED`.
+Próximo gate de housekeeping recomendado:
+`POST-MIGRATION-PHASE-STATUS-PUBLICATION-V1`, NOT AUTHORIZED; não inicia
 Phase E nem reabre Sheets 1.5.5. Regras duráveis no runbook; marcos no histórico.
 Estados de checkpoint/sincronização remota de 04/10 abaixo são históricos.
 
